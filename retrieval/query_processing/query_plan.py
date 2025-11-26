@@ -133,9 +133,8 @@ class QueryPlanner:
         if mode_config.enhance_query:
             enhanced = self.query_enhancer.enhance(
                 normalized,
-                mode,
-                expand_synonyms=mode_config.expand_synonyms,
-                extract_entities=mode_config.extract_entities
+                entities,  # Pass entities as second parameter
+                mode.value  # Pass mode as string value
             )
         else:
             enhanced = normalized

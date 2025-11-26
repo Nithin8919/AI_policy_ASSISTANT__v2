@@ -23,12 +23,12 @@ class AnswerGenerator:
     def __init__(self):
         """Initialize answer generator"""
         # Configure Gemini
-        api_key = os.getenv("GEMINI_API_KEY")
+        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY environment variable not set")
+            raise ValueError("GEMINI_API_KEY or GOOGLE_API_KEY environment variable not set")
         
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel("gemini-1.5-flash")
+        self.model = genai.GenerativeModel("gemini-2.0-flash")
         
         logger.info("✅ Answer generator initialized")
     
@@ -270,6 +270,19 @@ Suggest innovative approaches, citing existing policies where relevant:
             confidence += 0.1
         
         return min(confidence, 1.0)
+    
+    # Backward compatibility aliases
+    def generate_qa_answer(self, query: str, results: List[Dict], max_tokens: int = 500) -> Dict:
+        """Alias for QA mode generation (backward compatibility)"""
+        return self.generate(query, results, "qa", max_context_chunks=5)
+    
+    def generate_deep_think_answer(self, query: str, results: List[Dict], max_tokens: int = 3000) -> Dict:
+        """Alias for Deep Think mode generation (backward compatibility)"""
+        return self.generate(query, results, "deep_think", max_context_chunks=20)
+    
+    def generate_brainstorm_answer(self, query: str, results: List[Dict], max_tokens: int = 2000) -> Dict:
+        """Alias for Brainstorm mode generation (backward compatibility)"""
+        return self.generate(query, results, "brainstorm", max_context_chunks=15)
 
 
 # Global instance

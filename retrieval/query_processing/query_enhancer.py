@@ -111,14 +111,14 @@ class QueryEnhancer:
             
         Example:
             entities = {"section": [Entity("12")], "year": [Entity("2020")]}
-            returns = {"sections": ["12"], "year": ["2020"]}
+            returns = {"section": ["12"], "year": ["2020"]}
         """
         filters = {}
         
-        # ✅ Section filter - use "sections" (plural) to match ingestion
+        # ✅ Section filter - CRITICAL FIX: use "section" (singular) to match actual data
         sections = self.entity_extractor.get_entity_values(entities, "section")
         if sections:
-            filters["sections"] = sections  # ✅ CORRECT FIELD NAME
+            filters["section"] = sections  # 🔧 FIXED: Use singular "section" not "sections"
         
         # ✅ Year filter - use "year" (matches ingestion)
         years = self.entity_extractor.get_entity_values(entities, "year")
