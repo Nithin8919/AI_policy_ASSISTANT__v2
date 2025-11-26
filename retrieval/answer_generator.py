@@ -98,14 +98,23 @@ class AnswerGenerator:
     def _format_context(self, results: List[Dict]) -> str:
         """
         Format context with clear doc numbers.
+        
+        FIXED: Use correct result structure - data is directly on result, not in 'payload'
         """
         context_parts = []
         
         for i, result in enumerate(results, 1):
-            payload = result.get("payload", {})
-            text = payload.get("text", "")
-            source = payload.get("source", "Unknown")
+            # FIXED: Data is directly on result object
+            text = result.get("text", "")
             vertical = result.get("vertical", "")
+            
+            # Get metadata for source info
+            metadata = result.get("metadata", {})
+            source = metadata.get("source", "Unknown Source")
+            
+            # Fallback to chunk_id if no source
+            if source == "Unknown Source":
+                source = result.get("chunk_id", "Unknown")
             
             context_parts.append(f"""
 Doc {i}:
@@ -218,30 +227,33 @@ Suggest innovative approaches, citing existing policies where relevant:
         """
         Build bibliography from results.
         
+        FIXED: Use correct result structure - data is directly on result, not in 'payload'
+        
         Returns:
             List of bibliography entries
         """
         bibliography = []
         
         for i, result in enumerate(results, 1):
-            payload = result.get("payload", {})
+            # FIXED: Get metadata from correct location
+            metadata = result.get("metadata", {})
             
             entry = {
                 "number": i,
-                "source": payload.get("source", "Unknown Source"),
+                "source": metadata.get("source", result.get("chunk_id", "Unknown Source")),
                 "vertical": result.get("vertical", ""),
-                "doc_type": payload.get("doc_type", ""),
-                "year": payload.get("year", ""),
-                "url": payload.get("url")
+                "doc_type": metadata.get("doc_type", ""),
+                "year": metadata.get("year", ""),
+                "url": metadata.get("url")
             }
             
-            # Add vertical-specific fields
+            # Add vertical-specific fields from metadata
             if result.get("vertical") == "legal":
-                entry["section"] = payload.get("section", "")
+                entry["section"] = metadata.get("section", "")
             elif result.get("vertical") == "go":
-                entry["go_number"] = payload.get("go_number", "")
+                entry["go_number"] = metadata.get("go_number", "")
             elif result.get("vertical") == "judicial":
-                entry["case_number"] = payload.get("case_number", "")
+                entry["case_number"] = metadata.get("case_number", "")
             
             bibliography.append(entry)
         

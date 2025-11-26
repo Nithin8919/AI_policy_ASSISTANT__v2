@@ -141,15 +141,15 @@ class RetrievalTestSuite:
             # Build filters
             filters = enhancer.build_filter_dict(entities)
             
-            # Verify correct field name
-            if "sections" in filters:
-                if "12" in filters["sections"]:
+            # Verify correct field name (FIXED: now expects "section" not "sections")
+            if "section" in filters:
+                if "12" in filters["section"]:
                     logger.info(f"  ✅ Filter generated correctly: {filters}")
                     self.record_pass(test_name, f"Correct filter: {filters}")
                 else:
                     self.record_fail(test_name, f"Wrong value in filter: {filters}")
             else:
-                self.record_fail(test_name, f"Wrong field name (expected 'sections'): {filters}")
+                self.record_fail(test_name, f"Wrong field name (expected 'section'): {filters}")
                 
         except Exception as e:
             self.record_fail(test_name, f"Filter generation error: {e}")
@@ -205,7 +205,7 @@ class RetrievalTestSuite:
                     plan = response["plan"]
                     filters = plan.get("filters", {})
                     
-                    if "sections" in filters:
+                    if "section" in filters:
                         logger.info(f"  ✅ Filters applied: {filters}")
                         self.record_pass(test_name, "Section query works end-to-end")
                     else:
