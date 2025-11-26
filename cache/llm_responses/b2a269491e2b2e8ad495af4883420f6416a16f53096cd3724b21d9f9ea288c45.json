@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.95,
+    "reasoning": "The document discusses the ASER testing tools and provides information about their psychometric properties, comparisons with reading fluency measures, and the classification of children based on their performance in reading and math, indicating a focus on data and analysis.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3057,
+  "cached_at": "2025-11-26T02:33:03.851608"
+}

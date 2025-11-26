@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.95,
+    "reasoning": "The document presents statistics, tables, and enrollment data related to the National Achievement Survey, classifying it as a data report.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3019,
+  "cached_at": "2025-11-26T01:59:35.256737"
+}

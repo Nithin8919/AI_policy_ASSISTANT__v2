@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "legal",
+    "confidence": 0.95,
+    "reasoning": "The document discusses the Right to Education (RTE) Act and Article 21-A of the Indian Constitution, indicating a legal context.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3015,
+  "cached_at": "2025-11-26T02:26:31.199723"
+}

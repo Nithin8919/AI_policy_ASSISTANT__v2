@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "legal",
+    "confidence": 0.95,
+    "reasoning": "The document discusses the Right to Education Act (RTE Act), Article 21A of the Constitution, and related legal provisions, making it a legal document.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3015,
+  "cached_at": "2025-11-26T02:07:49.385115"
+}

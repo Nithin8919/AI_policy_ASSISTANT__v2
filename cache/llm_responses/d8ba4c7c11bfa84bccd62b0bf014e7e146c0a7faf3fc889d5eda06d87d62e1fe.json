@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.95,
+    "reasoning": "The document appears to be a budget estimates report, containing financial allocations and administrative information for various departments, which falls under the 'data' category.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3019,
+  "cached_at": "2025-11-26T02:18:52.639934"
+}

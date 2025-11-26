@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.95,
+    "reasoning": "The document presents statistics and numerical data related to school infrastructure improvement, including project status, expenditures, and the number of schools involved, which aligns with the characteristics of a data report.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 2561,
+  "cached_at": "2025-11-26T02:08:55.341145"
+}

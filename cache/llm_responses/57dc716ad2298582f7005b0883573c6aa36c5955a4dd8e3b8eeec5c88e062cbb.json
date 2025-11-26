@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.95,
+    "reasoning": "The document is an Outcome Budget containing targets, strategies, and performance indicators which are all forms of data reporting.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3019,
+  "cached_at": "2025-11-26T02:22:36.068645"
+}

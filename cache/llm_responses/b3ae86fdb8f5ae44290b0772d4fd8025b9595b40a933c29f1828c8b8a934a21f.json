@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document has a reference number, mentions G.O.Ms.No, refers to official orders and directions from the Director of School Education, indicating it is a Government Order.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3035,
+  "cached_at": "2025-11-26T01:11:57.267049"
+}

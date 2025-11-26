@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.99,
+    "reasoning": "The document contains UDISE+ data for 2023-24, including enrollment statistics, school information, and infrastructure details, presented in tables and highlights, which clearly falls under the 'data' category.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3030,
+  "cached_at": "2025-11-26T01:13:45.361019"
+}

@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.95,
+    "reasoning": "The document appears to be an analysis of demands for grants, including references to budget estimates and volumes, which aligns with the 'data' category.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3014,
+  "cached_at": "2025-11-26T02:22:39.650616"
+}

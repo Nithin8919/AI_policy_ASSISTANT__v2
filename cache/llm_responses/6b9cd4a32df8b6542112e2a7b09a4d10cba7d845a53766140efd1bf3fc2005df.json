@@ -1,0 +1,32 @@
+{
+  "response": [
+    {
+      "relation_type": "implements",
+      "source_id": "procs.rc_.no_.1078085_mdm_2020_dt.17.11.2022",
+      "target": "PM POSHAN - Jagananna Gorumudda (Mid Day Meal)",
+      "confidence": 0.9,
+      "context": "Implementation of revision of existing revised menu",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "procs.rc_.no_.1078085_mdm_2020_dt.17.11.2022",
+      "target": "Govt.Memo No.ESEOl-SEDNOCSE/l 731/Prog.1/2019, Date.13-01-2020",
+      "confidence": 0.95,
+      "context": "Ref: !.Govt.Memo No.ESEOl-SEDNOCSE/l 731/Prog.1/2019",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "procs.rc_.no_.1078085_mdm_2020_dt.17.11.2022",
+      "target": "Procs.Rc.No.ESE02-27021-10-2020-MDM-CSE, dt.16-01-2020",
+      "confidence": 0.95,
+      "context": "This office Procs.Rc.No.ESE02-27021-10-2020-MDM-CSE, dt.16-01-2020",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1181,
+  "cached_at": "2025-11-26T01:07:53.574073"
+}

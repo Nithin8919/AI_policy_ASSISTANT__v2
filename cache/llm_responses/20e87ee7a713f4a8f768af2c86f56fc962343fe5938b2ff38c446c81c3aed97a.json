@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.95,
+    "reasoning": "The document appears to contain tabular data, likely related to statistics or numerical information, which aligns with the 'data' category.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 312,
+  "cached_at": "2025-11-26T02:31:16.549596"
+}

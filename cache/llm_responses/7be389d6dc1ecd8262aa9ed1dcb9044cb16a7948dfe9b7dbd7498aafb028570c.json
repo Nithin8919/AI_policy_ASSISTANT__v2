@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.95,
+    "reasoning": "The document presents budget estimates, demand summaries, and expenditure details, clearly indicating it is a data report related to financial allocations for the Industries and Commerce Department.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3020,
+  "cached_at": "2025-11-26T02:17:55.667218"
+}

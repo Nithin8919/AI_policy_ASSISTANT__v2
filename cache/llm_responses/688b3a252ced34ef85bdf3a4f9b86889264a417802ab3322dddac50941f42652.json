@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document contains a reference number in the format of Procs.Rc.No, directives, and instructions related to the implementation of a revised menu for the Mid Day Meal scheme, which aligns with the characteristics of a Government Order.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3049,
+  "cached_at": "2025-11-26T01:07:51.213508"
+}

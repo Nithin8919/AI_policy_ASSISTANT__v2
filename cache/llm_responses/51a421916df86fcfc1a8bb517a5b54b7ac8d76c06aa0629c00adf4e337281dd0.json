@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "faqs_on_teacher_transfer",
+      "target": "G.O.342, Dt.16-08",
+      "confidence": 0.85,
+      "context": "as per G.O.342, Dt.16-08 Candidates who have been deputed to undergo higher studies",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 3776,
+  "cached_at": "2025-11-26T01:11:53.360211"
+}

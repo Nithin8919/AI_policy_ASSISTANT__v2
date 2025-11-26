@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "legal",
+    "confidence": 0.9,
+    "reasoning": "The document discusses the Right to Education Act, Section 12, and reservation policies, which fall under the category of legal and regulatory frameworks.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3016,
+  "cached_at": "2025-11-26T01:59:32.349922"
+}

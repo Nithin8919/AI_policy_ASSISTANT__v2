@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "legal",
+    "confidence": 0.95,
+    "reasoning": "The document is titled \"THE ANDHRA PRADESH SCHOOL EDUCATION MANAGEMENT(COMMUNITY PARTICIPATION) ACT, 1998\" and includes sections, definitions, and enacting clauses, which are characteristic of legal documents.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3019,
+  "cached_at": "2025-11-26T02:27:13.010291"
+}

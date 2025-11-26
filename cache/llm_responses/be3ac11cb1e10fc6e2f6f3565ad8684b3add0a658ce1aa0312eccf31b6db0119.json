@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.95,
+    "reasoning": "This document presents budget estimates and details allocation for various irrigation projects, which strongly suggests it is a data report.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3020,
+  "cached_at": "2025-11-26T02:01:15.070352"
+}

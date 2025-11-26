@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.8,
+    "reasoning": "The document discusses the role and objectives of DIETs, including monitoring and analysis, which aligns with data reporting and institutional overview.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3055,
+  "cached_at": "2025-11-26T02:20:42.935209"
+}

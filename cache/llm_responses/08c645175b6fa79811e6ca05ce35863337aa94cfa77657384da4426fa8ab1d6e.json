@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "scheme",
+    "confidence": 0.95,
+    "reasoning": "The document provides guidelines for District Institutes of Education and Training (DIETs), which falls under the category of a government scheme related to education.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3065,
+  "cached_at": "2025-11-26T02:21:24.501836"
+}

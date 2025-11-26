@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.99,
+    "reasoning": "The document contains UDISE+ data for 2024-25 with tables, statistics, enrollment data, and national highlights, which are all characteristic of a data report.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3035,
+  "cached_at": "2025-11-26T01:50:43.213640"
+}

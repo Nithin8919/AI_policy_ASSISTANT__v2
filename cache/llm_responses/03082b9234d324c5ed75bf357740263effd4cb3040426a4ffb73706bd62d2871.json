@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.9,
+    "reasoning": "The document contains tables, statistics and financial data, which are characteristic of data reports.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3015,
+  "cached_at": "2025-11-26T02:28:38.583834"
+}

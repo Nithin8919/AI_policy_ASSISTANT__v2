@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.8,
+    "reasoning": "The document describes an academic calendar with schedules, activities, and timelines, indicating a data report type of document.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3032,
+  "cached_at": "2025-11-26T02:26:01.780467"
+}

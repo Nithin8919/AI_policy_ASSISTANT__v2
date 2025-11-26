@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.95,
+    "reasoning": "The document contains department-wise schemes and appears to be a report or compilation of data related to different departments and their respective schemes, especially concerning Scheduled Castes Component, making it a 'data' report.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3017,
+  "cached_at": "2025-11-26T02:03:41.712536"
+}

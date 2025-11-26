@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.9,
+    "reasoning": "The document discusses a comparative study of District Institutes of Education and Training and appears to be a report with findings, suggesting a data-oriented document.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3013,
+  "cached_at": "2025-11-26T02:19:23.544349"
+}

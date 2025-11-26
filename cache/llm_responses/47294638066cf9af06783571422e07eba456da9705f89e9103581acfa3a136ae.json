@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "scheme",
+    "confidence": 0.95,
+    "reasoning": "The document outlines the 'Minorities Component' for 2024-25, detailing department-wise schemes, budgetary allocations, and the objectives of the initiative, which aligns with the characteristics of a government scheme document.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3016,
+  "cached_at": "2025-11-26T02:04:49.394216"
+}

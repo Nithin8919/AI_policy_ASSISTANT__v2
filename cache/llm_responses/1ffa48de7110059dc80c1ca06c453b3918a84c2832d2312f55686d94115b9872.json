@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.95,
+    "reasoning": "The document is a state report of the PARAKH Rashtriya Sarvekshan 2024, which assesses the quality of education and provides insights into the effectiveness of educational interventions, making it a data report.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3033,
+  "cached_at": "2025-11-26T02:08:59.756246"
+}

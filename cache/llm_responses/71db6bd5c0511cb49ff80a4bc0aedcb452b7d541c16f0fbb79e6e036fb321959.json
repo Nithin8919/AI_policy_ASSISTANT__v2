@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.99,
+    "reasoning": "The document is a UDISE+ report containing statistics, tables, and enrollment data, which clearly falls under the 'data' category.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3039,
+  "cached_at": "2025-11-26T01:12:51.993558"
+}

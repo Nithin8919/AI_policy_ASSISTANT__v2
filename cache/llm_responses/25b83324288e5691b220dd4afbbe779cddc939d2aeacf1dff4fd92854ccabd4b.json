@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "scheme",
+    "confidence": 0.95,
+    "reasoning": "The document outlines a concept note on empowering DIETs as centers of excellence, including objectives, vision, beneficiaries, and implementation strategies, which aligns with the characteristics of a government scheme document.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3022,
+  "cached_at": "2025-11-26T02:03:55.472068"
+}

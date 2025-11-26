@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.95,
+    "reasoning": "The document presents budget analysis with GSDP figures, expenditure, receipts, and deficits, along with sector-wise contributions, which falls under the 'data' category.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3031,
+  "cached_at": "2025-11-26T01:52:30.365265"
+}

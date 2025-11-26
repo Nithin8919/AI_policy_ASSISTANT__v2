@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.95,
+    "reasoning": "The document contains numerical data, percentages, and references to subjects like Mathematics, Science, and EVS, suggesting a data report.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 2278,
+  "cached_at": "2025-11-26T01:55:53.964181"
+}

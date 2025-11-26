@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "legal",
+    "confidence": 0.8,
+    "reasoning": "The document is the 'National Policy on Education 1986', which is a policy document and has elements of a legal framework for education, placing it in the 'legal' category.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3008,
+  "cached_at": "2025-11-26T02:19:41.943177"
+}

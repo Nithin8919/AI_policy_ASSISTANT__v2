@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.9,
+    "reasoning": "The document consists of numbers arranged in a tabular format, suggesting it's a data report or statistical information.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 310,
+  "cached_at": "2025-11-26T02:16:36.873535"
+}

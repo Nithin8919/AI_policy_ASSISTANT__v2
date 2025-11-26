@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "scheme",
+    "confidence": 0.95,
+    "reasoning": "The document outlines a plan for the accelerated development of minority communities with specific schemes and budget allocations, which aligns with the definition of a government scheme document.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3014,
+  "cached_at": "2025-11-26T02:04:20.976634"
+}

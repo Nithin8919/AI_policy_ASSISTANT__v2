@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.95,
+    "reasoning": "The document presents supplementary data related to Samagra Shiksha in Andhra Pradesh, including tables and statistics on proposed and approved quantities and costs for various educational components and activities, which aligns with the characteristics of a data report.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3020,
+  "cached_at": "2025-11-26T02:04:03.777521"
+}

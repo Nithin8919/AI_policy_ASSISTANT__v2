@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "scheme",
+    "confidence": 0.95,
+    "reasoning": "The document outlines department-wise schemes under the Scheduled Tribes Component, suggesting it's a government scheme-related document.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3019,
+  "cached_at": "2025-11-26T02:32:34.282534"
+}

@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "data",
+    "confidence": 0.99,
+    "reasoning": "The document is the UDISE+ report for 2023-24, which is a statistical report containing enrollment data, school infrastructure details, and other educational metrics, thus classifying it as data.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3035,
+  "cached_at": "2025-11-26T01:52:06.152066"
+}

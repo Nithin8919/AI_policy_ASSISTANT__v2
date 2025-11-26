@@ -1,0 +1,812 @@
+2025-11-26 12:00:40,962 - INFO - 🚀 Starting OPTIMIZED flagship data embedding and upload
+2025-11-26 12:01:18,703 - INFO - 🚀 Starting OPTIMIZED flagship data embedding and upload
+2025-11-26 12:01:18,703 - INFO - 📡 Embedding provider: google
+2025-11-26 12:01:18,703 - INFO - 🤖 Model: models/text-embedding-004 (768 dim)
+2025-11-26 12:01:18,703 - INFO - 📊 Batch sizes: embed=32, upload=100
+2025-11-26 12:01:18,703 - INFO - ⏱️ Rate limit: 1500 requests/min
+2025-11-26 12:01:18,703 - INFO - 💾 Storage: Enhanced Qdrant payloads (all essential metadata included)
+2025-11-26 12:01:18,703 - ERROR - ❌ Failed to connect to Qdrant: name 'QDRANT_URL' is not defined
+2025-11-26 12:01:18,703 - ERROR - ❌ Fatal error: name 'QDRANT_URL' is not defined
+2025-11-26 12:01:18,704 - INFO - 📊 Metrics saved to upload_metrics.json
+2025-11-26 12:01:35,402 - INFO - 🚀 Starting OPTIMIZED flagship data embedding and upload
+2025-11-26 12:01:35,402 - INFO - 📡 Embedding provider: google
+2025-11-26 12:01:35,402 - INFO - 🤖 Model: models/text-embedding-004 (768 dim)
+2025-11-26 12:01:35,402 - INFO - 📊 Batch sizes: embed=32, upload=100
+2025-11-26 12:01:35,402 - INFO - ⏱️ Rate limit: 1500 requests/min
+2025-11-26 12:01:35,402 - INFO - 💾 Storage: Enhanced Qdrant payloads (all essential metadata included)
+2025-11-26 12:01:36,267 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"
+2025-11-26 12:01:37,073 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:01:37,074 - INFO - ✅ Connected to Qdrant. Found 5 existing collections.
+2025-11-26 12:01:37,074 - INFO - ✅ Metadata store ready: metadata_store/
+2025-11-26 12:01:37,075 - INFO - 📁 go: Found 3 chunk files
+2025-11-26 12:01:37,077 - INFO - 📁 legal: Found 7 chunk files
+2025-11-26 12:01:37,077 - INFO - 📁 judicial: Found 0 chunk files
+2025-11-26 12:01:37,090 - INFO - 📁 data: Found 104 chunk files
+2025-11-26 12:01:37,091 - INFO - 📁 schemes: Found 7 chunk files
+2025-11-26 12:01:37,091 - INFO - 📊 Found 121 total chunk files across 5 verticals
+2025-11-26 12:01:37,091 - INFO - 🎯 Processing vertical: go → ap_government_orders
+2025-11-26 12:01:37,366 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:01:37,641 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders "HTTP/1.1 200 OK"
+2025-11-26 12:01:37,650 - INFO - ✅ Collection ap_government_orders exists with correct schema
+2025-11-26 12:01:37,650 - INFO -    📖 Loading: /Users/nitin/Desktop/AP Policy Assitant Main NO BS/ingestion_v2/output/go/faqs_on_teacher_transfer/chunks.jsonl
+2025-11-26 12:01:37,655 - INFO -    📊 Loaded 18 chunks
+2025-11-26 12:01:37,655 - INFO -    🧠 Embedding chunks...
+2025-11-26 12:01:37,655 - INFO -    🔄 Embedding batch 1/1 (18 chunks, 35465 chars, $0.000355)
+2025-11-26 12:01:42,100 - INFO -    ✅ Successfully embedded 18 chunks
+2025-11-26 12:01:42,100 - INFO -    💰 Batch cost: $0.0004 total so far
+2025-11-26 12:01:42,100 - INFO -    ☁️ Uploading 18 chunks...
+2025-11-26 12:01:43,729 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:01:43,732 - INFO -    ✅ Uploaded batch 1/1 to ap_government_orders
+2025-11-26 12:01:43,732 - INFO -    ✅ Completed chunks.jsonl: 18 chunks
+2025-11-26 12:01:43,732 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:01:43,732 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:01:43,732 - INFO - 🎯 Processing vertical: legal → ap_legal_documents
+2025-11-26 12:01:44,002 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:01:44,282 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents "HTTP/1.1 200 OK"
+2025-11-26 12:01:44,290 - INFO - ✅ Collection ap_legal_documents exists with correct schema
+2025-11-26 12:01:44,290 - INFO -    📖 Loading: /Users/nitin/Desktop/AP Policy Assitant Main NO BS/ingestion_v2/output/legal/6_2_17_695/chunks.jsonl
+2025-11-26 12:01:44,291 - INFO -    📊 Loaded 4 chunks
+2025-11-26 12:01:44,291 - INFO -    🧠 Embedding chunks...
+2025-11-26 12:01:44,291 - INFO -    🔄 Embedding batch 1/1 (4 chunks, 22178 chars, $0.000222)
+2025-11-26 12:01:45,368 - INFO -    ✅ Successfully embedded 4 chunks
+2025-11-26 12:01:45,369 - INFO -    💰 Batch cost: $0.0006 total so far
+2025-11-26 12:01:45,369 - INFO -    ☁️ Uploading 4 chunks...
+2025-11-26 12:01:45,653 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:01:45,654 - INFO -    ✅ Uploaded batch 1/1 to ap_legal_documents
+2025-11-26 12:01:45,654 - INFO -    ✅ Completed chunks.jsonl: 4 chunks
+2025-11-26 12:01:45,654 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:01:45,655 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:01:45,655 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:01:45,655 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:01:45,655 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:01:45,655 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:01:45,656 - INFO - 🎯 Processing vertical: data → ap_data_reports
+2025-11-26 12:01:45,925 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:01:46,196 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports "HTTP/1.1 200 OK"
+2025-11-26 12:01:46,199 - INFO - ✅ Collection ap_data_reports exists with correct schema
+2025-11-26 12:01:46,199 - INFO -    📖 Loading: /Users/nitin/Desktop/AP Policy Assitant Main NO BS/ingestion_v2/output/data/volume_viii_2_1/chunks.jsonl
+2025-11-26 12:01:46,217 - INFO -    📊 Loaded 635 chunks
+2025-11-26 12:01:46,217 - INFO -    🧠 Embedding chunks...
+2025-11-26 12:01:46,217 - INFO -    🔄 Embedding batch 1/20 (32 chunks, 25758 chars, $0.000258)
+2025-11-26 12:01:53,487 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:01:53,537 - INFO -    🔄 Embedding batch 2/20 (32 chunks, 3183 chars, $0.000032)
+2025-11-26 12:02:00,424 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:02:00,472 - INFO -    🔄 Embedding batch 3/20 (32 chunks, 2682 chars, $0.000027)
+2025-11-26 12:02:07,449 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:02:07,497 - INFO -    🔄 Embedding batch 4/20 (32 chunks, 2897 chars, $0.000029)
+2025-11-26 12:02:14,266 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:02:14,313 - INFO -    🔄 Embedding batch 5/20 (32 chunks, 3163 chars, $0.000032)
+2025-11-26 12:02:21,492 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:02:21,543 - INFO -    🔄 Embedding batch 6/20 (32 chunks, 2728 chars, $0.000027)
+2025-11-26 12:02:28,569 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:02:28,619 - INFO -    🔄 Embedding batch 7/20 (32 chunks, 2902 chars, $0.000029)
+2025-11-26 12:02:35,388 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:02:35,437 - INFO -    🔄 Embedding batch 8/20 (32 chunks, 3184 chars, $0.000032)
+2025-11-26 12:02:42,594 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:02:42,644 - INFO -    🔄 Embedding batch 9/20 (32 chunks, 2690 chars, $0.000027)
+2025-11-26 12:02:49,625 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:02:49,670 - INFO -    🔄 Embedding batch 10/20 (32 chunks, 2892 chars, $0.000029)
+2025-11-26 12:02:56,386 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:02:56,436 - INFO -    🔄 Embedding batch 11/20 (32 chunks, 3152 chars, $0.000032)
+2025-11-26 12:03:03,006 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:03:03,053 - INFO -    🔄 Embedding batch 12/20 (32 chunks, 2738 chars, $0.000027)
+2025-11-26 12:03:09,567 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:03:09,616 - INFO -    🔄 Embedding batch 13/20 (32 chunks, 58453 chars, $0.000585)
+2025-11-26 12:03:16,427 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:03:16,474 - INFO -    🔄 Embedding batch 14/20 (32 chunks, 70500 chars, $0.000705)
+2025-11-26 12:03:23,297 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:03:23,346 - INFO -    🔄 Embedding batch 15/20 (32 chunks, 77718 chars, $0.000777)
+2025-11-26 12:03:30,212 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:03:30,263 - INFO -    🔄 Embedding batch 16/20 (32 chunks, 74590 chars, $0.000746)
+2025-11-26 12:03:36,906 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:03:36,954 - INFO -    🔄 Embedding batch 17/20 (32 chunks, 72726 chars, $0.000727)
+2025-11-26 12:03:43,518 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:03:43,567 - INFO -    🔄 Embedding batch 18/20 (32 chunks, 69942 chars, $0.000699)
+2025-11-26 12:03:44,391 - INFO - 🚀 Starting OPTIMIZED flagship data embedding and upload
+2025-11-26 12:03:44,391 - INFO - 📡 Embedding provider: google
+2025-11-26 12:03:44,391 - INFO - 🤖 Model: models/text-embedding-004 (768 dim)
+2025-11-26 12:03:44,391 - INFO - 📊 Batch sizes: embed=32, upload=100
+2025-11-26 12:03:44,391 - INFO - ⏱️ Rate limit: 1500 requests/min
+2025-11-26 12:03:44,391 - INFO - 💾 Storage: Enhanced Qdrant payloads (all essential metadata included)
+2025-11-26 12:03:45,245 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"
+2025-11-26 12:03:46,053 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:03:46,056 - INFO - ✅ Connected to Qdrant. Found 5 existing collections.
+2025-11-26 12:03:46,057 - INFO - ✅ Metadata store ready: metadata_store/
+2025-11-26 12:03:46,060 - INFO - 📁 go: Found 3 chunk files
+2025-11-26 12:03:46,065 - INFO - 📁 legal: Found 7 chunk files
+2025-11-26 12:03:46,066 - INFO - 📁 judicial: Found 0 chunk files
+2025-11-26 12:03:46,086 - INFO - 📁 data: Found 104 chunk files
+2025-11-26 12:03:46,088 - INFO - 📁 schemes: Found 7 chunk files
+2025-11-26 12:03:46,089 - INFO - 📊 Found 121 total chunk files across 5 verticals
+2025-11-26 12:03:46,089 - INFO - 🎯 Processing vertical: go → ap_government_orders
+2025-11-26 12:03:46,348 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:03:46,613 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders "HTTP/1.1 200 OK"
+2025-11-26 12:03:46,618 - INFO - ✅ Collection ap_government_orders exists with correct schema
+2025-11-26 12:03:46,618 - INFO -    📖 Loading: /Users/nitin/Desktop/AP Policy Assitant Main NO BS/ingestion_v2/output/go/faqs_on_teacher_transfer/chunks.jsonl
+2025-11-26 12:03:46,621 - INFO -    📊 Loaded 18 chunks
+2025-11-26 12:03:46,621 - INFO -    🧠 Embedding chunks...
+2025-11-26 12:03:46,621 - INFO -    🔄 Embedding batch 1/1 (18 chunks, 35465 chars, $0.000355)
+2025-11-26 12:03:50,114 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:03:50,159 - INFO -    🔄 Embedding batch 19/20 (32 chunks, 47344 chars, $0.000473)
+2025-11-26 12:03:50,985 - INFO -    ✅ Successfully embedded 18 chunks
+2025-11-26 12:03:50,985 - INFO -    💰 Batch cost: $0.0004 total so far
+2025-11-26 12:03:50,986 - INFO -    ☁️ Uploading 18 chunks...
+2025-11-26 12:03:52,284 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:03:52,288 - INFO -    ✅ Uploaded batch 1/1 to ap_government_orders
+2025-11-26 12:03:52,288 - INFO -    ✅ Completed chunks.jsonl: 18 chunks
+2025-11-26 12:03:52,289 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:03:52,289 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:03:52,289 - INFO - 🎯 Processing vertical: legal → ap_legal_documents
+2025-11-26 12:03:52,554 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:03:52,822 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents "HTTP/1.1 200 OK"
+2025-11-26 12:03:52,823 - INFO - ✅ Collection ap_legal_documents exists with correct schema
+2025-11-26 12:03:52,823 - INFO -    📖 Loading: /Users/nitin/Desktop/AP Policy Assitant Main NO BS/ingestion_v2/output/legal/6_2_17_695/chunks.jsonl
+2025-11-26 12:03:52,825 - INFO -    📊 Loaded 4 chunks
+2025-11-26 12:03:52,826 - INFO -    🧠 Embedding chunks...
+2025-11-26 12:03:52,826 - INFO -    🔄 Embedding batch 1/1 (4 chunks, 22178 chars, $0.000222)
+2025-11-26 12:03:53,660 - INFO -    ✅ Successfully embedded 4 chunks
+2025-11-26 12:03:53,661 - INFO -    💰 Batch cost: $0.0006 total so far
+2025-11-26 12:03:53,662 - INFO -    ☁️ Uploading 4 chunks...
+2025-11-26 12:03:53,953 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:03:53,955 - INFO -    ✅ Uploaded batch 1/1 to ap_legal_documents
+2025-11-26 12:03:53,955 - INFO -    ✅ Completed chunks.jsonl: 4 chunks
+2025-11-26 12:03:53,956 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:03:53,956 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:03:53,956 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:03:53,956 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:03:53,956 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:03:53,956 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:03:53,956 - INFO - 🎯 Processing vertical: data → ap_data_reports
+2025-11-26 12:03:54,230 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:03:54,494 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports "HTTP/1.1 200 OK"
+2025-11-26 12:03:54,496 - INFO - ✅ Collection ap_data_reports exists with correct schema
+2025-11-26 12:03:54,496 - INFO -    📖 Loading: /Users/nitin/Desktop/AP Policy Assitant Main NO BS/ingestion_v2/output/data/volume_viii_2_1/chunks.jsonl
+2025-11-26 12:03:54,522 - INFO -    📊 Loaded 635 chunks
+2025-11-26 12:03:54,522 - INFO -    🧠 Embedding chunks...
+2025-11-26 12:03:54,522 - INFO -    🔄 Embedding batch 1/20 (32 chunks, 25758 chars, $0.000258)
+2025-11-26 12:03:56,719 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:03:56,769 - INFO -    🔄 Embedding batch 20/20 (27 chunks, 41206 chars, $0.000412)
+2025-11-26 12:04:01,027 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:04:01,077 - INFO -    🔄 Embedding batch 2/20 (32 chunks, 3183 chars, $0.000032)
+2025-11-26 12:04:02,406 - INFO -    ✅ Successfully embedded 27 chunks
+2025-11-26 12:04:02,407 - INFO -    💰 Batch cost: $0.0063 total so far
+2025-11-26 12:04:02,407 - INFO -    ☁️ Uploading 635 chunks...
+2025-11-26 12:04:05,402 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:04:05,405 - INFO -    ✅ Uploaded batch 1/7 to ap_data_reports
+2025-11-26 12:04:06,018 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:04:06,021 - INFO -    ✅ Uploaded batch 2/7 to ap_data_reports
+2025-11-26 12:04:06,405 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:04:06,413 - INFO -    ✅ Uploaded batch 3/7 to ap_data_reports
+2025-11-26 12:04:06,807 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:04:06,808 - INFO -    ✅ Uploaded batch 4/7 to ap_data_reports
+2025-11-26 12:04:07,433 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:04:07,435 - INFO -    ✅ Uploaded batch 5/7 to ap_data_reports
+2025-11-26 12:04:07,798 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:04:07,848 - INFO -    🔄 Embedding batch 3/20 (32 chunks, 2682 chars, $0.000027)
+2025-11-26 12:04:07,885 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:04:07,886 - INFO -    ✅ Uploaded batch 6/7 to ap_data_reports
+2025-11-26 12:04:08,192 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:04:08,192 - INFO -    ✅ Uploaded batch 7/7 to ap_data_reports
+2025-11-26 12:04:08,196 - INFO -    ✅ Completed chunks.jsonl: 635 chunks
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,196 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,197 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,198 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,198 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,198 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,198 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,198 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,198 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,198 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,198 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,198 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,198 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,198 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,198 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,198 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:08,198 - INFO - 🎯 Processing vertical: schemes → ap_schemes
+2025-11-26 12:04:08,460 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:04:08,727 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes "HTTP/1.1 200 OK"
+2025-11-26 12:04:08,729 - INFO - ✅ Collection ap_schemes exists with correct schema
+2025-11-26 12:04:08,729 - INFO -    📖 Loading: /Users/nitin/Desktop/AP Policy Assitant Main NO BS/ingestion_v2/output/scheme/minorites/chunks.jsonl
+2025-11-26 12:04:08,735 - INFO -    📊 Loaded 47 chunks
+2025-11-26 12:04:08,735 - INFO -    🧠 Embedding chunks...
+2025-11-26 12:04:08,735 - INFO -    🔄 Embedding batch 1/2 (32 chunks, 45529 chars, $0.000455)
+2025-11-26 12:04:14,415 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:04:14,465 - INFO -    🔄 Embedding batch 4/20 (32 chunks, 2897 chars, $0.000029)
+2025-11-26 12:04:15,407 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:04:15,456 - INFO -    🔄 Embedding batch 2/2 (15 chunks, 64018 chars, $0.000640)
+2025-11-26 12:04:18,413 - WARNING -    ⚠️ Embed attempt 1 failed: No embedding model available
+2025-11-26 12:04:18,414 - INFO -    ⏳ Retrying in 1 seconds...
+2025-11-26 12:04:21,047 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:04:21,094 - INFO -    🔄 Embedding batch 5/20 (32 chunks, 3163 chars, $0.000032)
+2025-11-26 12:04:22,441 - WARNING -    ⚠️ Embed attempt 2 failed: No embedding model available
+2025-11-26 12:04:22,441 - INFO -    ⏳ Retrying in 2 seconds...
+2025-11-26 12:04:27,357 - WARNING -    ⚠️ Embed attempt 3 failed: No embedding model available
+2025-11-26 12:04:27,358 - ERROR -    ❌ All embed attempts failed for batch 2
+2025-11-26 12:04:27,364 - ERROR -    ❌ Skipping batch 2 - no valid embeddings
+2025-11-26 12:04:27,374 - INFO -    💰 Batch cost: $0.0074 total so far
+2025-11-26 12:04:27,374 - INFO -    ☁️ Uploading 32 chunks...
+2025-11-26 12:04:27,618 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:04:27,665 - INFO -    🔄 Embedding batch 6/20 (32 chunks, 2728 chars, $0.000027)
+2025-11-26 12:04:29,597 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:04:29,599 - INFO -    ✅ Uploaded batch 1/1 to ap_schemes
+2025-11-26 12:04:29,600 - INFO -    ✅ Completed chunks.jsonl: 32 chunks
+2025-11-26 12:04:29,600 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:29,600 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:29,600 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:29,600 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:29,600 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:29,600 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:04:29,601 - INFO - 🎉 OPTIMIZED upload complete!
+2025-11-26 12:04:29,601 - INFO - 💰 Total embedding cost: $0.0074
+2025-11-26 12:04:29,601 - INFO - 📊 Total characters embedded: 737,638
+2025-11-26 12:04:29,872 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:04:29,874 - INFO - 📈 Collections summary:
+2025-11-26 12:04:30,145 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:04:30,149 - INFO -    📊 ap_schemes: 32 points
+2025-11-26 12:04:30,421 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_judicial_documents/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:04:30,421 - INFO -    📊 ap_judicial_documents: 0 points
+2025-11-26 12:04:30,692 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:04:30,693 - INFO -    📊 ap_government_orders: 18 points
+2025-11-26 12:04:30,966 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:04:30,966 - INFO -    📊 ap_legal_documents: 4 points
+2025-11-26 12:04:31,241 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:04:31,242 - INFO -    📊 ap_data_reports: 635 points
+2025-11-26 12:04:31,243 - INFO - 📊 Metrics saved to upload_metrics.json
+2025-11-26 12:04:31,244 - INFO - 📋 Final: 704 total, 689 uploaded, 15 failures
+2025-11-26 12:04:31,244 - INFO - 🧹 Removed checkpoint file
+2025-11-26 12:04:31,244 - WARNING - ⚠️ 15 chunks failed - see failed_chunks.jsonl
+2025-11-26 12:04:34,180 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:04:34,229 - INFO -    🔄 Embedding batch 7/20 (32 chunks, 2902 chars, $0.000029)
+2025-11-26 12:04:40,801 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:04:40,847 - INFO -    🔄 Embedding batch 8/20 (32 chunks, 3184 chars, $0.000032)
+2025-11-26 12:04:47,316 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:04:47,365 - INFO -    🔄 Embedding batch 9/20 (32 chunks, 2690 chars, $0.000027)
+2025-11-26 12:04:53,943 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:04:53,990 - INFO -    🔄 Embedding batch 10/20 (32 chunks, 2892 chars, $0.000029)
+2025-11-26 12:05:00,530 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:05:00,581 - INFO -    🔄 Embedding batch 11/20 (32 chunks, 3152 chars, $0.000032)
+2025-11-26 12:05:07,173 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:05:07,220 - INFO -    🔄 Embedding batch 12/20 (32 chunks, 2738 chars, $0.000027)
+2025-11-26 12:05:13,770 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:05:13,818 - INFO -    🔄 Embedding batch 13/20 (32 chunks, 58453 chars, $0.000585)
+2025-11-26 12:05:20,436 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:05:20,484 - INFO -    🔄 Embedding batch 14/20 (32 chunks, 70500 chars, $0.000705)
+2025-11-26 12:05:27,276 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:05:27,325 - INFO -    🔄 Embedding batch 15/20 (32 chunks, 77718 chars, $0.000777)
+2025-11-26 12:05:33,923 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:05:33,969 - INFO -    🔄 Embedding batch 16/20 (32 chunks, 74590 chars, $0.000746)
+2025-11-26 12:05:40,658 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:05:40,708 - INFO -    🔄 Embedding batch 17/20 (32 chunks, 72726 chars, $0.000727)
+2025-11-26 12:05:47,370 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:05:47,417 - INFO -    🔄 Embedding batch 18/20 (32 chunks, 69942 chars, $0.000699)
+2025-11-26 12:05:54,078 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:05:54,126 - INFO -    🔄 Embedding batch 19/20 (32 chunks, 47344 chars, $0.000473)
+2025-11-26 12:06:00,712 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:06:00,762 - INFO -    🔄 Embedding batch 20/20 (27 chunks, 41206 chars, $0.000412)
+2025-11-26 12:06:06,237 - INFO -    ✅ Successfully embedded 27 chunks
+2025-11-26 12:06:06,237 - INFO -    💰 Batch cost: $0.0063 total so far
+2025-11-26 12:06:06,237 - INFO -    ☁️ Uploading 635 chunks...
+2025-11-26 12:06:09,347 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:06:09,350 - INFO -    ✅ Uploaded batch 1/7 to ap_data_reports
+2025-11-26 12:06:09,984 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:06:09,986 - INFO -    ✅ Uploaded batch 2/7 to ap_data_reports
+2025-11-26 12:06:10,386 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:06:10,388 - INFO -    ✅ Uploaded batch 3/7 to ap_data_reports
+2025-11-26 12:06:10,819 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:06:10,821 - INFO -    ✅ Uploaded batch 4/7 to ap_data_reports
+2025-11-26 12:06:11,437 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:06:11,438 - INFO -    ✅ Uploaded batch 5/7 to ap_data_reports
+2025-11-26 12:06:11,917 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:06:11,918 - INFO -    ✅ Uploaded batch 6/7 to ap_data_reports
+2025-11-26 12:06:12,237 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:06:12,238 - INFO -    ✅ Uploaded batch 7/7 to ap_data_reports
+2025-11-26 12:06:12,245 - INFO -    ✅ Completed chunks.jsonl: 635 chunks
+2025-11-26 12:06:12,245 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,246 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,247 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,247 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,247 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,247 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,247 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,247 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,247 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,247 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,247 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,247 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,247 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,248 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,249 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,249 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,249 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,249 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,249 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,249 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,249 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,249 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,249 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,249 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,249 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,252 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,253 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,253 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,253 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,253 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,253 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,253 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,253 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,253 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,254 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,254 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,254 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,254 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,254 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,254 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,254 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,254 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,254 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,254 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,254 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,254 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,254 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,254 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,255 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,255 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,255 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,255 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,255 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,255 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,255 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,255 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,255 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,255 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,255 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,255 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,255 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,255 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,256 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,256 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,256 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,256 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,256 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,256 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,256 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,256 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,256 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:12,256 - INFO - 🎯 Processing vertical: schemes → ap_schemes
+2025-11-26 12:06:12,629 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:06:12,938 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes "HTTP/1.1 200 OK"
+2025-11-26 12:06:12,941 - INFO - ✅ Collection ap_schemes exists with correct schema
+2025-11-26 12:06:12,942 - INFO -    📖 Loading: /Users/nitin/Desktop/AP Policy Assitant Main NO BS/ingestion_v2/output/scheme/minorites/chunks.jsonl
+2025-11-26 12:06:12,947 - INFO -    📊 Loaded 47 chunks
+2025-11-26 12:06:12,948 - INFO -    🧠 Embedding chunks...
+2025-11-26 12:06:12,948 - INFO -    🔄 Embedding batch 1/2 (32 chunks, 45529 chars, $0.000455)
+2025-11-26 12:06:19,590 - INFO -    ✅ Successfully embedded 32 chunks
+2025-11-26 12:06:19,639 - INFO -    🔄 Embedding batch 2/2 (15 chunks, 64018 chars, $0.000640)
+2025-11-26 12:06:22,656 - WARNING -    ⚠️ Embed attempt 1 failed: No embedding model available
+2025-11-26 12:06:22,657 - INFO -    ⏳ Retrying in 1 seconds...
+2025-11-26 12:06:26,666 - WARNING -    ⚠️ Embed attempt 2 failed: No embedding model available
+2025-11-26 12:06:26,667 - INFO -    ⏳ Retrying in 2 seconds...
+2025-11-26 12:06:31,647 - WARNING -    ⚠️ Embed attempt 3 failed: No embedding model available
+2025-11-26 12:06:31,648 - ERROR -    ❌ All embed attempts failed for batch 2
+2025-11-26 12:06:31,655 - ERROR -    ❌ Skipping batch 2 - no valid embeddings
+2025-11-26 12:06:31,674 - INFO -    💰 Batch cost: $0.0074 total so far
+2025-11-26 12:06:31,675 - INFO -    ☁️ Uploading 32 chunks...
+2025-11-26 12:06:33,792 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:06:33,793 - INFO -    ✅ Uploaded batch 1/1 to ap_schemes
+2025-11-26 12:06:33,793 - INFO -    ✅ Completed chunks.jsonl: 32 chunks
+2025-11-26 12:06:33,793 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:33,793 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:33,793 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:33,793 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:33,793 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:33,793 - INFO -    ⏭️ Skipping: chunks.jsonl
+2025-11-26 12:06:33,793 - INFO - 🎉 OPTIMIZED upload complete!
+2025-11-26 12:06:33,793 - INFO - 💰 Total embedding cost: $0.0074
+2025-11-26 12:06:33,793 - INFO - 📊 Total characters embedded: 737,638
+2025-11-26 12:06:34,064 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:06:34,065 - INFO - 📈 Collections summary:
+2025-11-26 12:06:34,340 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:06:34,345 - INFO -    📊 ap_schemes: 32 points
+2025-11-26 12:06:34,619 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_judicial_documents/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:06:34,619 - INFO -    📊 ap_judicial_documents: 0 points
+2025-11-26 12:06:34,954 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:06:34,956 - INFO -    📊 ap_government_orders: 18 points
+2025-11-26 12:06:35,230 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:06:35,230 - INFO -    📊 ap_legal_documents: 4 points
+2025-11-26 12:06:35,509 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:06:35,510 - INFO -    📊 ap_data_reports: 635 points
+2025-11-26 12:06:35,512 - INFO - 📊 Metrics saved to upload_metrics.json
+2025-11-26 12:06:35,513 - INFO - 📋 Final: 704 total, 689 uploaded, 15 failures
+2025-11-26 12:06:35,513 - INFO - 🧹 Removed checkpoint file
+2025-11-26 12:06:35,514 - WARNING - ⚠️ 30 chunks failed - see failed_chunks.jsonl
+2025-11-26 12:39:42,042 - INFO - 🚀 Starting FINAL embedding & upload with sidecar metadata merge
+2025-11-26 12:39:43,006 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"
+2025-11-26 12:39:43,885 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:39:43,892 - INFO - ✅ Connected to Qdrant. Found 3 existing collections.
+2025-11-26 12:39:43,896 - INFO - 📡 Model: models/text-embedding-004 (768d)
+2025-11-26 12:39:43,896 - INFO - 📊 Batches: embed=32, upload=100
+2025-11-26 12:39:43,896 - INFO - 💾 Storage: Complete metadata in Qdrant (entities, relations, all fields)
+2025-11-26 12:39:43,899 - INFO - 📁 go: 3 files
+2025-11-26 12:39:43,905 - INFO - 📁 legal: 7 files
+2025-11-26 12:39:43,905 - INFO - 📁 judicial: 0 files
+2025-11-26 12:39:44,003 - INFO - 📁 data: 104 files
+2025-11-26 12:39:44,014 - INFO - 📁 schemes: 7 files
+2025-11-26 12:39:44,014 - INFO - 📊 Found 121 files across 5 verticals
+2025-11-26 12:39:44,015 - INFO - 
+🎯 Processing: go → ap_government_orders
+2025-11-26 12:39:44,293 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:39:44,566 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders "HTTP/1.1 200 OK"
+2025-11-26 12:39:44,572 - INFO - ✅ Collection ap_government_orders exists
+2025-11-26 12:39:44,572 - INFO -    📖 Loading: chunks.jsonl
+2025-11-26 12:39:44,575 - INFO -       🔗 Merging sidecar metadata from faqs_on_teacher_transfer
+2025-11-26 12:39:44,578 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-26 12:39:44,578 - INFO -       📊 Relations: 18 total, avg 1.0 per chunk
+2025-11-26 12:39:44,578 - INFO -       📊 18 chunks loaded
+2025-11-26 12:39:44,578 - INFO -    🧠 Embedding...
+2025-11-26 12:39:44,579 - INFO -    🔄 Batch 1/1 (18 chunks, $0.000355)
+2025-11-26 12:39:49,034 - INFO -    ✅ Embedded 18 chunks
+2025-11-26 12:39:49,035 - INFO -    ☁️ Uploading 18 chunks...
+2025-11-26 12:39:51,452 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:39:51,455 - INFO -    ✅ Uploaded batch 1/1
+2025-11-26 12:39:51,457 - INFO -    ✅ Done: 18 chunks, $0.0004 total
+2025-11-26 12:39:51,457 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:39:51,457 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:39:51,458 - INFO - 
+🎯 Processing: legal → ap_legal_documents
+2025-11-26 12:39:51,730 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:39:52,239 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents "HTTP/1.1 200 OK"
+2025-11-26 12:39:52,240 - INFO - ✅ Created: ap_legal_documents (dim=768)
+2025-11-26 12:39:52,240 - INFO -    📖 Loading: chunks.jsonl
+2025-11-26 12:39:52,241 - INFO -       🔗 Merging sidecar metadata from 6_2_17_695
+2025-11-26 12:39:52,243 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-26 12:39:52,243 - INFO -       📊 Relations: 16 total, avg 4.0 per chunk
+2025-11-26 12:39:52,243 - INFO -       📊 4 chunks loaded
+2025-11-26 12:39:52,244 - INFO -    🧠 Embedding...
+2025-11-26 12:39:52,244 - INFO -    🔄 Batch 1/1 (4 chunks, $0.000222)
+2025-11-26 12:39:53,210 - INFO -    ✅ Embedded 4 chunks
+2025-11-26 12:39:53,211 - INFO -    ☁️ Uploading 4 chunks...
+2025-11-26 12:39:53,509 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:39:53,510 - INFO -    ✅ Uploaded batch 1/1
+2025-11-26 12:39:53,512 - INFO -    ✅ Done: 4 chunks, $0.0006 total
+2025-11-26 12:39:53,512 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:39:53,512 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:39:53,512 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:39:53,512 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:39:53,512 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:39:53,512 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:39:53,512 - INFO - 
+🎯 Processing: data → ap_data_reports
+2025-11-26 12:39:53,779 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:39:54,338 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports "HTTP/1.1 200 OK"
+2025-11-26 12:39:54,339 - INFO - ✅ Created: ap_data_reports (dim=768)
+2025-11-26 12:39:54,339 - INFO -    📖 Loading: chunks.jsonl
+2025-11-26 12:39:54,351 - INFO -       🔗 Merging sidecar metadata from volume_viii_2_1
+2025-11-26 12:39:54,356 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-26 12:39:54,356 - INFO -       📊 Relations: 0 total, avg 0.0 per chunk
+2025-11-26 12:39:54,356 - INFO -       📊 635 chunks loaded
+2025-11-26 12:39:54,357 - INFO -    🧠 Embedding...
+2025-11-26 12:39:54,357 - INFO -    🔄 Batch 1/20 (32 chunks, $0.000258)
+2025-11-26 12:40:01,631 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:40:01,679 - INFO -    🔄 Batch 2/20 (32 chunks, $0.000032)
+2025-11-26 12:40:08,797 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:40:08,846 - INFO -    🔄 Batch 3/20 (32 chunks, $0.000027)
+2025-11-26 12:40:15,677 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:40:15,722 - INFO -    🔄 Batch 4/20 (32 chunks, $0.000029)
+2025-11-26 12:40:22,827 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:40:22,873 - INFO -    🔄 Batch 5/20 (32 chunks, $0.000032)
+2025-11-26 12:40:30,350 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:40:30,399 - INFO -    🔄 Batch 6/20 (32 chunks, $0.000027)
+2025-11-26 12:40:37,400 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:40:37,450 - INFO -    🔄 Batch 7/20 (32 chunks, $0.000029)
+2025-11-26 12:40:44,695 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:40:44,745 - INFO -    🔄 Batch 8/20 (32 chunks, $0.000032)
+2025-11-26 12:40:51,427 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:40:51,474 - INFO -    🔄 Batch 9/20 (32 chunks, $0.000027)
+2025-11-26 12:40:58,233 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:40:58,283 - INFO -    🔄 Batch 10/20 (32 chunks, $0.000029)
+2025-11-26 12:41:05,233 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:41:05,278 - INFO -    🔄 Batch 11/20 (32 chunks, $0.000032)
+2025-11-26 12:41:12,137 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:41:12,188 - INFO -    🔄 Batch 12/20 (32 chunks, $0.000027)
+2025-11-26 12:41:18,708 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:41:18,754 - INFO -    🔄 Batch 13/20 (32 chunks, $0.000585)
+2025-11-26 12:41:25,600 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:41:25,646 - INFO -    🔄 Batch 14/20 (32 chunks, $0.000705)
+2025-11-26 12:41:32,348 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:41:32,395 - INFO -    🔄 Batch 15/20 (32 chunks, $0.000777)
+2025-11-26 12:41:39,352 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:41:39,401 - INFO -    🔄 Batch 16/20 (32 chunks, $0.000746)
+2025-11-26 12:41:46,274 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:41:46,324 - INFO -    🔄 Batch 17/20 (32 chunks, $0.000727)
+2025-11-26 12:41:53,291 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:41:53,337 - INFO -    🔄 Batch 18/20 (32 chunks, $0.000699)
+2025-11-26 12:42:00,276 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:42:00,320 - INFO -    🔄 Batch 19/20 (32 chunks, $0.000473)
+2025-11-26 12:42:06,992 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:42:07,038 - INFO -    🔄 Batch 20/20 (27 chunks, $0.000412)
+2025-11-26 12:42:12,813 - INFO -    ✅ Embedded 27 chunks
+2025-11-26 12:42:12,815 - INFO -    ☁️ Uploading 635 chunks...
+2025-11-26 12:42:15,880 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:42:15,884 - INFO -    ✅ Uploaded batch 1/7
+2025-11-26 12:42:16,541 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:42:16,543 - INFO -    ✅ Uploaded batch 2/7
+2025-11-26 12:42:16,959 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:42:16,960 - INFO -    ✅ Uploaded batch 3/7
+2025-11-26 12:42:17,422 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:42:17,423 - INFO -    ✅ Uploaded batch 4/7
+2025-11-26 12:42:18,055 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:42:18,055 - INFO -    ✅ Uploaded batch 5/7
+2025-11-26 12:42:18,482 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:42:18,486 - INFO -    ✅ Uploaded batch 6/7
+2025-11-26 12:42:18,830 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:42:18,832 - INFO -    ✅ Uploaded batch 7/7
+2025-11-26 12:42:18,839 - INFO -    ✅ Done: 635 chunks, $0.0063 total
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,839 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,840 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,841 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,842 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,843 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,843 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,843 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,843 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:18,843 - INFO - 
+🎯 Processing: schemes → ap_schemes
+2025-11-26 12:42:19,119 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:42:19,396 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes "HTTP/1.1 200 OK"
+2025-11-26 12:42:19,399 - INFO - ✅ Collection ap_schemes exists
+2025-11-26 12:42:19,399 - INFO -    📖 Loading: chunks.jsonl
+2025-11-26 12:42:19,405 - INFO -       🔗 Merging sidecar metadata from minorites
+2025-11-26 12:42:19,411 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-26 12:42:19,411 - INFO -       📊 Relations: 0 total, avg 0.0 per chunk
+2025-11-26 12:42:19,411 - INFO -       📊 47 chunks loaded
+2025-11-26 12:42:19,412 - INFO -    🧠 Embedding...
+2025-11-26 12:42:19,412 - INFO -    🔄 Batch 1/2 (32 chunks, $0.000455)
+2025-11-26 12:42:26,272 - INFO -    ✅ Embedded 32 chunks
+2025-11-26 12:42:26,318 - INFO -    🔄 Batch 2/2 (15 chunks, $0.000640)
+2025-11-26 12:42:29,497 - INFO -    ✅ Embedded 15 chunks
+2025-11-26 12:42:29,511 - INFO -    ☁️ Uploading 47 chunks...
+2025-11-26 12:42:34,094 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points?wait=true "HTTP/1.1 200 OK"
+2025-11-26 12:42:34,097 - INFO -    ✅ Uploaded batch 1/1
+2025-11-26 12:42:34,099 - INFO -    ✅ Done: 47 chunks, $0.0074 total
+2025-11-26 12:42:34,099 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:34,100 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:34,100 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:34,100 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:34,100 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:34,100 - INFO -    ⏭️ Skip: chunks.jsonl
+2025-11-26 12:42:34,100 - INFO - 
+🎉 Upload complete!
+2025-11-26 12:42:34,100 - INFO - 💰 Cost: $0.0074
+2025-11-26 12:42:34,100 - INFO - 📊 Characters: 737,638
+2025-11-26 12:42:34,385 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-26 12:42:34,386 - INFO - 
+📈 Collections:
+2025-11-26 12:42:34,680 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:42:34,687 - INFO -    ap_schemes: 47 points
+2025-11-26 12:42:34,973 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_judicial_documents/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:42:34,973 - INFO -    ap_judicial_documents: 0 points
+2025-11-26 12:42:35,258 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:42:35,260 - INFO -    ap_government_orders: 18 points
+2025-11-26 12:42:35,547 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:42:35,549 - INFO -    ap_legal_documents: 4 points
+2025-11-26 12:42:35,833 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points/count "HTTP/1.1 200 OK"
+2025-11-26 12:42:35,835 - INFO -    ap_data_reports: 635 points
+2025-11-26 12:42:35,841 - WARNING - ⚠️ 30 chunks failed - see failed_chunks.jsonl
+2025-11-26 12:42:35,841 - INFO - 
+✅ Final: 704/704 uploaded
