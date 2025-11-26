@@ -1,162 +1,223 @@
-# Retrieves from each vertical
-
 """
-Vertical Retriever
-==================
-Retrieves from individual vertical collections.
-Clean, focused, no duplication.
+Vertical Retriever - FIXED VERSION
+===================================
+Retrieves from a single vertical with smart filter handling.
+
+CRITICAL FIX: Implements multi-field filtering using field mappings.
+- Checks multiple possible fields for each filter
+- Uses OR logic across mapped fields
+- Handles actual ingestion schema
 """
 
-from typing import List, Dict, Optional, Sequence
-from .qdrant_client import get_qdrant_client
-from ..config.vertical_map import get_collection_name
+import logging
+from typing import List, Dict, Optional
+from qdrant_client import models
+
+logger = logging.getLogger(__name__)
 
 
 class VerticalRetriever:
-    """Retrieves from a single vertical"""
+    """
+    Retrieves from a single vertical collection.
+    Now with smart multi-field filtering!
+    """
     
-    def __init__(self):
-        """Initialize retriever"""
-        self.qdrant = get_qdrant_client()
+    def __init__(
+        self,
+        qdrant_client,
+        embedder,
+        vertical: str
+    ):
+        """
+        Initialize retriever.
+        
+        Args:
+            qdrant_client: Qdrant client wrapper
+            embedder: Embedding model
+            vertical: Vertical name (legal, go, judicial, data, schemes)
+        """
+        self.qdrant_client = qdrant_client
+        self.embedder = embedder
+        self.vertical = vertical
+        
+        logger.info(f"✅ Vertical retriever initialized for: {vertical}")
     
     def retrieve(
         self,
-        vertical: str,
-        query_vector: Sequence[float],
+        query: str,
+        enhanced_query: str,
         top_k: int = 10,
-        score_threshold: float = 0.5,
-        filters: Optional[Dict] = None
+        filters: Optional[Dict[str, List[str]]] = None
     ) -> List[Dict]:
         """
-        Retrieve from a vertical.
+        Retrieve from vertical with smart filtering.
         
         Args:
-            vertical: Vertical name (legal, go, judicial, data, schemes)
-            query_vector: Query embedding
+            query: Original query
+            enhanced_query: Enhanced query for embedding
             top_k: Number of results
-            score_threshold: Minimum score
-            filters: Qdrant filters
+            filters: Filter dict (e.g., {"sections": ["12"], "year": [2020]})
             
         Returns:
-            List of results with metadata
+            List of results with scores
         """
-        # Get collection name
+        # Embed query
+        query_vector = self.embedder.embed(enhanced_query)
+        
+        # Build smart Qdrant filter
+        qdrant_filter = self._build_qdrant_filter(filters)
+        
+        # Log filter for debugging
+        if qdrant_filter:
+            logger.info(f"🔍 Applying filters to {self.vertical}: {filters}")
+            logger.debug(f"Qdrant filter structure: {qdrant_filter}")
+        
+        # Search using collection name
         try:
-            collection_name = get_collection_name(vertical)
-        except ValueError as e:
-            print(f"Invalid vertical: {e}")
+            from ..config.vertical_map import get_collection_name
+            collection_name = get_collection_name(self.vertical)
+            
+            results = self.qdrant_client.search(
+                collection_name=collection_name,
+                query_vector=query_vector,
+                limit=top_k,
+                query_filter=qdrant_filter
+            )
+            
+            logger.info(f"✅ Found {len(results)} results in {self.vertical}")
+            return results
+            
+        except Exception as e:
+            logger.error(f"❌ Error retrieving from {self.vertical}: {e}")
+            logger.error(f"Filter was: {filters}")
+            logger.error(f"Qdrant filter was: {qdrant_filter}")
             return []
-        
-        # Check if collection exists
-        if not self.qdrant.collection_exists(collection_name):
-            print(f"Collection {collection_name} does not exist")
-            return []
-        
-        # Build Qdrant filter if needed
-        qdrant_filter = None
-        if filters:
-            qdrant_filter = self._build_qdrant_filter(filters)
-        
-        # Search
-        results = self.qdrant.search(
-            collection_name=collection_name,
-            query_vector=query_vector,
-            limit=top_k,
-            score_threshold=score_threshold,
-            query_filter=qdrant_filter
-        )
-        
-        # Add vertical metadata to each result
-        for result in results:
-            result["vertical"] = vertical
-            result["collection"] = collection_name
-        
-        return results
     
-    def _build_qdrant_filter(self, filters: Dict) -> Dict:
+    def _build_qdrant_filter(
+        self,
+        filters: Optional[Dict[str, List[str]]]
+    ) -> Optional[models.Filter]:
         """
-        Build Qdrant filter from simple dict.
+        Build Qdrant filter with multi-field support.
+        
+        KEY FIX: Uses field mappings to check multiple possible fields.
+        
+        Example:
+            filters = {"sections": ["12"]}
+            
+            Creates Qdrant filter checking:
+            - section = "12" OR
+            - sections contains "12" OR
+            - mentioned_sections contains "12"
         
         Args:
-            filters: Dict like {"year": ["2020", "2021"], "section": ["12"]}
+            filters: Filter dict
             
         Returns:
-            Qdrant filter dict
+            Qdrant Filter object or None
         """
-        # Build "must" conditions
+        if not filters:
+            return None
+        
+        # Import field mappings
+        try:
+            from ..config.field_mappings import (
+                build_multi_field_condition,
+                validate_filter,
+                get_mapped_fields
+            )
+        except ImportError:
+            logger.warning("⚠️ Field mappings not available, using direct mapping")
+            return self._build_simple_filter(filters)
+        
         must_conditions = []
         
-        for field, values in filters.items():
+        for filter_field, values in filters.items():
             if not values:
                 continue
             
-            # Match any of the values (new Qdrant format)
-            if len(values) == 1:
-                # Single value - direct field match
-                should_conditions = [{field: values[0]}]
-            else:
-                # Multiple values - use "should" with field matches
-                should_conditions = [
-                    {field: value}
-                    for value in values
-                ]
+            # Validate filter for this vertical
+            if not validate_filter(filter_field, self.vertical):
+                logger.warning(
+                    f"⚠️ Filter '{filter_field}' not applicable to vertical '{self.vertical}', skipping"
+                )
+                continue
             
-            if len(should_conditions) == 1:
-                must_conditions.append(should_conditions[0])
+            # Get mapped fields
+            mapped_fields = get_mapped_fields(filter_field, self.vertical)
+            logger.debug(
+                f"Filter '{filter_field}' maps to fields: {mapped_fields} in {self.vertical}"
+            )
+            
+            # Build multi-field conditions (OR logic)
+            field_conditions = build_multi_field_condition(
+                filter_field,
+                values,
+                self.vertical
+            )
+            
+            if not field_conditions:
+                continue
+            
+            # If multiple conditions, connect with OR
+            if len(field_conditions) == 1:
+                must_conditions.append(field_conditions[0])
             else:
-                must_conditions.append({"should": should_conditions})
+                # Wrap in Filter with "should" (OR logic)
+                must_conditions.append(
+                    models.Filter(should=field_conditions)
+                )
         
         if not must_conditions:
             return None
         
-        if len(must_conditions) == 1:
-            return must_conditions[0]
-        
-        return {"must": must_conditions}
+        # Connect all filters with AND logic
+        return models.Filter(must=must_conditions)
     
-    def retrieve_multi_vertical(
+    def _build_simple_filter(
         self,
-        verticals: List[str],
-        query_vector: Sequence[float],
-        top_k_per_vertical: int = 10,
-        score_threshold: float = 0.5,
-        filters: Optional[Dict] = None
-    ) -> Dict[str, List[Dict]]:
+        filters: Dict[str, List[str]]
+    ) -> Optional[models.Filter]:
         """
-        Retrieve from multiple verticals.
+        Fallback: Simple filter without field mappings.
+        Assumes direct field name mapping.
+        """
+        conditions = []
         
-        Args:
-            verticals: List of vertical names
-            query_vector: Query embedding
-            top_k_per_vertical: Results per vertical
-            score_threshold: Minimum score
-            filters: Qdrant filters
+        for field_name, values in filters.items():
+            if not values:
+                continue
             
-        Returns:
-            Dict mapping vertical to results
-        """
-        all_results = {}
+            if len(values) == 1:
+                conditions.append(
+                    models.FieldCondition(
+                        key=field_name,
+                        match=models.MatchValue(value=values[0])
+                    )
+                )
+            else:
+                conditions.append(
+                    models.FieldCondition(
+                        key=field_name,
+                        match=models.MatchAny(any=values)
+                    )
+                )
         
-        for vertical in verticals:
-            results = self.retrieve(
-                vertical=vertical,
-                query_vector=query_vector,
-                top_k=top_k_per_vertical,
-                score_threshold=score_threshold,
-                filters=filters
-            )
-            all_results[vertical] = results
+        if not conditions:
+            return None
         
-        return all_results
+        return models.Filter(must=conditions)
 
 
-# Global retriever instance
-_retriever_instance = None
+# Factory function
+def get_vertical_retriever(
+    qdrant_client,
+    embedder,
+    vertical: str
+) -> VerticalRetriever:
+    """Create vertical retriever"""
+    return VerticalRetriever(qdrant_client, embedder, vertical)
 
 
-def get_vertical_retriever() -> VerticalRetriever:
-    """Get global vertical retriever instance"""
-    global _retriever_instance
-    if _retriever_instance is None:
-        _retriever_instance = VerticalRetriever()
-    return _retriever_instance
+# Export
+__all__ = ["VerticalRetriever", "get_vertical_retriever"]
