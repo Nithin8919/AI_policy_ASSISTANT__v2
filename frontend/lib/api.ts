@@ -153,3 +153,7 @@ export async function submitFeedback(
   }
 }
 
+export async function queryModelDirect(request: QueryRequest): Promise<QueryResponse> {
+  return queryAPI(request)
+}
+
