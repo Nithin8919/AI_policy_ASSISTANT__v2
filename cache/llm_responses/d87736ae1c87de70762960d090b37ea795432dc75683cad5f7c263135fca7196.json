@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.99,
+    "reasoning": "The document is a Government Order (GO) as indicated by 'G.O.Ms.No. 70', preamble, official orders and instructions to officers.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 1506,
+  "cached_at": "2025-11-27T14:22:11.837241"
+}

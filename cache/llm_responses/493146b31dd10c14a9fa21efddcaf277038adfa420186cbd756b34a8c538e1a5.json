@@ -1,0 +1,56 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms74",
+      "target": "Lr.Rc.No.ESE02- 17 /445 / 2020- PS1- CSE, Dated.21-12-2020",
+      "confidence": 0.85,
+      "context": "Lr.Rc.No.ESE02- 17 /445 / 2020- PS1- CSE, Dated.21-12-2020 of the Director of School Education",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms74",
+      "target": "Lr.Rc.No.ESE02-17/ 416 / 2020- PS1- CSE, Dated.8-1-2021",
+      "confidence": 0.85,
+      "context": "Lr.Rc.No.ESE02-17/ 416 / 2020- PS1- CSE, Dated.8-1-2021 of the Director of School Education",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms74",
+      "target": "Lr.Rc.No.ESEO2- 17 /12 /2021 -PS1- CSE, Dated.25-1-2021",
+      "confidence": 0.85,
+      "context": "Lr.Rc.No.ESEO2- 17 /12 /2021 -PS1- CSE, Dated.25-1-2021 of the Director of School Education",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms74",
+      "target": "G.O.Ms.No 35,School Education(PS) Department, Dated: 24-05-2021",
+      "confidence": 0.85,
+      "context": "G.O.Ms.No 35,School Education(PS) Department, Dated: 24-05-2021",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms74",
+      "target": "Lr.Rc.No.ESE02- 17 /445 / 2020- PS1- CSE, Dated.22-06-2021",
+      "confidence": 0.85,
+      "context": "Lr.Rc.No.ESE02- 17 /445 / 2020- PS1- CSE, Dated.22-06-2021 of the Director of School Education",
+      "metadata": {}
+    },
+    {
+      "relation_type": "amends",
+      "source_id": "2021se_ms74",
+      "target": "G.O.Ms.No 35, School Education(PS) Department, Dated.24-05-2021",
+      "confidence": 0.9,
+      "context": "Government hereby issue the following amendment to G.O.Ms.No 35, School Education(PS) Department",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1104,
+  "cached_at": "2025-11-27T14:16:45.111114"
+}

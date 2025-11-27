@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.99,
+    "reasoning": "The document is a Government Order (GO) as indicated by 'G.O.Ms.No. 26' and contains official orders regarding the up-gradation of a school.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 1525,
+  "cached_at": "2025-11-27T14:24:46.718476"
+}

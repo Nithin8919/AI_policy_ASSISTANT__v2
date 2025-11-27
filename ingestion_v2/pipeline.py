@@ -196,7 +196,8 @@ class IngestionPipeline:
                 stage.step("Loading PDF file")
                 extraction_result = self.text_extractor.extract(file_path)
                 
-                if not extraction_result["success"]:
+                # Check if we should try OCR before failing
+                if not extraction_result["success"] and not extraction_result.get("needs_ocr", False):
                     stage.error(f"Text extraction failed: {extraction_result.get('error', 'Unknown error')}")
                     return {"status": "failed", "stage": "extraction", "doc_id": doc_id}
                 
@@ -220,15 +221,28 @@ class IngestionPipeline:
                     if table_rows > 0:
                         stage.metric("Total table rows", table_rows)
                 
-                # OCR if needed
+                # OCR if needed (including complete extraction failures)
                 if extraction_result.get("needs_ocr", False):
-                    stage.step("Low quality text detected - running OCR")
-                    stage.warning(f"Text quality low ({word_count} words for {page_count} pages)")
-                    text = self.ocr_engine.selective_ocr(file_path, text, page_count)
-                    word_count = len(text.split())
-                    char_count = len(text)
-                    stage.metric("Words after OCR", word_count)
-                    stage.metric("Characters after OCR", char_count)
+                    if not extraction_result["success"]:
+                        stage.step("Text extraction failed - attempting OCR")
+                        stage.warning(f"Standard extraction failed, trying OCR on {page_count} pages")
+                        ocr_result = self.ocr_engine.ocr_pdf(file_path)
+                        if ocr_result["success"]:
+                            text = ocr_result["text"]
+                            word_count = ocr_result["word_count"]
+                            char_count = ocr_result["char_count"]
+                            stage.metric("Words from OCR", word_count)
+                        else:
+                            stage.error(f"OCR also failed: {ocr_result.get('error', 'Unknown error')}")
+                            return {"status": "failed", "stage": "extraction", "doc_id": doc_id}
+                    else:
+                        stage.step("Low quality text detected - running OCR")
+                        stage.warning(f"Text quality low ({word_count} words for {page_count} pages)")
+                        text = self.ocr_engine.selective_ocr(file_path, text, page_count)
+                        word_count = len(text.split())
+                        char_count = len(text)
+                        stage.metric("Words after OCR", word_count)
+                        stage.metric("Characters after OCR", char_count)
                 
                 stage.success(f"Text extraction complete: {word_count} words, {page_count} pages")
             

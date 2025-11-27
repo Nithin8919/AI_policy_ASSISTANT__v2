@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document contains G.O.Ms.No, preamble, orders, and is clearly a Government Order.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 1602,
+  "cached_at": "2025-11-27T14:20:52.568426"
+}

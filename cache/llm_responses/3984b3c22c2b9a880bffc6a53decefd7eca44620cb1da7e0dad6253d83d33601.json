@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document has a G.O.Ms.No reference, a preamble, official orders, and is issued by the government, which are characteristics of a Government Order.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 2932,
+  "cached_at": "2025-11-27T14:24:41.584201"
+}

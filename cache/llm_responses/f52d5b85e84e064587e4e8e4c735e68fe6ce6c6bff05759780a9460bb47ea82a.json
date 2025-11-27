@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document contains \"G.O.Ms.No.\", indicates a government order, and discusses the launching of a scheme with official orders.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3017,
+  "cached_at": "2025-11-27T14:09:11.581958"
+}

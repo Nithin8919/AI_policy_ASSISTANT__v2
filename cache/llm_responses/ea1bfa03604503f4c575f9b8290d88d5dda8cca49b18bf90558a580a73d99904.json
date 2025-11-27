@@ -1,0 +1,32 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms40",
+      "target": "G.O.Ms.No",
+      "confidence": 0.85,
+      "context": "Government, vide G.O",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms40",
+      "target": "G.O.Ms.No",
+      "confidence": 0.85,
+      "context": "stipulated in the G.O.Ms.No",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms40",
+      "target": "Lr.No.ESE02-02-18022/119/2020-PS-3-CSE-11",
+      "confidence": 0.9,
+      "context": "From the CSE,A.P.,Lr.No.ESE02-02-18022/119/2020-PS-3-CSE-11",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1236,
+  "cached_at": "2025-11-27T14:20:44.960927"
+}

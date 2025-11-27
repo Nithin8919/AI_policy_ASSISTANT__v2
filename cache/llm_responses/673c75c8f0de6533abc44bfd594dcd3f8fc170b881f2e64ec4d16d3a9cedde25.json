@@ -1,0 +1,56 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms154",
+      "target": "D.O.Lr.Rc.No.ESE02-12021/112/2018-EST.2-CSE, Dated:23-06-2021",
+      "confidence": 0.9,
+      "context": "From the DSE, D.O.Lr.Rc.No.ESE02-12021/112/2018-EST.2-CSE, Dated:23-06-2021",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms154",
+      "target": "Lr.Rc.No.ESE02-12021/112/2018-EST2-CSE, Dated:23-09-2021",
+      "confidence": 0.9,
+      "context": "From the DSE, Lr.Rc.No.ESE02-12021/112/2018-EST2-CSE, Dated:23-09-2021",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms154",
+      "target": "U.O.No.291/2022",
+      "confidence": 0.9,
+      "context": "U.O.No.291/2022, GA (Cab) Dept., dated:14-09-2022, along with Cabinet Resolution No.291/2022",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms154",
+      "target": "Cabinet Resolution No.291/2022",
+      "confidence": 0.9,
+      "context": "U.O.No.291/2022, GA (Cab) Dept., dated:14-09-2022, along with Cabinet Resolution No.291/2022",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms154",
+      "target": "U.O.No.1472708/HR.II/FINO1-HROMISC/137/2021, dated: 16-09-2022",
+      "confidence": 0.9,
+      "context": "U.O.No.1472708/HR.II/FINO1-HROMISC/137/2021, dated: 16-09-2022",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms154",
+      "target": "Cabinet Resolution No.291/2022, dated:14-09-2022",
+      "confidence": 0.9,
+      "context": "Cabinet Resolution No.291/2022, dated:14-09-2022",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1763,
+  "cached_at": "2025-11-27T14:23:43.578713"
+}

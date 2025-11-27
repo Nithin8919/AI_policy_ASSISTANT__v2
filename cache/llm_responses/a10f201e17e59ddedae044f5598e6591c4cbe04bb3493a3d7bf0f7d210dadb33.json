@@ -1,0 +1,32 @@
+{
+  "response": [
+    {
+      "relation_type": "implements",
+      "source_id": "2021se_ms61",
+      "target": "Mana Badi Nadu-Nedu",
+      "confidence": 0.9,
+      "context": "Dismantling cost may be included in the estimate of the project/work either under Mana Badi Nadu-Nedu program",
+      "metadata": {}
+    },
+    {
+      "relation_type": "implements",
+      "source_id": "2021se_ms61",
+      "target": "14\" finance commission",
+      "confidence": 0.85,
+      "context": "taking up the school improvement activities under other schemes like 14\" finance commission",
+      "metadata": {}
+    },
+    {
+      "relation_type": "implements",
+      "source_id": "2021se_ms61",
+      "target": "Samagra Shiksha",
+      "confidence": 0.85,
+      "context": "taking up the school improvement activities under other schemes like Samagra Shiksha",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1225,
+  "cached_at": "2025-11-27T14:16:33.073199"
+}

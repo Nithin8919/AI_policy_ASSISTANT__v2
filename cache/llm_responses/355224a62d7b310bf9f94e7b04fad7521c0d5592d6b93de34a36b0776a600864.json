@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms71",
+      "target": "G.O.Ms.No",
+      "confidence": 0.9,
+      "context": "Read:- G.O.Ms.No",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 125,
+  "cached_at": "2025-11-27T14:22:32.723531"
+}

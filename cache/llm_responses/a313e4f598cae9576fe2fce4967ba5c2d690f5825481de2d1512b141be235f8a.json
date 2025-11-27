@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document starts with 'Government of Andhra Pradesh', contains 'G.O.Ms.No.', a preamble, and issues an order regarding 'Jagananna Vidya Kanuka', indicating it is a Government Order.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3016,
+  "cached_at": "2025-11-27T14:18:23.787288"
+}

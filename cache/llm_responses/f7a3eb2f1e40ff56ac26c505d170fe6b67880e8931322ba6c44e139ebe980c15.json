@@ -1,0 +1,56 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms35",
+      "target": "G.O.Ms.No 50",
+      "confidence": 0.85,
+      "context": "Read the following: - 1, G.O.Ms.No 50, School Education (PS) Department, dated 17-08-2021",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms35",
+      "target": "Lr.No.ESE02-02-18022/119/2020-PS-3-CSE-6",
+      "confidence": 0.8,
+      "context": "2, From the CSE,A,P.,Lr.No.ESE02-02-18022/119/2020-PS-3-CSE-6, dated, 02-05-2022",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms35",
+      "target": "G.O",
+      "confidence": 0.85,
+      "context": "Government, vide G.O, 1* read above, have framed the policy",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms35",
+      "target": "letter 2",
+      "confidence": 0.8,
+      "context": "Commissioner of School Education, vide his letter 2TM read above",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms35",
+      "target": "G.O.Ms.No",
+      "confidence": 0.85,
+      "context": "subject to the terms and conditions stipulated in the G.O.Ms.No",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms35",
+      "target": "U.O.No.HROPDPP/134/2022",
+      "confidence": 0.8,
+      "context": "Finance (HR.I-Pig & Policy) Department, vide their U.O.No.HROPDPP/134/2022",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1665,
+  "cached_at": "2025-11-27T14:25:52.793415"
+}

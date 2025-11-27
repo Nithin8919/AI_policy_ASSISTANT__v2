@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms118",
+      "target": "G.O.Ms.No,12, SE(Prog.II) Dept., dt.06-02-2018",
+      "confidence": 0.9,
+      "context": "G.O.Ms.No,12, SE(Prog.II) Dept., dt.06-02-2018",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 552,
+  "cached_at": "2025-11-27T14:21:35.621917"
+}

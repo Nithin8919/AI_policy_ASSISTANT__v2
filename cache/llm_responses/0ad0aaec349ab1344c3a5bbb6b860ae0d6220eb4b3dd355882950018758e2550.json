@@ -1,0 +1,32 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms95",
+      "target": "G.O.Ms,.No.95",
+      "confidence": 0.85,
+      "context": "Read the following:- 1, G.O.Ms.No",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms95",
+      "target": "G.O.Ms.No.50",
+      "confidence": 0.85,
+      "context": "G.O.Ms.No.50, School Education (PS) Department, dated 17-08-2021",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms95",
+      "target": "U.O,No.HROPDPP/134/2022",
+      "confidence": 0.8,
+      "context": "Finance (HR.I-Plg & Policy) Department, vide their U.O,No",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 837,
+  "cached_at": "2025-11-27T14:21:48.874060"
+}

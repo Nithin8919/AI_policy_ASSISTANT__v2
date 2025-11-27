@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document includes \"G.O.Ms.No\", a preamble, and official orders related to the takeover of a school, indicating it is a Government Order.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 2911,
+  "cached_at": "2025-11-27T14:22:46.420948"
+}

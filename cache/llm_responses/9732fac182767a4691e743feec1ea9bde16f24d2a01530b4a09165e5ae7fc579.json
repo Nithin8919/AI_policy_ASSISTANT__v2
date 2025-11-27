@@ -1,0 +1,32 @@
+{
+  "response": [
+    {
+      "relation_type": "amends",
+      "source_id": "2022se_ms132",
+      "target": "G.O.Ms.No.27",
+      "confidence": 0.95,
+      "context": "Amendment to the G.O.Ms.No 27",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms132",
+      "target": "G.O.Ms.No.27",
+      "confidence": 0.9,
+      "context": "reference 2TM read above, amendment to the G.O.Ms.No",
+      "metadata": {}
+    },
+    {
+      "relation_type": "amends",
+      "source_id": "2022se_ms132",
+      "target": "G.O.Ms.No",
+      "confidence": 0.8,
+      "context": "following amendment to the G.O.Ms.No",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 713,
+  "cached_at": "2025-11-27T14:21:59.419477"
+}

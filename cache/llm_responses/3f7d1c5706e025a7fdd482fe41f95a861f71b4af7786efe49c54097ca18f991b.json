@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document is a Government Order (GO) as indicated by 'G.O.Ms.No', preamble, and official orders from the School Education Department of Andhra Pradesh.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 1950,
+  "cached_at": "2025-11-27T14:26:53.103352"
+}

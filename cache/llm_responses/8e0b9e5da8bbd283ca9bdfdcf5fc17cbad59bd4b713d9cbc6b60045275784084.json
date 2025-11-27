@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.99,
+    "reasoning": "The document contains G.O.RT.No, refers to budget release orders, and issues administrative sanctions, all indicative of a Government Order.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3016,
+  "cached_at": "2025-11-27T14:16:22.410168"
+}

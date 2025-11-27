@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document is a Government Order (GO) with a G.O.Ms.No, a preamble, and official orders regarding the takeover of a private aided school.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 2908,
+  "cached_at": "2025-11-27T14:20:48.049440"
+}

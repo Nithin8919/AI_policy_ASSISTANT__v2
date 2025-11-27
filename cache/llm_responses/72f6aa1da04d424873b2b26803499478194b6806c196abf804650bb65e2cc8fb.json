@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document starts with \"G.O.Ms.No\" and includes orders from the government, fitting the description of a Government Order (GO).",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3015,
+  "cached_at": "2025-11-27T14:23:00.468679"
+}

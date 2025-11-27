@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms147",
+      "target": "Lr.No.ESE0236-87-2022-GS&GR-II-CSE, Dt:09-08-2022",
+      "confidence": 0.9,
+      "context": "letter read above",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 739,
+  "cached_at": "2025-11-27T14:25:30.145074"
+}

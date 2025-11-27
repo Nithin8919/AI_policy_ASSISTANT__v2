@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms125",
+      "target": "Lr.No.ESE0236/135/2022-COMM SE-CSE, dated:22-06-2022",
+      "confidence": 0.9,
+      "context": "reference read above",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 683,
+  "cached_at": "2025-11-27T14:19:49.182012"
+}

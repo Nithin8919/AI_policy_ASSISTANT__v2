@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.99,
+    "reasoning": "The document is a Government Order (GO) as indicated by the presence of 'G.O.Ms.No', 'ORDER', 'ABSTRACT' and the formal tone and structure of official government communication.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 2878,
+  "cached_at": "2025-11-27T14:19:39.337644"
+}

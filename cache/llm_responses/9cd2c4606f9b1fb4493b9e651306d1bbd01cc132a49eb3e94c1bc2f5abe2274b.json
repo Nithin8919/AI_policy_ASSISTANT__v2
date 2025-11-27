@@ -1,0 +1,24 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms140",
+      "target": "ESE0236-32-2020-CSE, Dated:07-08-2022",
+      "confidence": 0.85,
+      "context": "letter read above",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms140",
+      "target": "G.O.Ms.No.162",
+      "confidence": 0.9,
+      "context": "as per the provisions of G.O.Ms.No 162 School Education dated:14-11-2004",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 665,
+  "cached_at": "2025-11-27T14:23:15.605484"
+}

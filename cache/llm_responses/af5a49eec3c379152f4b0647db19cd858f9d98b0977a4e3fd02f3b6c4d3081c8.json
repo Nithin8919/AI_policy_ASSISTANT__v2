@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document is a Government Order (GO) as indicated by the presence of \"G.O.Ms.No.\", official orders, preamble, and the phrase \"BY ORDER AND IN THE NAME OF THE GOVERNOR OF ANDHRA PRADESH\".",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 1949,
+  "cached_at": "2025-11-27T14:26:44.343977"
+}

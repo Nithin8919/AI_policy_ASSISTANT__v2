@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document has a G.O.Ms.No, preamble, and official orders related to school education, fitting the 'go' category.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3016,
+  "cached_at": "2025-11-27T14:21:29.037914"
+}

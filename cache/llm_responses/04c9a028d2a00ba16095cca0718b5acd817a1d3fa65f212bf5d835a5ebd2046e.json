@@ -1,0 +1,64 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms155",
+      "target": "Lr.No.ESE02-13-90-2021-EST3-CSEPart(7)",
+      "confidence": 0.85,
+      "context": "From the CSE, Lr.No.ESE02-13-90-2021-EST3-CSEPart(7), Dated",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms155",
+      "target": "U.O.No.1778011/HR.II/FINO1-HROPDPP(RRD)/97/2022",
+      "confidence": 0.85,
+      "context": "vide U.O.No.1778011/HR.II/FINO1-HROPDPP(RRD)/97/2022",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms155",
+      "target": "G.O.Ms.No 155",
+      "confidence": 0.95,
+      "context": "ANNEXURE - I (to G.O.Ms.No 155",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms155",
+      "target": "G.O.Ms.No 155",
+      "confidence": 0.95,
+      "context": "ANNEXURE -II (to G.O.Ms.No 155",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms155",
+      "target": "G.O.Ms.No 155",
+      "confidence": 0.95,
+      "context": "ANNEXURE -III (to G.O.Ms.No 155",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms155",
+      "target": "G.O.Ms.No 155",
+      "confidence": 0.95,
+      "context": "ANNEXURE -IV (to G.O.Ms.No 155",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms155",
+      "target": "G.O.Ms.No 155",
+      "confidence": 0.95,
+      "context": "ANNEXURE -V (to G.O.Ms.No 155",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 2049,
+  "cached_at": "2025-11-27T14:24:18.070403"
+}

@@ -1,0 +1,40 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms77",
+      "target": "G.O.Ms.No 21, SE(Prog.II) Dept., dt.10-03-2021",
+      "confidence": 0.9,
+      "context": "G.O.Ms.No 21, SE(Prog.II) Dept., dt.10-03-2021 read with",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms77",
+      "target": "File No: SS-16-9-2021-CMO SECSSA (Computer No: 1543483), dt.25-10-2021",
+      "confidence": 0.8,
+      "context": "From the DSE & SPD, APSS, File No: SS-16-9-2021-CMO SECSSA (Computer No: 1543483), dt.25-10-2021",
+      "metadata": {}
+    },
+    {
+      "relation_type": "implements",
+      "source_id": "2021se_ms77",
+      "target": "Jagananna Vidya Kanuka",
+      "confidence": 0.7,
+      "context": "accord administrative approval to Procure & supply Students Kit ... under “Jagananna Vidya Kanuka”",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms77",
+      "target": "U.O.No.FMUOBES(SE)/82/2021, Computer No.1550376, dt.18-11-2021",
+      "confidence": 0.85,
+      "context": "concurrence of the Finance Department vide U.O.No.FMUOBES(SE)/82/2021, Computer No.1550376, dt.18-11-2021",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1789,
+  "cached_at": "2025-11-27T14:18:27.251044"
+}

@@ -1,0 +1,24 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms3",
+      "target": "Lr",
+      "confidence": 0.85,
+      "context": "From the Commissioner of School Education, AP., Lr",
+      "metadata": {}
+    },
+    {
+      "relation_type": "governed_by",
+      "source_id": "2022se_ms3",
+      "target": "G.O.Ms.No",
+      "confidence": 0.75,
+      "context": "SCHOOL EDUCATION (PROG.I) DEPARTMENT G.O.Ms.No",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 341,
+  "cached_at": "2025-11-27T14:19:44.969445"
+}

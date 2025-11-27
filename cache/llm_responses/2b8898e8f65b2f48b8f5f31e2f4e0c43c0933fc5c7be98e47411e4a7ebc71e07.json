@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms152",
+      "target": "ESEQ2-19-90-2022-GSGR-1, dt:25-08-2022",
+      "confidence": 0.9,
+      "context": "Commissioner of School Education, AP., Lr ESEQ2-19-90-2022-GSGR-1, dt:25-08-2022",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 707,
+  "cached_at": "2025-11-27T14:24:59.990388"
+}

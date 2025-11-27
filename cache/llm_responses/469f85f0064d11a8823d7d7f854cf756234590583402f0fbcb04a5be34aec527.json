@@ -1,0 +1,32 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms134",
+      "target": "U.O.No.221/2022, GA(Cabinet) Department, dtd:02-08-2022",
+      "confidence": 0.9,
+      "context": "U.O.No.221/2022, GA(Cabinet) Department, dtd:02-08-2022, along with Cabinet Resolution",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms134",
+      "target": "Cabinet Resolution No.221/2022 dated:02-08-2022",
+      "confidence": 0.9,
+      "context": "U.O.No.221/2022, GA(Cabinet) Department, dtd:02-08-2022, along with Cabinet Resolution",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms134",
+      "target": "U.O.No.FINO1 - FMUOASD (SE) /33 / 2022 - FMU - SE",
+      "confidence": 0.9,
+      "context": "Finance (FMU-SE) Department vide U.O.No FINO1 - FMUOASD (SE) /33 / 2022",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1090,
+  "cached_at": "2025-11-27T14:17:36.219273"
+}

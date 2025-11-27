@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.99,
+    "reasoning": "The document contains a G.O.Ms.No., preamble, and official order regarding the repatriation of an employee, indicating it is a Government Order.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 1825,
+  "cached_at": "2025-11-27T14:25:55.246807"
+}

@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms67",
+      "target": "G.O 3",
+      "confidence": 0.9,
+      "context": "In the G.O 3 read above, Government have accorded administrative approval",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1106,
+  "cached_at": "2025-11-27T14:20:11.547765"
+}

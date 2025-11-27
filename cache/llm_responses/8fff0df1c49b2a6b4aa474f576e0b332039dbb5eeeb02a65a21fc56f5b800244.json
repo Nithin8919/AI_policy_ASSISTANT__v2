@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "governed_by",
+      "source_id": "2021se_ms62",
+      "target": "SF/SC",
+      "confidence": 0.85,
+      "context": "SF/SC",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 73,
+  "cached_at": "2025-11-27T14:18:13.342544"
+}

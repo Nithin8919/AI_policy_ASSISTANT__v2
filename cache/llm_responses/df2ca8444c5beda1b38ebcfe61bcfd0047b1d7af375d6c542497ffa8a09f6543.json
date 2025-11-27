@@ -1,0 +1,32 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms130",
+      "target": "G.O",
+      "confidence": 0.85,
+      "context": "relaxation of the rules issued in the G.O",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms130",
+      "target": "G.O.Ms.No: 130",
+      "confidence": 0.85,
+      "context": "G.O.Ms.No: 130 Dated:20-07-2022",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms130",
+      "target": "G.O.Rt.No",
+      "confidence": 0.8,
+      "context": "G.O.Rt.No",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 652,
+  "cached_at": "2025-11-27T14:21:26.008178"
+}

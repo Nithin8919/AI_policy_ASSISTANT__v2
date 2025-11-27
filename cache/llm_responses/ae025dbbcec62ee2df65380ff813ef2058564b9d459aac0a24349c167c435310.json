@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms161",
+      "target": "Lr.No.ESE02-36-54-2022-GS&GR-II-CSE",
+      "confidence": 0.9,
+      "context": "From the Commissioner of School Education, AP., Lr.No.ESE02-36-54-2022-GS&GR-II-CSE, dated:09-09-2022",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 491,
+  "cached_at": "2025-11-27T14:26:20.259595"
+}

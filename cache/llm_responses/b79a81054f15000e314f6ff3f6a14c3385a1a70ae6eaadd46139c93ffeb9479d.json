@@ -1,0 +1,56 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms73",
+      "target": "G.O.Ms.No. 73",
+      "confidence": 0.85,
+      "context": "Read the following; G.O.Ms.No 73",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms73",
+      "target": "242/A&I/2019",
+      "confidence": 0.85,
+      "context": "242/A&I/2019, dated:26-08-2019",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms73",
+      "target": "2",
+      "confidence": 0.8,
+      "context": "2 read above, Government have issued orders",
+      "metadata": {}
+    },
+    {
+      "relation_type": "implements",
+      "source_id": "2021se_ms73",
+      "target": "JAGANANNA AMMA VODI",
+      "confidence": 0.9,
+      "context": "under a new programme “JAGANANNA AMMA VODI",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms73",
+      "target": "3",
+      "confidence": 0.8,
+      "context": "In the reference 3 read above, Government have issued orders",
+      "metadata": {}
+    },
+    {
+      "relation_type": "implements",
+      "source_id": "2021se_ms73",
+      "target": "JAGANANNA AMMA VODI",
+      "confidence": 0.9,
+      "context": "launching the “JAGANANNA AMMA VODI” scheme",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1395,
+  "cached_at": "2025-11-27T14:20:18.498205"
+}

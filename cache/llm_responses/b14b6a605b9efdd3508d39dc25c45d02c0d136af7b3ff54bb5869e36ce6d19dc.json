@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document is likely a Government Order (GO) due to the presence of 'MS' in the filename, which is a common indicator for G.O.Ms.No, and the 'CONFIDENTIAL' marking suggests an official government communication.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 28,
+  "cached_at": "2025-11-27T14:26:41.226375"
+}

@@ -1,0 +1,32 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms1",
+      "target": "G.O.Ms.No: 01",
+      "confidence": 0.85,
+      "context": "Read the following:- 1",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms1",
+      "target": "Lr.Rc.No.ESE0211-53-2021-AD-SER-I- CSE",
+      "confidence": 0.85,
+      "context": "dated:29-11-2021",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms1",
+      "target": "G.O.1",
+      "confidence": 0.85,
+      "context": "vide G.O.1* read above",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 600,
+  "cached_at": "2025-11-27T14:23:02.927939"
+}

@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms162",
+      "target": "G.0.Ms.No.124",
+      "confidence": 0.9,
+      "context": "Read the following:- 1.G.0.Ms.No.124,SE(Prog.!) Department,dated:07-07-2022",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 202,
+  "cached_at": "2025-11-27T14:26:54.362249"
+}

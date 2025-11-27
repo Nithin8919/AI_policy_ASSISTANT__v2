@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document starts with \"Government of Andhra Pradesh ABSTRACT\" and contains \"G.O.Ms.No\", \"ORDER\", and instructions to officers, fitting the characteristics of a Government Order (GO).",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 2802,
+  "cached_at": "2025-11-27T14:19:06.720064"
+}

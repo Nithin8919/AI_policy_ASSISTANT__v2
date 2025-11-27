@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document is a G.O.Ms.No (Government Order) with a preamble, order, and references to other GOs, indicating it's a formal government directive.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 2997,
+  "cached_at": "2025-11-27T14:21:57.577611"
+}

@@ -1,0 +1,40 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms20",
+      "target": "E1/2533/MD/APEWIDC/2016, dated 28-01-2021",
+      "confidence": 0.85,
+      "context": "Segment 2 cites a document",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms20",
+      "target": "E1/1266/MD/APEWIDC/2016, dated 15-12-2021",
+      "confidence": 0.85,
+      "context": "Segment 3 cites a document",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms20",
+      "target": "94/2022 dated 07-04-2022",
+      "confidence": 0.85,
+      "context": "Segment 4 cites a document from GA (Cabinet) Dept.",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms20",
+      "target": "564404/HR.II/FINO1-41022/162/2018, dated 02-05-2022",
+      "confidence": 0.85,
+      "context": "Segment 6 cites a document from Finance (HR.II) Department",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 416,
+  "cached_at": "2025-11-27T14:26:02.244302"
+}

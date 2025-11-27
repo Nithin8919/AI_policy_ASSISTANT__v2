@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.99,
+    "reasoning": "The document is a Government Order (GO) as indicated by \"G.O.Ms.No. 52\" and the presence of \"ORDER:\" followed by official directives and instructions.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 2921,
+  "cached_at": "2025-11-27T14:16:56.660792"
+}

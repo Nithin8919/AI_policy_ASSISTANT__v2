@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms58",
+      "target": "G.O.Ms.No 58",
+      "confidence": 0.85,
+      "context": "G.O.Ms.No 58, Dated:31-08-2021",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 345,
+  "cached_at": "2025-11-27T14:22:21.800190"
+}

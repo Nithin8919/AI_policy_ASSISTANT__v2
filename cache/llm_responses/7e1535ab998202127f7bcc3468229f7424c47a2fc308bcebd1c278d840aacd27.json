@@ -1,0 +1,56 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms7",
+      "target": "G.O.Ms.No.74",
+      "confidence": 0.9,
+      "context": "G.O.Ms No.74, School Education (Prog.II) Dept., Dated:21-10-2019",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms7",
+      "target": "G.O.Ms.No.86",
+      "confidence": 0.9,
+      "context": "G.O.Ms.No 86, School Education (Prog.II) Dept, Dated:29-12-2021",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms7",
+      "target": "RC.No.APOSS-14021(47)/27/2022-EXAM/INTER-APOSS",
+      "confidence": 0.85,
+      "context": "RC.No.APOSS-14021(47)/27/2022-EXAM/INTER-APOSS, Dated:31-01-2022",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms7",
+      "target": "G.O.Ms.No.14",
+      "confidence": 0.9,
+      "context": "to adopt the G.O.Ms.No 14, School Education (Prog.II) Dept., dated:31-01-2019",
+      "metadata": {}
+    },
+    {
+      "relation_type": "supersedes",
+      "source_id": "2022se_ms7",
+      "target": "G.O.Ms.No",
+      "confidence": 0.8,
+      "context": "duly superseding the earlier orders issued in G.O.Ms.No",
+      "metadata": {}
+    },
+    {
+      "relation_type": "supersedes",
+      "source_id": "2022se_ms7",
+      "target": "G.O.Ms.No",
+      "confidence": 0.8,
+      "context": "in suppression of orders issued in G.O.Ms.No",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1665,
+  "cached_at": "2025-11-27T14:19:03.635180"
+}

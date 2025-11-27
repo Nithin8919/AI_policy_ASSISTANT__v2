@@ -1,0 +1,48 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms66",
+      "target": "G.O.Ms.No:66",
+      "confidence": 0.9,
+      "context": "Read the following: G.O.Ms.No:66",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms66",
+      "target": "Lr.Rc.No.319/Estt.1-1/2015",
+      "confidence": 0.9,
+      "context": "From the Director of School Education, A.P., Lr.Rc.No.319/Estt.1-1/2015 dated 24-12-2019",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms66",
+      "target": "Lr.Rc.No.ESE0211021/273/2018-EST1-CSE",
+      "confidence": 0.9,
+      "context": "From the Director of School Education, A.P., Lr.Rc.No.ESE0211021/273/2018-EST1-CSE dated 24-06-2020",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms66",
+      "target": "Lr.Rc.No.11021/398/2020-EST 1",
+      "confidence": 0.9,
+      "context": "From the Director of School Education, A.P., Lr.Rc.No.11021/398/2020-EST 1, dated.16-08-2020",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms66",
+      "target": "U.O.No.1117778/HR.II/ FINO1-HROMISC/7/2020",
+      "confidence": 0.9,
+      "context": "concurrence of the Finance (HR.II) Department, vide their U.O.No.1117778/HR.II/ FINO1-HROMISC/7/2020",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 634,
+  "cached_at": "2025-11-27T14:20:34.325143"
+}

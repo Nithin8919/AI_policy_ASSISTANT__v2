@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document contains a G.O.Ms.No, a preamble, and official orders related to the finalization of a seniority list, which are characteristic of Government Orders.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3016,
+  "cached_at": "2025-11-27T14:20:26.732177"
+}

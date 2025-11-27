@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document contains \"G.O.Ms.No.\", a preamble, and an official order from the Government of Andhra Pradesh, indicating it is a Government Order (GO).",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 1595,
+  "cached_at": "2025-11-27T14:23:55.357979"
+}

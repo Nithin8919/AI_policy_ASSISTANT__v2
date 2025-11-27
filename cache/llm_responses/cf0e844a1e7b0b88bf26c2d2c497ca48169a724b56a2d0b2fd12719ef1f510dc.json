@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.99,
+    "reasoning": "The document contains \"G.O.Ms.No\", preambles, and official orders related to the takeover of a school, which aligns with the definition of a Government Order (GO).",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 2888,
+  "cached_at": "2025-11-27T14:20:37.495001"
+}

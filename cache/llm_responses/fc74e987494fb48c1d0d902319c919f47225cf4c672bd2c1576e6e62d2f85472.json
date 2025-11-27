@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms37",
+      "target": "G.O.Ms.No.50",
+      "confidence": 0.9,
+      "context": "subject to the terms and conditions stipulated in the G.O.Ms,No.50",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1421,
+  "cached_at": "2025-11-27T14:25:23.366480"
+}

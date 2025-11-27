@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2021se_ms70",
+      "target": "Lr.No.ESE0236/328/2021-GS&GR-CSE, dt:03-10-2021",
+      "confidence": 0.85,
+      "context": "From the Director, School Education, AP., Lr.No.ESE0236/328/2021-GS&GR-CSE, dt:03-10-2021",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 221,
+  "cached_at": "2025-11-27T14:22:13.337268"
+}

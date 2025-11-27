@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms45",
+      "target": "G.O.Ms.No 50",
+      "confidence": 0.9,
+      "context": "Government, vide G.O.Ms.No 50, School Education (PS) Department, dated 17-08-2021",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1690,
+  "cached_at": "2025-11-27T14:18:46.353999"
+}

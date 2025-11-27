@@ -1,0 +1,24 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms149",
+      "target": "G.O.Ms.No 124",
+      "confidence": 0.9,
+      "context": "Read the following: G.O.Ms.No 124, S.E.(Prog.I) Department, dated:07-07-2022",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms149",
+      "target": "Government memo No.ESE01-SEDNOCSE/111/2022",
+      "confidence": 0.9,
+      "context": "Read the following: Government memo No.ESE01-SEDNOCSE/111/2022, dated: 07-08-2022",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 280,
+  "cached_at": "2025-11-27T14:26:24.826469"
+}

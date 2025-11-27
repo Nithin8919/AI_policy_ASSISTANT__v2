@@ -1,0 +1,7 @@
+{
+  "response": [],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 270,
+  "cached_at": "2025-11-27T14:22:24.956541"
+}

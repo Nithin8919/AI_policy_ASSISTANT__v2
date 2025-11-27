@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document is a Government Order (GO) as indicated by 'G.O.Ms.No' and 'ORDER:' along with a preamble describing the need for the order and the official orders issued.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3017,
+  "cached_at": "2025-11-27T14:23:39.095644"
+}

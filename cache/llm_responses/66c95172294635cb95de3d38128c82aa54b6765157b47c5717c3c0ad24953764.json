@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.99,
+    "reasoning": "The document contains 'G.O.Ms.No', 'ORDER', and details a government decision, indicating it's a Government Order (GO).",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 2997,
+  "cached_at": "2025-11-27T14:17:26.378308"
+}

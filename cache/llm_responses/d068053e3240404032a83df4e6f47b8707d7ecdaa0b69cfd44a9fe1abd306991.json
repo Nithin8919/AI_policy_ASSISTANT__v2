@@ -1,0 +1,24 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms56",
+      "target": "G,.0.Ms.No.50, School Education (PS) Department, dated 17-08-2021",
+      "confidence": 0.9,
+      "context": "Read the following: G,.0.Ms.No.50, School Education (PS) Department, dated 17-08-2021",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms56",
+      "target": "U.O.No.HROPDPP/134/2022",
+      "confidence": 0.85,
+      "context": "concurrence of the Finance (HR.I-Plg & Policy) Department, vide their U.O.No.HROPDPP/134/2022",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1138,
+  "cached_at": "2025-11-27T14:22:04.353155"
+}

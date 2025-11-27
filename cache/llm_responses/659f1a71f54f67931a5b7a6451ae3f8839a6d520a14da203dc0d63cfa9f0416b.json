@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.99,
+    "reasoning": "The document has a G.O.Ms.No, a preamble, and official orders regarding the up-gradation of a school, which are characteristics of a Government Order (GO).",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 1576,
+  "cached_at": "2025-11-27T14:25:28.600798"
+}

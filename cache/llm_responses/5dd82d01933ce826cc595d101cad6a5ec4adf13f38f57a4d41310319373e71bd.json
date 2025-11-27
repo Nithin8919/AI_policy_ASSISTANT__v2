@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document has a G.O.Ms.No, a preamble, and issues an official order regarding the takeover of a school.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 2940,
+  "cached_at": "2025-11-27T14:25:22.018214"
+}

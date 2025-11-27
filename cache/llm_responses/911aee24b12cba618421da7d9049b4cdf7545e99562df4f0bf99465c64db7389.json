@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.99,
+    "reasoning": "The document starts with 'GOVERNMENT OF ANDHRA PRADESH ABSTRACT' and has 'G.O.Ms.No' which clearly indicates it's a Government Order.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3017,
+  "cached_at": "2025-11-27T14:17:52.525535"
+}

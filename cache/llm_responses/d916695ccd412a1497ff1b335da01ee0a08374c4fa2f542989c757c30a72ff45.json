@@ -1,0 +1,16 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms127",
+      "target": "C.1.E., Lr.Rc.No.OP-1/EHE05-15023-28-2021, Dated: 28-09-2021",
+      "confidence": 0.9,
+      "context": "stated by the C.I.E., vide letter 1%* read above",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 545,
+  "cached_at": "2025-11-27T14:22:56.870714"
+}

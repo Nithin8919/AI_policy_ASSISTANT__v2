@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.99,
+    "reasoning": "The document starts with 'G.O.Ms.No' and contains official orders and references to other G.O.s, indicating it is a Government Order.",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 3016,
+  "cached_at": "2025-11-27T14:20:10.340903"
+}

@@ -1,0 +1,12 @@
+{
+  "response": {
+    "vertical": "go",
+    "confidence": 0.95,
+    "reasoning": "The document has a G.O.Ms.No, a preamble, an official order, and is therefore classified as a Government Order (GO).",
+    "method": "llm"
+  },
+  "model": "models/gemini-2.0-flash",
+  "task_type": "vertical_classification",
+  "content_length": 1678,
+  "cached_at": "2025-11-27T14:24:50.384367"
+}

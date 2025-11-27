@@ -1,0 +1,40 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms93",
+      "target": "G.O.Ms.No,.50",
+      "confidence": 0.85,
+      "context": "G.O.Ms.No,.50, School Education (PS) Department, dated 17-08-2021",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms93",
+      "target": "letter 2TM",
+      "confidence": 0.75,
+      "context": "Commissioner of School Education, vide his letter 2TM read above",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms93",
+      "target": "G.O.Ms.No",
+      "confidence": 0.8,
+      "context": "terms and conditions stipulated in the G.O.Ms.No",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms93",
+      "target": "U.O.No.HROPDPP/134/2022",
+      "confidence": 0.85,
+      "context": "Finance (HR.I-Plg & Policy) Department, vide their U.O.No.HROPDPP/134/2022",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 1335,
+  "cached_at": "2025-11-27T14:17:42.169565"
+}

@@ -1,0 +1,24 @@
+{
+  "response": [
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms145",
+      "target": "Ms No.124",
+      "confidence": 0.9,
+      "context": "Read the following:- Ms No.124, S.E.(Prog.1) Department, dated:07-07-2022",
+      "metadata": {}
+    },
+    {
+      "relation_type": "cites",
+      "source_id": "2022se_ms145",
+      "target": "Letter No.91/A&I/2022",
+      "confidence": 0.9,
+      "context": "From the Commissioner of School Education, AP., Letter No.91/A&I/2022, Dated:21-08-2022",
+      "metadata": {}
+    }
+  ],
+  "model": "gemini-2.0-flash",
+  "task_type": "relation_extraction",
+  "content_length": 294,
+  "cached_at": "2025-11-27T14:25:38.005975"
+}

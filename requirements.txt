@@ -30,3 +30,17 @@ python-dotenv>=1.0.0
 # Testing (optional)
 pytest>=7.4.0
 pytest-cov>=4.1.0
+
+# Vertex AI (GCP Native)
+google-cloud-aiplatform>=1.38.0
+
+# Content extraction (same as before)
+trafilatura>=1.6.0
+requests>=2.31.0
+
+# Already in your requirements (keep them)
+# fastapi
+# uvicorn
+# python-dotenv
+# qdrant-client
+# sentence-transformers
