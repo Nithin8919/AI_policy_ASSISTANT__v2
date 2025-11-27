@@ -71,10 +71,14 @@ class FileLoader:
         
         if recursive:
             for ext in self.supported_extensions:
+                # Search for both lowercase and uppercase extensions
                 files.extend(directory.rglob(f"*{ext}"))
+                files.extend(directory.rglob(f"*{ext.upper()}"))
         else:
             for ext in self.supported_extensions:
+                # Search for both lowercase and uppercase extensions
                 files.extend(directory.glob(f"*{ext}"))
+                files.extend(directory.glob(f"*{ext.upper()}"))
         
         logger.info(f"Found {len(files)} files in {directory}")
         

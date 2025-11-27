@@ -71,6 +71,9 @@ class DataStructureParser:
             r'^(?:SUMMARY|EXECUTIVE SUMMARY|CONCLUSION|CONCLUSIONS)[:\s]',
             re.IGNORECASE | re.MULTILINE
         )
+        
+        # Single table pattern for backwards compatibility
+        self.table_pattern = self.table_content_patterns[0] if self.table_content_patterns else re.compile(r'\|[^\n]*\|[^\n]*\|')
     
     def parse(self, text: str) -> Dict:
         """
@@ -307,6 +310,7 @@ class DataStructureParser:
             remaining_text = text[start_pos:]
             next_marker = None
             
+
             # Check for next table or chart
             for pattern in self.table_caption_patterns + [self.chart_pattern]:
                 next_match = pattern.search(remaining_text)

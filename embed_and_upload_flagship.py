@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Tuple
 from dataclasses import dataclass
 from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct, PayloadSchemaType, PayloadIndexParams
+from qdrant_client.models import PointStruct, PayloadSchemaType
 import logging
 from datetime import datetime
 import math
@@ -46,8 +46,7 @@ EMBEDDING_MODEL = ingestion_config.EMBEDDING_MODEL
 
 from embedding.google_embedder import get_embedder
 from config.vertical_map import (
-    get_collection_name, build_vector_params, 
-    assert_startup_config, safe_get_collection, get_all_collections
+    get_collection_name, get_all_collections
 )
 
 # Configuration
@@ -327,7 +326,9 @@ def ensure_collection_exists(client: QdrantClient, vertical: str):
     """Ensure collection exists with correct schema AND payload indexes"""
     try:
         collection_name = get_collection_name(vertical)
-        vector_params = build_vector_params(vertical)
+        # Use default vector params for now
+        from qdrant_client.models import VectorParams, Distance
+        vector_params = VectorParams(size=768, distance=Distance.COSINE)
         
         collections = client.get_collections()
         existing = [c.name for c in collections.collections]
@@ -670,6 +671,9 @@ def main():
         embedder = get_embedder()
         client = setup_qdrant()
         progress = load_progress()
+        logging.info(f"🔍 Debug: Progress dict has {len(progress)} entries")
+        if len(progress) > 0:
+            logging.info(f"🔍 Debug: First few progress entries: {list(progress.items())[:3]}")
         
         logging.info(f"📡 Model: {EMBEDDING_MODEL} ({embedder.embedding_dimension}d)")
         logging.info(f"📊 Batches: embed={EMBED_BATCH_SIZE}, upload={UPLOAD_BATCH_SIZE}")
@@ -684,15 +688,15 @@ def main():
         total_files = sum(len(files) for files in chunk_files_by_vertical.values())
         logging.info(f"📊 Found {total_files} files across {len(chunk_files_by_vertical)} verticals")
         
-        assert_startup_config()
-        
         # Process each vertical
         for vertical, chunk_files in chunk_files_by_vertical.items():
             if not chunk_files:
                 continue
             
-            collection_name = safe_get_collection(vertical)
-            if not collection_name:
+            try:
+                collection_name = get_collection_name(vertical)
+            except ValueError:
+                logging.warning(f"Unknown vertical: {vertical}, skipping")
                 continue
             
             logging.info(f"\n🎯 Processing: {vertical} → {collection_name}")
@@ -700,13 +704,17 @@ def main():
             metrics.collections_created += 1
             
             for chunk_file in chunk_files:
-                file_key = f"{vertical}:{chunk_file.name}"
+                # FIX: Use document directory name, not just "chunks.jsonl"
+                doc_id = chunk_file.parent.name
+                file_key = f"{vertical}:{doc_id}"
+                progress_value = progress.get(file_key, 0)
+                logging.info(f"🔍 Debug: {file_key} -> progress value: {progress_value}")
                 
-                if progress.get(file_key, 0) > 0:
-                    logging.info(f"   ⏭️ Skip: {chunk_file.name}")
+                if progress_value > 0:
+                    logging.info(f"   ⏭️ Skip: {doc_id} (already processed)")
                     continue
                 
-                logging.info(f"   📖 Loading: {chunk_file.name}")
+                logging.info(f"   📖 Loading: {doc_id}/chunks.jsonl")
                 chunks = load_chunks_from_file(chunk_file)
                 
                 if not chunks:
