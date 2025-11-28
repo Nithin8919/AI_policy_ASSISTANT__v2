@@ -13,6 +13,9 @@ import logging
 from typing import List, Dict, Optional
 from qdrant_client import models
 
+# NEW V2 IMPORTS
+from ..config.settings import FEATURE_FLAGS
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +32,7 @@ class VerticalRetriever:
         vertical: str
     ):
         """
-        Initialize retriever.
+        Initialize retriever with V2 support.
         
         Args:
             qdrant_client: Qdrant client wrapper
@@ -40,6 +43,14 @@ class VerticalRetriever:
         self.embedder = embedder
         self.vertical = vertical
         
+        # V2: Initialize hybrid searcher if enabled
+        if FEATURE_FLAGS.get("use_hybrid_search", False):
+            from .hybrid_search import get_hybrid_searcher
+            self.hybrid_searcher = get_hybrid_searcher()
+            logger.info(f"✅ Hybrid search enabled for {vertical}")
+        else:
+            self.hybrid_searcher = None
+        
         logger.info(f"✅ Vertical retriever initialized for: {vertical}")
     
     def retrieve(
@@ -47,20 +58,31 @@ class VerticalRetriever:
         query: str,
         enhanced_query: str,
         top_k: int = 10,
-        filters: Optional[Dict[str, List[str]]] = None
+        filters: Optional[Dict[str, List[str]]] = None,
+        use_hybrid_search: Optional[bool] = None
     ) -> List[Dict]:
         """
-        Retrieve from vertical with smart filtering.
+        Retrieve from vertical with smart filtering and optional hybrid search.
         
         Args:
-            query: Original query
+            query: Original query (for BM25)
             enhanced_query: Enhanced query for embedding
             top_k: Number of results
             filters: Filter dict (e.g., {"sections": ["12"], "year": [2020]})
+            use_hybrid_search: Whether to apply hybrid search (None = use settings)
             
         Returns:
             List of results with scores
         """
+        # Determine if we should use hybrid search
+        if use_hybrid_search is None:
+            should_use_hybrid = (
+                self.hybrid_searcher is not None and 
+                FEATURE_FLAGS.get("use_hybrid_search", False)
+            )
+        else:
+            should_use_hybrid = use_hybrid_search and self.hybrid_searcher is not None
+        
         # Embed query
         query_vector = self.embedder.embed(enhanced_query)
         
@@ -83,6 +105,13 @@ class VerticalRetriever:
                 limit=top_k,
                 query_filter=qdrant_filter
             )
+            
+            # V2: Apply hybrid search if enabled and we have results
+            if should_use_hybrid and results:
+                results = self.hybrid_searcher.hybrid_search(results, query)
+                logger.info(f"🔀 Applied hybrid search to {self.vertical}")
+            elif should_use_hybrid:
+                logger.debug(f"Hybrid search enabled but no results to rerank for {self.vertical}")
             
             logger.info(f"✅ Found {len(results)} results in {self.vertical}")
             return results
@@ -255,7 +284,9 @@ class MultiVerticalRetriever:
         verticals: List[str],
         query_vector,
         top_k_per_vertical: int = 10,
-        filters: Optional[Dict] = None
+        filters: Optional[Dict] = None,
+        original_query: str = "",
+        use_hybrid_search: bool = True
     ) -> Dict[str, List[Dict]]:
         """
         Retrieve from multiple verticals.
@@ -265,6 +296,8 @@ class MultiVerticalRetriever:
             query_vector: Query embedding
             top_k_per_vertical: Results per vertical
             filters: Optional filters
+            original_query: Original query for hybrid search
+            use_hybrid_search: Whether to apply hybrid search
             
         Returns:
             Dict mapping vertical to results
@@ -281,6 +314,13 @@ class MultiVerticalRetriever:
                     top_k=top_k_per_vertical,
                     filters=filters
                 )
+                
+                # Apply hybrid search if enabled and we have original query
+                if use_hybrid_search and original_query and vertical_results:
+                    from .hybrid_search import get_hybrid_searcher
+                    hybrid_searcher = get_hybrid_searcher()
+                    vertical_results = hybrid_searcher.hybrid_search(vertical_results, original_query)
+                    logger.info(f"🔀 Applied hybrid search to {vertical} ({len(vertical_results)} results)")
                 
                 # Add vertical info to each result
                 for result in vertical_results:

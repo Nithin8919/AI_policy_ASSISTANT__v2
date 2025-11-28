@@ -34,12 +34,25 @@ class RetrievalRouter:
     One import, full pipeline.
     """
     
-    def __init__(self):
-        """Initialize router (components loaded lazily)"""
+    def __init__(self, enable_hybrid_search: Optional[bool] = None):
+        """
+        Initialize router (components loaded lazily)
+        
+        Args:
+            enable_hybrid_search: Whether to enable hybrid (vector + BM25) search
+                                 If None, uses settings from config
+        """
         self.planner = get_query_planner()
         self.embedder = get_embedding_router()
         self.retriever = get_vertical_retriever()
         self.aggregator = get_result_aggregator()
+        
+        # Use setting from config if not explicitly provided
+        if enable_hybrid_search is None:
+            from .config.settings import FEATURE_FLAGS
+            self.enable_hybrid_search = FEATURE_FLAGS.get("use_hybrid_search", True)
+        else:
+            self.enable_hybrid_search = enable_hybrid_search
         
         # Rerankers
         self.light_reranker = get_light_reranker()
@@ -68,11 +81,10 @@ class RetrievalRouter:
         start_time = time.time()
         
         try:
-            # 1. Build query plan
-            plan = self.planner.build_plan(
+            # 1. Build query plan (V2 uses plan method)
+            plan = self.planner.plan(
                 query,
-                explicit_mode=mode,
-                explicit_verticals=verticals
+                mode_override=mode
             )
             
             # Override top_k if provided
@@ -90,7 +102,9 @@ class RetrievalRouter:
                 verticals=plan.verticals,
                 query_vector=query_vector,
                 top_k_per_vertical=plan.top_k,
-                filters=plan.filters
+                filters=plan.filters,
+                original_query=query,
+                use_hybrid_search=self.enable_hybrid_search
             )
             
             # 4. Aggregate results

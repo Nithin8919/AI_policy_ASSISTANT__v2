@@ -115,3 +115,58 @@ def validate_config(allow_missing_llm: bool = False):
         raise ValueError(f"Configuration errors: {', '.join(errors)}")
     
     return True
+
+
+# ===================================================================
+# V2 FEATURE FLAGS
+# ===================================================================
+# Set any flag to False to disable that feature (instant rollback)
+
+FEATURE_FLAGS = {
+    # Core improvements (recommended: all True)
+    "use_intent_classifier_v2": True,
+    "use_query_router_v2": True,
+    "use_hybrid_search": True,
+    "dynamic_top_k": True,
+    
+    # Optional enhancements
+    "use_internet_verification": True,  # Requires web_search tool
+}
+
+
+# ===================================================================
+# HYBRID SEARCH CONFIGURATION
+# ===================================================================
+HYBRID_SEARCH_CONFIG = {
+    "enabled": True,
+    "vector_weight": 0.7,      # 70% weight for semantic similarity
+    "keyword_weight": 0.3,     # 30% weight for keyword matching
+}
+
+
+# ===================================================================
+# INTERNET VERIFICATION CONFIGURATION
+# ===================================================================
+INTERNET_VERIFICATION_CONFIG = {
+    "enabled": True,
+    "max_claims_to_verify": 3,           # Limit verification for speed
+    "confidence_threshold": 0.7,         # Verify if confidence < 0.7
+    "verify_numerical": True,            # Verify numbers
+    "verify_recent": True,               # Verify "latest", "current" queries
+}
+
+
+# ===================================================================
+# DYNAMIC TOP-K CONFIGURATION
+# ===================================================================
+DYNAMIC_TOP_K_CONFIG = {
+    # Base values (increased from old values)
+    "qa_base": 20,              # Was 10
+    "deep_think_base": 80,      # Was 50
+    "brainstorm_base": 60,      # Was 40
+    
+    # Multipliers
+    "comprehensive_multiplier": 1.5,  # Boost comprehensive queries by 50%
+    "min_verticals": 2,               # Minimum verticals for QA
+    "max_verticals": 5,               # Maximum verticals
+}

@@ -56,8 +56,8 @@ class EntityExtractor:
         ],
         "act_name": [
             re.compile(r'\b([A-Z][A-Za-z\s]+Act(?:,?\s*\d{4})?)', re.IGNORECASE),
-            re.compile(r'\bRTE\s*Act\b', re.IGNORECASE),
-            re.compile(r'\bRight\s*to\s*Education\s*Act\b', re.IGNORECASE)
+            re.compile(r'\b(RTE\s*Act)\b', re.IGNORECASE),
+            re.compile(r'\b(Right\s*to\s*Education\s*Act)\b', re.IGNORECASE)
         ]
     }
     

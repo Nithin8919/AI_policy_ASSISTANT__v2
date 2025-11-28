@@ -10,6 +10,7 @@ Clean, deterministic, no overlap.
 from dataclasses import dataclass
 from typing import List, Optional
 from enum import Enum
+from .settings import DYNAMIC_TOP_K_CONFIG
 
 
 class QueryMode(Enum):
@@ -51,7 +52,7 @@ class ModeConfig:
     timeout: float
 
 
-# QA Mode Configuration
+# QA Mode - Increased from 10 to 20
 QA_MODE_CONFIG = ModeConfig(
     mode=QueryMode.QA,
     
@@ -59,8 +60,8 @@ QA_MODE_CONFIG = ModeConfig(
     verticals=[],  # Will be set dynamically
     
     # Fast and precise
-    top_k=10,
-    rerank_top=5,
+    top_k=DYNAMIC_TOP_K_CONFIG.get("qa_base", 20),  # V2: Increased
+    rerank_top=10,  # V2: Increased from 5
     
     # Use fast embeddings
     embedding_model="fast",
@@ -83,7 +84,7 @@ QA_MODE_CONFIG = ModeConfig(
 )
 
 
-# Deep Think Mode Configuration
+# Deep Think Mode - Increased from 50 to 80
 DEEP_THINK_MODE_CONFIG = ModeConfig(
     mode=QueryMode.DEEP_THINK,
     
@@ -91,8 +92,8 @@ DEEP_THINK_MODE_CONFIG = ModeConfig(
     verticals=["legal", "go", "judicial", "data", "schemes"],
     
     # Comprehensive retrieval
-    top_k=50,
-    rerank_top=20,
+    top_k=DYNAMIC_TOP_K_CONFIG.get("deep_think_base", 80),  # V2: Increased
+    rerank_top=30,  # V2: Increased from 20
     
     # Use deep embeddings
     embedding_model="deep",
@@ -115,7 +116,7 @@ DEEP_THINK_MODE_CONFIG = ModeConfig(
 )
 
 
-# Brainstorm Mode Configuration
+# Brainstorm Mode - Increased from 40 to 60
 BRAINSTORM_MODE_CONFIG = ModeConfig(
     mode=QueryMode.BRAINSTORM,
     
@@ -123,8 +124,8 @@ BRAINSTORM_MODE_CONFIG = ModeConfig(
     verticals=["schemes", "data"],  # Light touch on legal/judicial
     
     # Diverse retrieval
-    top_k=40,
-    rerank_top=15,
+    top_k=DYNAMIC_TOP_K_CONFIG.get("brainstorm_base", 60),  # V2: Increased
+    rerank_top=20,  # V2: Increased from 15
     
     # Use deep embeddings for better semantic matching
     embedding_model="deep",
