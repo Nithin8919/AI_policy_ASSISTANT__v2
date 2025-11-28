@@ -69,7 +69,7 @@ export async function queryAPI(request: QueryRequest): Promise<QueryResponse> {
 
 export async function getSystemStatus(): Promise<any> {
   try {
-    const response = await fetch(`${API_BASE_URL}/v1/status`)
+    const response = await fetch(`${API_BASE_URL}/v3/status`)
     
     if (!response.ok) {
       throw new Error(`Status check failed: ${response.status} ${response.statusText}`)

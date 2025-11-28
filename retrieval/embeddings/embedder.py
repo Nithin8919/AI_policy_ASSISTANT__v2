@@ -240,12 +240,21 @@ class Embedder:
         """Embed texts using Google API"""
         embeddings = []
         for text in texts:
-            result = self._google_client.embed_content(
-                model=EMBEDDING_CONFIG.model,
-                content=text,
-                task_type="retrieval_document",
-                output_dimensionality=EMBEDDING_CONFIG.dimension
-            )
+            try:
+                # Try with output_dimensionality first
+                result = self._google_client.embed_content(
+                    model=EMBEDDING_CONFIG.model,
+                    content=text,
+                    task_type="retrieval_document",
+                    output_dimensionality=EMBEDDING_CONFIG.dimension
+                )
+            except TypeError:
+                # Fallback without output_dimensionality for older API versions
+                result = self._google_client.embed_content(
+                    model=EMBEDDING_CONFIG.model,
+                    content=text,
+                    task_type="retrieval_document"
+                )
             embeddings.append(result['embedding'])
         return [self._ensure_list(vec) for vec in embeddings]
     

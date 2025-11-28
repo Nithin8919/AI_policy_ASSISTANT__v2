@@ -11773,3 +11773,246 @@
 2025-11-27 18:27:33,323 - WARNING - ⚠️ 30 chunks failed - see failed_chunks.jsonl
 2025-11-27 18:27:33,323 - INFO - 
 ✅ Final: 1845/1845 uploaded
+2025-11-28 10:40:34,171 - INFO - 🚀 Starting FINAL embedding & upload with sidecar metadata merge
+2025-11-28 10:40:35,855 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"
+2025-11-28 10:40:36,617 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-28 10:40:36,620 - INFO - ✅ Connected to Qdrant. Found 5 existing collections.
+2025-11-28 10:40:36,621 - INFO - 🔍 Debug: Progress dict has 0 entries
+2025-11-28 10:40:36,621 - INFO - 📡 Model: models/text-embedding-004 (768d)
+2025-11-28 10:40:36,621 - INFO - 📊 Batches: embed=32, upload=100
+2025-11-28 10:40:36,621 - INFO - 💾 Storage: Complete metadata in Qdrant (entities, relations, all fields)
+2025-11-28 10:40:36,623 - INFO - 📁 go: 3 files
+2025-11-28 10:40:36,624 - INFO - 📁 legal: 1 files
+2025-11-28 10:40:36,624 - INFO - 📁 judicial: 0 files
+2025-11-28 10:40:36,625 - INFO - 📁 data: 0 files
+2025-11-28 10:40:36,628 - INFO - 📁 schemes: 6 files
+2025-11-28 10:40:36,628 - INFO - 📊 Found 10 files across 5 verticals
+2025-11-28 10:40:36,628 - INFO - 
+🎯 Processing: go → ap_government_orders
+2025-11-28 10:40:36,886 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-28 10:40:37,209 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders "HTTP/1.1 200 OK"
+2025-11-28 10:40:37,211 - INFO - ✅ Collection ap_government_orders exists
+2025-11-28 10:40:37,515 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/index?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:40:37,518 - INFO -    ✅ Indexed: go_number (keyword)
+2025-11-28 10:40:37,826 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/index?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:40:37,827 - INFO -    ✅ Indexed: mentioned_sections (keyword)
+2025-11-28 10:40:38,112 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/index?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:40:38,113 - INFO -    ✅ Indexed: year (integer)
+2025-11-28 10:40:38,396 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/index?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:40:38,398 - INFO -    ✅ Indexed: department (keyword)
+2025-11-28 10:40:38,681 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/index?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:40:38,682 - INFO -    ✅ Indexed: departments (keyword)
+2025-11-28 10:40:38,683 - INFO - 🔍 Debug: go:1 -> progress value: 0
+2025-11-28 10:40:38,683 - INFO -    📖 Loading: 1/chunks.jsonl
+2025-11-28 10:40:38,684 - INFO -       🔗 Merging sidecar metadata from 1
+2025-11-28 10:40:38,688 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-28 10:40:38,688 - INFO -       📊 Relations: 4 total, avg 1.0 per chunk
+2025-11-28 10:40:38,688 - INFO -       📊 4 chunks loaded
+2025-11-28 10:40:38,688 - INFO -    🧠 Embedding...
+2025-11-28 10:40:38,688 - INFO -    🔄 Batch 1/1 (4 chunks, $0.000040)
+2025-11-28 10:40:39,764 - INFO -    ✅ Embedded 4 chunks
+2025-11-28 10:40:39,765 - INFO -    ☁️ Uploading 4 chunks...
+2025-11-28 10:40:40,590 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/points?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:40:40,592 - INFO -    ✅ Uploaded batch 1/1
+2025-11-28 10:40:40,594 - INFO -    ✅ Done: 4 chunks, $0.0000 total
+2025-11-28 10:40:40,594 - INFO - 🔍 Debug: go:go.no.22_dt.6_5_20_mana_badi_naadu_nedu_infrastructrue_fecilities_in_schools_certain_modifications_issued -> progress value: 0
+2025-11-28 10:40:40,594 - INFO -    📖 Loading: go.no.22_dt.6_5_20_mana_badi_naadu_nedu_infrastructrue_fecilities_in_schools_certain_modifications_issued/chunks.jsonl
+2025-11-28 10:40:40,595 - INFO -       🔗 Merging sidecar metadata from go.no.22_dt.6_5_20_mana_badi_naadu_nedu_infrastructrue_fecilities_in_schools_certain_modifications_issued
+2025-11-28 10:40:40,599 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-28 10:40:40,599 - INFO -       📊 Relations: 35 total, avg 5.0 per chunk
+2025-11-28 10:40:40,599 - INFO -       📊 7 chunks loaded
+2025-11-28 10:40:40,599 - INFO -    🧠 Embedding...
+2025-11-28 10:40:40,600 - INFO -    🔄 Batch 1/1 (7 chunks, $0.000125)
+2025-11-28 10:40:42,110 - INFO -    ✅ Embedded 7 chunks
+2025-11-28 10:40:42,111 - INFO -    ☁️ Uploading 7 chunks...
+2025-11-28 10:40:42,878 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/points?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:40:42,879 - INFO -    ✅ Uploaded batch 1/1
+2025-11-28 10:40:42,881 - INFO -    ✅ Done: 7 chunks, $0.0002 total
+2025-11-28 10:40:42,881 - INFO - 🔍 Debug: go:diksha_0 -> progress value: 0
+2025-11-28 10:40:42,881 - INFO -    📖 Loading: diksha_0/chunks.jsonl
+2025-11-28 10:40:42,886 - INFO -       🔗 Merging sidecar metadata from diksha_0
+2025-11-28 10:40:42,892 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-28 10:40:42,892 - INFO -       📊 Relations: 96 total, avg 1.0 per chunk
+2025-11-28 10:40:42,892 - INFO -       📊 96 chunks loaded
+2025-11-28 10:40:42,892 - INFO -    🧠 Embedding...
+2025-11-28 10:40:42,892 - INFO -    🔄 Batch 1/3 (32 chunks, $0.000352)
+2025-11-28 10:40:50,230 - INFO -    ✅ Embedded 32 chunks
+2025-11-28 10:40:50,275 - INFO -    🔄 Batch 2/3 (32 chunks, $0.000339)
+2025-11-28 10:40:57,226 - INFO -    ✅ Embedded 32 chunks
+2025-11-28 10:40:57,272 - INFO -    🔄 Batch 3/3 (32 chunks, $0.000347)
+2025-11-28 10:41:04,045 - INFO -    ✅ Embedded 32 chunks
+2025-11-28 10:41:04,047 - INFO -    ☁️ Uploading 96 chunks...
+2025-11-28 10:41:09,978 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/points?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:41:09,982 - INFO -    ✅ Uploaded batch 1/1
+2025-11-28 10:41:09,984 - INFO -    ✅ Done: 96 chunks, $0.0012 total
+2025-11-28 10:41:09,984 - INFO - 
+🎯 Processing: legal → ap_legal_documents
+2025-11-28 10:41:10,255 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-28 10:41:10,525 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents "HTTP/1.1 200 OK"
+2025-11-28 10:41:10,527 - INFO - ✅ Collection ap_legal_documents exists
+2025-11-28 10:41:10,826 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/index?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:41:10,827 - INFO -    ✅ Indexed: sections (keyword)
+2025-11-28 10:41:11,130 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/index?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:41:11,130 - INFO -    ✅ Indexed: section (keyword)
+2025-11-28 10:41:11,426 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/index?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:41:11,427 - INFO -    ✅ Indexed: mentioned_sections (keyword)
+2025-11-28 10:41:11,756 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/index?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:41:11,757 - INFO -    ✅ Indexed: year (integer)
+2025-11-28 10:41:12,054 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/index?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:41:12,055 - INFO -    ✅ Indexed: act_name (keyword)
+2025-11-28 10:41:12,055 - INFO - 🔍 Debug: legal:5294663_salient_featuresofnep_eng_merged -> progress value: 0
+2025-11-28 10:41:12,055 - INFO -    📖 Loading: 5294663_salient_featuresofnep_eng_merged/chunks.jsonl
+2025-11-28 10:41:12,058 - INFO -       🔗 Merging sidecar metadata from 5294663_salient_featuresofnep_eng_merged
+2025-11-28 10:41:12,061 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-28 10:41:12,061 - INFO -       📊 Relations: 46 total, avg 2.0 per chunk
+2025-11-28 10:41:12,061 - INFO -       📊 23 chunks loaded
+2025-11-28 10:41:12,061 - INFO -    🧠 Embedding...
+2025-11-28 10:41:12,061 - INFO -    🔄 Batch 1/1 (23 chunks, $0.000631)
+2025-11-28 10:41:16,927 - INFO -    ✅ Embedded 23 chunks
+2025-11-28 10:41:16,928 - INFO -    ☁️ Uploading 23 chunks...
+2025-11-28 10:41:17,236 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/points?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:41:17,237 - INFO -    ✅ Uploaded batch 1/1
+2025-11-28 10:41:17,238 - INFO -    ✅ Done: 23 chunks, $0.0018 total
+2025-11-28 10:41:17,239 - INFO - 
+🎯 Processing: schemes → ap_schemes
+2025-11-28 10:41:17,512 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-28 10:41:17,783 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes "HTTP/1.1 200 OK"
+2025-11-28 10:41:17,785 - INFO - ✅ Collection ap_schemes exists
+2025-11-28 10:41:18,087 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/index?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:41:18,089 - INFO -    ✅ Indexed: scheme_name (keyword)
+2025-11-28 10:41:18,389 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/index?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:41:18,390 - INFO -    ✅ Indexed: year (integer)
+2025-11-28 10:41:18,687 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/index?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:41:18,688 - INFO -    ✅ Indexed: departments (keyword)
+2025-11-28 10:41:18,689 - INFO - 🔍 Debug: schemes:atl_guidebook -> progress value: 0
+2025-11-28 10:41:18,689 - INFO -    📖 Loading: atl_guidebook/chunks.jsonl
+2025-11-28 10:41:18,698 - INFO -       🔗 Merging sidecar metadata from atl_guidebook
+2025-11-28 10:41:18,706 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-28 10:41:18,706 - INFO -       📊 Relations: 0 total, avg 0.0 per chunk
+2025-11-28 10:41:18,706 - INFO -       📊 155 chunks loaded
+2025-11-28 10:41:18,706 - INFO -    🧠 Embedding...
+2025-11-28 10:41:18,706 - INFO -    🔄 Batch 1/5 (32 chunks, $0.000801)
+2025-11-28 10:41:25,430 - INFO -    ✅ Embedded 32 chunks
+2025-11-28 10:41:25,475 - INFO -    🔄 Batch 2/5 (32 chunks, $0.000935)
+2025-11-28 10:41:34,520 - INFO -    ✅ Embedded 32 chunks
+2025-11-28 10:41:34,565 - INFO -    🔄 Batch 3/5 (32 chunks, $0.000891)
+2025-11-28 10:41:42,184 - INFO -    ✅ Embedded 32 chunks
+2025-11-28 10:41:42,232 - INFO -    🔄 Batch 4/5 (32 chunks, $0.000677)
+2025-11-28 10:41:49,210 - INFO -    ✅ Embedded 32 chunks
+2025-11-28 10:41:49,257 - INFO -    🔄 Batch 5/5 (27 chunks, $0.000741)
+2025-11-28 10:41:55,290 - INFO -    ✅ Embedded 27 chunks
+2025-11-28 10:41:55,290 - INFO -    ☁️ Uploading 155 chunks...
+2025-11-28 10:41:56,950 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points?wait=true "HTTP/1.1 400 Bad Request"
+2025-11-28 10:41:56,951 - WARNING -    ⚠️ Upload attempt 1 failed: Unexpected Response: 400 (Bad Request)
+Raw response content:
+b'{"status":{"error":"Payload error: JSON payload (80202678 bytes) is larger than allowed (limit: 33554432 bytes)."},"time":0.0}'
+2025-11-28 10:41:59,694 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points?wait=true "HTTP/1.1 400 Bad Request"
+2025-11-28 10:41:59,695 - WARNING -    ⚠️ Upload attempt 2 failed: Unexpected Response: 400 (Bad Request)
+Raw response content:
+b'{"status":{"error":"Payload error: JSON payload (80202678 bytes) is larger than allowed (limit: 33554432 bytes)."},"time":0.0}'
+2025-11-28 10:42:03,475 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points?wait=true "HTTP/1.1 400 Bad Request"
+2025-11-28 10:42:03,477 - WARNING -    ⚠️ Upload attempt 3 failed: Unexpected Response: 400 (Bad Request)
+Raw response content:
+b'{"status":{"error":"Payload error: JSON payload (80202678 bytes) is larger than allowed (limit: 33554432 bytes)."},"time":0.0}'
+2025-11-28 10:42:03,477 - ERROR -    ❌ Failed batch 1
+2025-11-28 10:42:05,216 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points?wait=true "HTTP/1.1 400 Bad Request"
+2025-11-28 10:42:05,217 - WARNING -    ⚠️ Upload attempt 1 failed: Unexpected Response: 400 (Bad Request)
+Raw response content:
+b'{"status":{"error":"Payload error: JSON payload (44095712 bytes) is larger than allowed (limit: 33554432 bytes)."},"time":0.0}'
+2025-11-28 10:42:07,938 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points?wait=true "HTTP/1.1 400 Bad Request"
+2025-11-28 10:42:07,939 - WARNING -    ⚠️ Upload attempt 2 failed: Unexpected Response: 400 (Bad Request)
+Raw response content:
+b'{"status":{"error":"Payload error: JSON payload (44095712 bytes) is larger than allowed (limit: 33554432 bytes)."},"time":0.0}'
+2025-11-28 10:42:11,656 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points?wait=true "HTTP/1.1 400 Bad Request"
+2025-11-28 10:42:11,657 - WARNING -    ⚠️ Upload attempt 3 failed: Unexpected Response: 400 (Bad Request)
+Raw response content:
+b'{"status":{"error":"Payload error: JSON payload (44095712 bytes) is larger than allowed (limit: 33554432 bytes)."},"time":0.0}'
+2025-11-28 10:42:11,657 - ERROR -    ❌ Failed batch 2
+2025-11-28 10:42:11,659 - INFO -    ✅ Done: 0 chunks, $0.0059 total
+2025-11-28 10:42:11,659 - INFO - 🔍 Debug: schemes:samagra_shiksha -> progress value: 0
+2025-11-28 10:42:11,659 - INFO -    📖 Loading: samagra_shiksha/chunks.jsonl
+2025-11-28 10:42:11,662 - INFO -       🔗 Merging sidecar metadata from samagra_shiksha
+2025-11-28 10:42:11,666 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-28 10:42:11,719 - INFO -       📊 Relations: 0 total, avg 0.0 per chunk
+2025-11-28 10:42:11,719 - INFO -       📊 9 chunks loaded
+2025-11-28 10:42:11,719 - INFO -    🧠 Embedding...
+2025-11-28 10:42:11,719 - INFO -    🔄 Batch 1/1 (9 chunks, $0.000109)
+2025-11-28 10:42:13,524 - INFO -    ✅ Embedded 9 chunks
+2025-11-28 10:42:13,527 - INFO -    ☁️ Uploading 9 chunks...
+2025-11-28 10:42:15,353 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:42:15,354 - INFO -    ✅ Uploaded batch 1/1
+2025-11-28 10:42:15,356 - INFO -    ✅ Done: 9 chunks, $0.0060 total
+2025-11-28 10:42:15,356 - INFO - 🔍 Debug: schemes:atl_application_guidelines_2018 -> progress value: 0
+2025-11-28 10:42:15,356 - INFO -    📖 Loading: atl_application_guidelines_2018/chunks.jsonl
+2025-11-28 10:42:15,360 - INFO -       🔗 Merging sidecar metadata from atl_application_guidelines_2018
+2025-11-28 10:42:15,364 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-28 10:42:15,364 - INFO -       📊 Relations: 0 total, avg 0.0 per chunk
+2025-11-28 10:42:15,364 - INFO -       📊 42 chunks loaded
+2025-11-28 10:42:15,364 - INFO -    🧠 Embedding...
+2025-11-28 10:42:15,364 - INFO -    🔄 Batch 1/2 (32 chunks, $0.000504)
+2025-11-28 10:42:22,088 - INFO -    ✅ Embedded 32 chunks
+2025-11-28 10:42:22,138 - INFO -    🔄 Batch 2/2 (10 chunks, $0.000106)
+2025-11-28 10:42:24,144 - INFO -    ✅ Embedded 10 chunks
+2025-11-28 10:42:24,144 - INFO -    ☁️ Uploading 42 chunks...
+2025-11-28 10:42:27,888 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:42:27,889 - INFO -    ✅ Uploaded batch 1/1
+2025-11-28 10:42:27,889 - INFO -    ✅ Done: 42 chunks, $0.0066 total
+2025-11-28 10:42:27,889 - INFO - 🔍 Debug: schemes:ict_india_working_paper_50 -> progress value: 0
+2025-11-28 10:42:27,889 - INFO -    📖 Loading: ict_india_working_paper_50/chunks.jsonl
+2025-11-28 10:42:27,890 - INFO -       🔗 Merging sidecar metadata from ict_india_working_paper_50
+2025-11-28 10:42:27,891 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-28 10:42:27,891 - INFO -       📊 Relations: 0 total, avg 0.0 per chunk
+2025-11-28 10:42:27,891 - INFO -       📊 25 chunks loaded
+2025-11-28 10:42:27,891 - INFO -    🧠 Embedding...
+2025-11-28 10:42:27,891 - INFO -    🔄 Batch 1/1 (25 chunks, $0.000404)
+2025-11-28 10:42:33,015 - INFO -    ✅ Embedded 25 chunks
+2025-11-28 10:42:33,016 - INFO -    ☁️ Uploading 25 chunks...
+2025-11-28 10:42:36,122 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:42:36,124 - INFO -    ✅ Uploaded batch 1/1
+2025-11-28 10:42:36,125 - INFO -    ✅ Done: 25 chunks, $0.0070 total
+2025-11-28 10:42:36,125 - INFO - 🔍 Debug: schemes:2025se_ms25_e -> progress value: 0
+2025-11-28 10:42:36,125 - INFO -    📖 Loading: 2025se_ms25_e/chunks.jsonl
+2025-11-28 10:42:36,126 - INFO -       🔗 Merging sidecar metadata from 2025se_ms25_e
+2025-11-28 10:42:36,128 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-28 10:42:36,128 - INFO -       📊 Relations: 0 total, avg 0.0 per chunk
+2025-11-28 10:42:36,128 - INFO -       📊 5 chunks loaded
+2025-11-28 10:42:36,128 - INFO -    🧠 Embedding...
+2025-11-28 10:42:36,128 - INFO -    🔄 Batch 1/1 (5 chunks, $0.000075)
+2025-11-28 10:42:37,146 - INFO -    ✅ Embedded 5 chunks
+2025-11-28 10:42:37,147 - INFO -    ☁️ Uploading 5 chunks...
+2025-11-28 10:42:37,426 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:42:37,426 - INFO -    ✅ Uploaded batch 1/1
+2025-11-28 10:42:37,427 - INFO -    ✅ Done: 5 chunks, $0.0071 total
+2025-11-28 10:42:37,427 - INFO - 🔍 Debug: schemes:grant_in_aid_fund_utilization_guideline -> progress value: 0
+2025-11-28 10:42:37,427 - INFO -    📖 Loading: grant_in_aid_fund_utilization_guideline/chunks.jsonl
+2025-11-28 10:42:37,428 - INFO -       🔗 Merging sidecar metadata from grant_in_aid_fund_utilization_guideline
+2025-11-28 10:42:37,428 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-28 10:42:37,428 - INFO -       📊 Relations: 0 total, avg 0.0 per chunk
+2025-11-28 10:42:37,428 - INFO -       📊 8 chunks loaded
+2025-11-28 10:42:37,428 - INFO -    🧠 Embedding...
+2025-11-28 10:42:37,428 - INFO -    🔄 Batch 1/1 (8 chunks, $0.000129)
+2025-11-28 10:42:39,043 - INFO -    ✅ Embedded 8 chunks
+2025-11-28 10:42:39,043 - INFO -    ☁️ Uploading 8 chunks...
+2025-11-28 10:42:39,328 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points?wait=true "HTTP/1.1 200 OK"
+2025-11-28 10:42:39,330 - INFO -    ✅ Uploaded batch 1/1
+2025-11-28 10:42:39,331 - INFO -    ✅ Done: 8 chunks, $0.0072 total
+2025-11-28 10:42:39,331 - INFO - 
+🎉 Upload complete!
+2025-11-28 10:42:39,331 - INFO - 💰 Cost: $0.0072
+2025-11-28 10:42:39,331 - INFO - 📊 Characters: 720,461
+2025-11-28 10:42:39,594 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-28 10:42:39,596 - INFO - 
+📈 Collections:
+2025-11-28 10:42:39,863 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points/count "HTTP/1.1 200 OK"
+2025-11-28 10:42:39,870 - INFO -    ap_schemes: 173 points
+2025-11-28 10:42:40,137 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_judicial_documents/points/count "HTTP/1.1 200 OK"
+2025-11-28 10:42:40,139 - INFO -    ap_judicial_documents: 1128 points
+2025-11-28 10:42:40,407 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/points/count "HTTP/1.1 200 OK"
+2025-11-28 10:42:40,408 - INFO -    ap_government_orders: 5495 points
+2025-11-28 10:42:40,673 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/points/count "HTTP/1.1 200 OK"
+2025-11-28 10:42:40,674 - INFO -    ap_legal_documents: 740 points
+2025-11-28 10:42:41,013 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points/count "HTTP/1.1 200 OK"
+2025-11-28 10:42:41,014 - INFO -    ap_data_reports: 635 points
+2025-11-28 10:42:41,019 - WARNING - ⚠️ 30 chunks failed - see failed_chunks.jsonl
+2025-11-28 10:42:41,020 - INFO - 
+✅ Final: 219/374 uploaded

@@ -121,6 +121,17 @@ class QdrantClientWrapper:
         except Exception as e:
             print(f"Error counting collection {collection_name}: {e}")
             return None
+    
+    def upsert(self, collection_name: str, points: List[PointStruct]):
+        """Upsert points to collection"""
+        try:
+            return self.client.upsert(
+                collection_name=collection_name,
+                points=points
+            )
+        except Exception as e:
+            print(f"Error upserting to collection {collection_name}: {e}")
+            raise
 
 
 # Global client instance
