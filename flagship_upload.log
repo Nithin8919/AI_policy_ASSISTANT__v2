@@ -12016,3 +12016,120 @@ b'{"status":{"error":"Payload error: JSON payload (44095712 bytes) is larger tha
 2025-11-28 10:42:41,019 - WARNING - ⚠️ 30 chunks failed - see failed_chunks.jsonl
 2025-11-28 10:42:41,020 - INFO - 
 ✅ Final: 219/374 uploaded
+2025-11-29 09:27:12,286 - INFO - 🚀 Starting FINAL embedding & upload with sidecar metadata merge
+2025-11-29 09:27:14,232 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333 "HTTP/1.1 200 OK"
+2025-11-29 09:27:15,051 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-29 09:27:15,054 - INFO - ✅ Connected to Qdrant. Found 5 existing collections.
+2025-11-29 09:27:15,054 - INFO - 🔍 Debug: Progress dict has 0 entries
+2025-11-29 09:27:15,054 - INFO - 📡 Model: models/text-embedding-004 (768d)
+2025-11-29 09:27:15,054 - INFO - 📊 Batches: embed=32, upload=100
+2025-11-29 09:27:15,054 - INFO - 💾 Storage: Complete metadata in Qdrant (entities, relations, all fields)
+2025-11-29 09:27:15,055 - INFO - 📁 go: 0 files
+2025-11-29 09:27:15,057 - INFO - 📁 legal: 5 files
+2025-11-29 09:27:15,058 - INFO - 📁 judicial: 0 files
+2025-11-29 09:27:15,058 - INFO - 📁 data: 0 files
+2025-11-29 09:27:15,059 - INFO - 📁 schemes: 0 files
+2025-11-29 09:27:15,059 - INFO - 📊 Found 5 files across 5 verticals
+2025-11-29 09:27:15,059 - INFO - 
+🎯 Processing: legal → ap_legal_documents
+2025-11-29 09:27:15,381 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-29 09:27:15,687 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents "HTTP/1.1 200 OK"
+2025-11-29 09:27:15,691 - INFO - ✅ Collection ap_legal_documents exists
+2025-11-29 09:27:16,007 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/index?wait=true "HTTP/1.1 200 OK"
+2025-11-29 09:27:16,010 - INFO -    ✅ Indexed: sections (keyword)
+2025-11-29 09:27:16,303 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/index?wait=true "HTTP/1.1 200 OK"
+2025-11-29 09:27:16,304 - INFO -    ✅ Indexed: section (keyword)
+2025-11-29 09:27:16,610 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/index?wait=true "HTTP/1.1 200 OK"
+2025-11-29 09:27:16,612 - INFO -    ✅ Indexed: mentioned_sections (keyword)
+2025-11-29 09:27:16,917 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/index?wait=true "HTTP/1.1 200 OK"
+2025-11-29 09:27:16,919 - INFO -    ✅ Indexed: year (integer)
+2025-11-29 09:27:17,206 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/index?wait=true "HTTP/1.1 200 OK"
+2025-11-29 09:27:17,207 - INFO -    ✅ Indexed: act_name (keyword)
+2025-11-29 09:27:17,207 - INFO - 🔍 Debug: legal:right_of_children_to_free_&_compulsory_education_act_2009_(rte) -> progress value: 0
+2025-11-29 09:27:17,207 - INFO -    📖 Loading: right_of_children_to_free_&_compulsory_education_act_2009_(rte)/chunks.jsonl
+2025-11-29 09:27:17,210 - INFO -       🔗 Merging sidecar metadata from right_of_children_to_free_&_compulsory_education_act_2009_(rte)
+2025-11-29 09:27:17,214 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-29 09:27:17,214 - INFO -       📊 Relations: 546 total, avg 14.0 per chunk
+2025-11-29 09:27:17,214 - INFO -       📊 39 chunks loaded
+2025-11-29 09:27:17,214 - INFO -    🧠 Embedding...
+2025-11-29 09:27:17,214 - INFO -    🔄 Batch 1/2 (32 chunks, $0.000478)
+2025-11-29 09:27:24,546 - INFO -    ✅ Embedded 32 chunks
+2025-11-29 09:27:24,596 - INFO -    🔄 Batch 2/2 (7 chunks, $0.000089)
+2025-11-29 09:27:26,086 - INFO -    ✅ Embedded 7 chunks
+2025-11-29 09:27:26,086 - INFO -    ☁️ Uploading 39 chunks...
+2025-11-29 09:27:29,332 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/points?wait=true "HTTP/1.1 200 OK"
+2025-11-29 09:27:29,333 - INFO -    ✅ Uploaded batch 1/1
+2025-11-29 09:27:29,335 - INFO -    ✅ Done: 39 chunks, $0.0006 total
+2025-11-29 09:27:29,336 - INFO - 🔍 Debug: legal:rte_act_2009_(central) -> progress value: 0
+2025-11-29 09:27:29,336 - INFO -    📖 Loading: rte_act_2009_(central)/chunks.jsonl
+2025-11-29 09:27:29,339 - INFO -       🔗 Merging sidecar metadata from rte_act_2009_(central)
+2025-11-29 09:27:29,343 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-29 09:27:29,343 - INFO -       📊 Relations: 546 total, avg 14.0 per chunk
+2025-11-29 09:27:29,343 - INFO -       📊 39 chunks loaded
+2025-11-29 09:27:29,343 - INFO -    🧠 Embedding...
+2025-11-29 09:27:29,343 - INFO -    🔄 Batch 1/2 (32 chunks, $0.000478)
+2025-11-29 09:27:36,037 - INFO -    ✅ Embedded 32 chunks
+2025-11-29 09:27:36,084 - INFO -    🔄 Batch 2/2 (7 chunks, $0.000089)
+2025-11-29 09:27:37,592 - INFO -    ✅ Embedded 7 chunks
+2025-11-29 09:27:37,593 - INFO -    ☁️ Uploading 39 chunks...
+2025-11-29 09:27:41,132 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/points?wait=true "HTTP/1.1 200 OK"
+2025-11-29 09:27:41,135 - INFO -    ✅ Uploaded batch 1/1
+2025-11-29 09:27:41,136 - INFO -    ✅ Done: 39 chunks, $0.0011 total
+2025-11-29 09:27:41,137 - INFO - 🔍 Debug: legal:ap_rte_rules_2010 -> progress value: 0
+2025-11-29 09:27:41,137 - INFO -    📖 Loading: ap_rte_rules_2010/chunks.jsonl
+2025-11-29 09:27:41,138 - INFO -       🔗 Merging sidecar metadata from ap_rte_rules_2010
+2025-11-29 09:27:41,141 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-29 09:27:41,141 - INFO -       📊 Relations: 6 total, avg 2.0 per chunk
+2025-11-29 09:27:41,141 - INFO -       📊 3 chunks loaded
+2025-11-29 09:27:41,141 - INFO -    🧠 Embedding...
+2025-11-29 09:27:41,141 - INFO -    🔄 Batch 1/1 (3 chunks, $0.000086)
+2025-11-29 09:27:41,761 - INFO -    ✅ Embedded 3 chunks
+2025-11-29 09:27:41,762 - INFO -    ☁️ Uploading 3 chunks...
+2025-11-29 09:27:42,033 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/points?wait=true "HTTP/1.1 200 OK"
+2025-11-29 09:27:42,034 - INFO -    ✅ Uploaded batch 1/1
+2025-11-29 09:27:42,035 - INFO -    ✅ Done: 3 chunks, $0.0012 total
+2025-11-29 09:27:42,035 - INFO - 🔍 Debug: legal:5294663_salient_featuresofnep_eng_merged -> progress value: 0
+2025-11-29 09:27:42,035 - INFO -    📖 Loading: 5294663_salient_featuresofnep_eng_merged/chunks.jsonl
+2025-11-29 09:27:42,038 - INFO -       🔗 Merging sidecar metadata from 5294663_salient_featuresofnep_eng_merged
+2025-11-29 09:27:42,041 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-29 09:27:42,041 - INFO -       📊 Relations: 46 total, avg 2.0 per chunk
+2025-11-29 09:27:42,041 - INFO -       📊 23 chunks loaded
+2025-11-29 09:27:42,041 - INFO -    🧠 Embedding...
+2025-11-29 09:27:42,041 - INFO -    🔄 Batch 1/1 (23 chunks, $0.000631)
+2025-11-29 09:27:46,915 - INFO -    ✅ Embedded 23 chunks
+2025-11-29 09:27:46,915 - INFO -    ☁️ Uploading 23 chunks...
+2025-11-29 09:27:47,204 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/points?wait=true "HTTP/1.1 200 OK"
+2025-11-29 09:27:47,204 - INFO -    ✅ Uploaded batch 1/1
+2025-11-29 09:27:47,205 - INFO -    ✅ Done: 23 chunks, $0.0019 total
+2025-11-29 09:27:47,205 - INFO - 🔍 Debug: legal:ap_rte_rules_amendments_(smc_formation) -> progress value: 0
+2025-11-29 09:27:47,205 - INFO -    📖 Loading: ap_rte_rules_amendments_(smc_formation)/chunks.jsonl
+2025-11-29 09:27:47,207 - INFO -       🔗 Merging sidecar metadata from ap_rte_rules_amendments_(smc_formation)
+2025-11-29 09:27:47,208 - INFO -       📊 Entities: 0 total, avg 0.0 per chunk
+2025-11-29 09:27:47,208 - INFO -       📊 Relations: 14 total, avg 1.0 per chunk
+2025-11-29 09:27:47,208 - INFO -       📊 14 chunks loaded
+2025-11-29 09:27:47,209 - INFO -    🧠 Embedding...
+2025-11-29 09:27:47,209 - INFO -    🔄 Batch 1/1 (14 chunks, $0.000151)
+2025-11-29 09:27:50,322 - INFO -    ✅ Embedded 14 chunks
+2025-11-29 09:27:50,322 - INFO -    ☁️ Uploading 14 chunks...
+2025-11-29 09:27:50,651 - INFO - HTTP Request: PUT https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/points?wait=true "HTTP/1.1 200 OK"
+2025-11-29 09:27:50,653 - INFO -    ✅ Uploaded batch 1/1
+2025-11-29 09:27:50,654 - INFO -    ✅ Done: 14 chunks, $0.0020 total
+2025-11-29 09:27:50,654 - INFO - 
+🎉 Upload complete!
+2025-11-29 09:27:50,655 - INFO - 💰 Cost: $0.0020
+2025-11-29 09:27:50,655 - INFO - 📊 Characters: 200,287
+2025-11-29 09:27:50,935 - INFO - HTTP Request: GET https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections "HTTP/1.1 200 OK"
+2025-11-29 09:27:50,936 - INFO - 
+📈 Collections:
+2025-11-29 09:27:51,199 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_schemes/points/count "HTTP/1.1 200 OK"
+2025-11-29 09:27:51,201 - INFO -    ap_schemes: 173 points
+2025-11-29 09:27:51,503 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_judicial_documents/points/count "HTTP/1.1 200 OK"
+2025-11-29 09:27:51,505 - INFO -    ap_judicial_documents: 1128 points
+2025-11-29 09:27:51,762 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_government_orders/points/count "HTTP/1.1 200 OK"
+2025-11-29 09:27:51,763 - INFO -    ap_government_orders: 5495 points
+2025-11-29 09:27:52,021 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_legal_documents/points/count "HTTP/1.1 200 OK"
+2025-11-29 09:27:52,022 - INFO -    ap_legal_documents: 754 points
+2025-11-29 09:27:52,274 - INFO - HTTP Request: POST https://3bfa5117-dd8a-4048-abf9-5267856c164e.us-east4-0.gcp.cloud.qdrant.io:6333/collections/ap_data_reports/points/count "HTTP/1.1 200 OK"
+2025-11-29 09:27:52,275 - INFO -    ap_data_reports: 635 points
+2025-11-29 09:27:52,276 - INFO - 
+✅ Final: 118/118 uploaded

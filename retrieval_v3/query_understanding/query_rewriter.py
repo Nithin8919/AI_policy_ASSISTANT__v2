@@ -144,6 +144,51 @@ class QueryRewriter:
         ]
     }
     
+    # Legal clause expansion templates
+    LEGAL_CLAUSE_TEMPLATES = {
+        'rte_act': [
+            "Right to Education Act 2009 Section {section} responsibilities of schools",
+            "RTE Act free and compulsory education {section} provisions",
+            "RTE Act responsibilities of schools clause {section} details", 
+            "Legal text for Section {section} RTE Act",
+            "Section {section} Right to Education Act implementation"
+        ],
+        'general_act': [
+            "{act_name} Act Section {section} legal provisions",
+            "{act_name} {section} clause interpretation",
+            "Legal requirements under {act_name} Section {section}",
+            "{act_name} Act {section} implementation guidelines",
+            "Section {section} {act_name} responsibilities"
+        ],
+        'rules_regulations': [
+            "AP {rule_name} Rule {section} detailed provisions",
+            "{rule_name} Rules Section {section} implementation",
+            "Rule {section} under {rule_name} requirements",
+            "{rule_name} regulatory provision {section}",
+            "Administrative rule {section} {rule_name} compliance"
+        ]
+    }
+    
+    # Legal keyword mappings for BM25 boosting
+    LEGAL_KEYWORD_MAPPINGS = {
+        'rte section 12': [
+            '25% admission', 'weaker section', 'disadvantaged group', 
+            'free and compulsory education', 'admission quota', 'section 12'
+        ],
+        'rte section 13': [
+            'no capitation fee', 'admission procedures', 'no screening',
+            'age appropriate admission', 'section 13'
+        ],
+        'article 21a': [
+            'fundamental right', 'free education', 'compulsory education',
+            'article 21a', 'constitutional provision'
+        ],
+        'cce rules': [
+            'continuous comprehensive evaluation', 'assessment', 'grading',
+            'evaluation methods', 'scholastic areas'
+        ]
+    }
+    
     def __init__(self):
         """Initialize rewriter"""
         pass
@@ -200,7 +245,10 @@ class QueryRewriter:
         """Detect query pattern for template selection"""
         query_lower = query.lower()
         
-        if re.search(r'\bwhat\s+is\b|\bwhat\s+are\b', query_lower):
+        # Legal clause pattern detection
+        if self._is_legal_clause_query(query_lower):
+            return 'legal_clause'
+        elif re.search(r'\bwhat\s+is\b|\bwhat\s+are\b', query_lower):
             return 'what_is'
         elif re.search(r'\bhow\s+to\b|\bhow\s+do\b', query_lower):
             return 'how_to'
@@ -210,6 +258,19 @@ class QueryRewriter:
             return 'list'
         else:
             return 'general'
+    
+    def _is_legal_clause_query(self, query_lower: str) -> bool:
+        """Check if query is asking for specific legal clause/section/rule"""
+        patterns = [
+            r'\b(?:section|clause|article|rule|sub-rule|amendment)\s+\d+',
+            r'\b(?:rte|cce|apsermc|education)\s+act\b',
+            r'\b\d+\(\d+\)\(\w+\)\b',  # 12(1)(c) pattern
+            r'\b(?:act|rule|regulation)\s+\d+',
+            r'\bsection\s+\d+\b',
+            r'\brule\s+\d+\b',
+            r'\barticle\s+\d+\w*\b'
+        ]
+        return any(re.search(pattern, query_lower) for pattern in patterns)
     
     def _detect_target_domains(self, query: str) -> List[str]:
         """
@@ -268,6 +329,10 @@ class QueryRewriter:
     ) -> QueryRewrite:
         """Generate a rewrite targeting a specific domain"""
         
+        # Handle legal clause queries specially
+        if pattern == 'legal_clause':
+            return self._generate_legal_clause_rewrite(query, domain)
+        
         # Get domain vocabulary
         domain_terms = self.DOMAIN_VOCABULARIES.get(domain, [])
         
@@ -294,6 +359,68 @@ class QueryRewriter:
             target_domain=domain,
             rationale=rationale
         )
+    
+    def _generate_legal_clause_rewrite(self, query: str, domain: str) -> QueryRewrite:
+        """Generate specialized rewrite for legal clause queries"""
+        query_lower = query.lower()
+        
+        # Extract section/clause number
+        section_match = re.search(r'\b(?:section|clause|article|rule)\s+(\d+(?:\(\d+\))?(?:\([a-z]\))?)', query_lower)
+        section_num = section_match.group(1) if section_match else "12"
+        
+        # Detect act/rule type
+        if 'rte' in query_lower or 'right to education' in query_lower:
+            template_key = 'rte_act'
+            templates = self.LEGAL_CLAUSE_TEMPLATES[template_key]
+            # Add BM25 keywords for RTE queries
+            rewrite = templates[0].format(section=section_num)
+            if f'rte section {section_num}' in self.LEGAL_KEYWORD_MAPPINGS:
+                keywords = self.LEGAL_KEYWORD_MAPPINGS[f'rte section {section_num}']
+                rewrite += f" {' '.join(keywords[:3])}"
+        elif 'rule' in query_lower:
+            template_key = 'rules_regulations'
+            templates = self.LEGAL_CLAUSE_TEMPLATES[template_key]
+            rule_name = self._extract_rule_name(query)
+            rewrite = templates[0].format(rule_name=rule_name, section=section_num)
+        else:
+            template_key = 'general_act'
+            templates = self.LEGAL_CLAUSE_TEMPLATES[template_key]
+            act_name = self._extract_act_name(query)
+            rewrite = templates[0].format(act_name=act_name, section=section_num)
+        
+        return QueryRewrite(
+            text=rewrite,
+            target_domain='legal',
+            rationale=f"Legal clause expansion for {template_key} with BM25 keyword boosting"
+        )
+    
+    def _extract_act_name(self, query: str) -> str:
+        """Extract act name from query"""
+        query_lower = query.lower()
+        
+        if 'rte' in query_lower or 'right to education' in query_lower:
+            return "Right to Education"
+        elif 'cce' in query_lower:
+            return "CCE"
+        elif 'apsermc' in query_lower:
+            return "APSERMC" 
+        elif 'education' in query_lower:
+            return "Education"
+        else:
+            return "Act"
+    
+    def _extract_rule_name(self, query: str) -> str:
+        """Extract rule name from query"""
+        query_lower = query.lower()
+        
+        if 'rte' in query_lower:
+            return "RTE"
+        elif 'cce' in query_lower:
+            return "CCE"
+        elif 'admission' in query_lower:
+            return "Admission"
+        else:
+            return "Education"
     
     def _generate_comprehensive_rewrite(self, query: str) -> QueryRewrite:
         """Generate a comprehensive rewrite covering multiple domains"""

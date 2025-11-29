@@ -6,6 +6,7 @@ Uses Reciprocal Rank Fusion (RRF) for score combination
 from typing import List, Dict, Set
 from dataclasses import dataclass
 import math
+import re
 
 
 @dataclass
@@ -20,7 +21,35 @@ class HybridResult:
 
 
 class BM25:
-    """Simple BM25 implementation for keyword scoring"""
+    """Enhanced BM25 implementation with legal keyword injection"""
+    
+    # Legal keyword mappings for BM25 boosting
+    LEGAL_KEYWORD_MAPPINGS = {
+        'rte section 12': [
+            '25% admission', 'weaker section', 'disadvantaged group', 
+            'free and compulsory education', 'admission quota', 'section 12'
+        ],
+        'rte section 13': [
+            'no capitation fee', 'admission procedures', 'no screening',
+            'age appropriate admission', 'section 13'
+        ],
+        'article 21a': [
+            'fundamental right', 'free education', 'compulsory education',
+            'article 21a', 'constitutional provision'
+        ],
+        'cce rules': [
+            'continuous comprehensive evaluation', 'assessment', 'grading',
+            'evaluation methods', 'scholastic areas'
+        ],
+        'section 4 rte': [
+            'age appropriate admission', 'special training', 'elementary education',
+            'special provisions', 'section 4'
+        ],
+        'section 17': [
+            'no capitation fee', 'selection procedure', 'admission',
+            'section 17', 'prohibition'
+        ]
+    }
     
     def __init__(self, k1: float = 1.5, b: float = 0.75):
         """
@@ -90,6 +119,97 @@ class BM25:
             score += idf * (numerator / denominator)
         
         return score
+    
+    def score_with_legal_boost(
+        self,
+        query: str,
+        query_terms: List[str],
+        doc_terms: List[str],
+        avg_doc_length: float,
+        total_docs: int,
+        term_doc_freqs: Dict[str, int],
+        boost_factor: float = 2.0
+    ) -> float:
+        """
+        Enhanced BM25 scoring with legal keyword injection
+        
+        Args:
+            query: Original query string
+            query_terms: Query term list
+            doc_terms: Document term list  
+            avg_doc_length: Average document length in corpus
+            total_docs: Total number of documents
+            term_doc_freqs: Dict mapping term -> doc frequency
+            boost_factor: Boost multiplier for legal keywords
+            
+        Returns:
+            Enhanced BM25 score with legal boosting
+        """
+        # Get base BM25 score
+        base_score = self.score(query_terms, doc_terms, avg_doc_length, total_docs, term_doc_freqs)
+        
+        # Check if this is a legal clause query
+        if not self._is_legal_clause_query(query):
+            return base_score
+        
+        # Get legal keywords for this query
+        legal_keywords = self._get_legal_keywords(query)
+        if not legal_keywords:
+            return base_score
+        
+        # Calculate bonus score for legal keyword matches
+        doc_text = ' '.join(doc_terms).lower()
+        legal_bonus = 0.0
+        
+        for keyword in legal_keywords:
+            if keyword.lower() in doc_text:
+                # Higher bonus for exact keyword matches
+                keyword_count = doc_text.count(keyword.lower())
+                legal_bonus += keyword_count * 0.5  # Bonus per keyword match
+        
+        # Apply boost if legal keywords found
+        if legal_bonus > 0:
+            return base_score * boost_factor + legal_bonus
+        
+        return base_score
+    
+    def _is_legal_clause_query(self, query: str) -> bool:
+        """Check if query is asking for specific legal clause/section/rule"""
+        query_lower = query.lower()
+        patterns = [
+            r'\b(?:section|clause|article|rule|sub-rule|amendment)\s+\d+',
+            r'\b(?:rte|cce|apsermc|education)\s+act\b',
+            r'\b\d+\(\d+\)\(\w+\)\b',  # 12(1)(c) pattern
+            r'\b(?:act|rule|regulation)\s+\d+',
+            r'\bsection\s+\d+\b',
+            r'\brule\s+\d+\b',
+            r'\barticle\s+\d+\w*\b'
+        ]
+        return any(re.search(pattern, query_lower) for pattern in patterns)
+    
+    def _get_legal_keywords(self, query: str) -> List[str]:
+        """Get relevant legal keywords for query"""
+        query_lower = query.lower()
+        
+        # Check for direct mappings
+        for key, keywords in self.LEGAL_KEYWORD_MAPPINGS.items():
+            if key in query_lower:
+                return keywords
+        
+        # Check for partial matches
+        if 'rte' in query_lower and 'section' in query_lower:
+            # Extract section number
+            section_match = re.search(r'section\s+(\d+)', query_lower)
+            if section_match:
+                section_num = section_match.group(1)
+                if f'rte section {section_num}' in self.LEGAL_KEYWORD_MAPPINGS:
+                    return self.LEGAL_KEYWORD_MAPPINGS[f'rte section {section_num}']
+        
+        # Default legal keywords for any clause query
+        if self._is_legal_clause_query(query):
+            return ['legal provision', 'act', 'section', 'clause', 'rule']
+        
+        return []
 
 
 class HybridSearcher:

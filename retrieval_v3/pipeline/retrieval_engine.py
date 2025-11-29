@@ -37,6 +37,9 @@ retrieval_v3_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(retrieval_v3_dir / "retrieval"))
 from bm25_boosting import BM25Booster
 
+# Import production clause indexer  
+from production_clause_indexer import ProductionClauseIndexer
+
 
 @dataclass
 class RetrievalResult:
@@ -128,6 +131,9 @@ class RetrievalEngine:
         self.plan_builder = RetrievalPlanBuilder()
         self.diversity_reranker = DiversityReranker(self.category_predictor)
         self.bm25_booster = BM25Booster()
+        
+        # Initialize production clause indexer for instant clause lookup
+        self.clause_indexer = ProductionClauseIndexer(qdrant_client) if qdrant_client else None
         
         # Stats
         self.stats = {
@@ -312,6 +318,21 @@ class RetrievalEngine:
             diversity_weight=plan.diversity_weight
         )
         
+        # 5.5: Clause indexer lookup for legal queries with poor results
+        if self._is_legal_clause_query(normalized_query) and len(final_results) < 3:
+            clause_results = self._clause_indexer_lookup(normalized_query)
+            if clause_results:
+                print(f"🎯 Clause indexer found {len(clause_results)} results for '{normalized_query}'")
+                # Merge with existing results, prioritizing clause indexer results
+                final_results = clause_results + [r for r in final_results if r.chunk_id not in {c.chunk_id for c in clause_results}]
+                final_results = final_results[:plan.top_k_total]
+            else:
+                # Fallback to original clause scanner
+                clause_results = self._fallback_clause_scan(normalized_query, collection_names)
+                if clause_results:
+                    final_results = clause_results + [r for r in final_results if r.chunk_id not in {c.chunk_id for c in clause_results}]
+                    final_results = final_results[:plan.top_k_total]
+        
         # STEP 6: PACKAGE OUTPUT
         # ====================================================================
         
@@ -345,6 +366,145 @@ class RetrievalEngine:
         
         return output
     
+    def _is_legal_clause_query(self, query: str) -> bool:
+        """Check if query is asking for specific legal clause/section/rule"""
+        import re
+        query_lower = query.lower()
+        patterns = [
+            r'\b(?:section|clause|article|rule|sub-rule|amendment)\s+\d+',
+            r'\b(?:rte|cce|apsermc|education)\s+act\b',
+            r'\b\d+\(\d+\)\(\w+\)\b',  # 12(1)(c) pattern
+            r'\b(?:act|rule|regulation)\s+\d+',
+            r'\bsection\s+\d+\b',
+            r'\brule\s+\d+\b',
+            r'\barticle\s+\d+\w*\b'
+        ]
+        return any(re.search(pattern, query_lower) for pattern in patterns)
+    
+    def _clause_indexer_lookup(self, query: str) -> List[RetrievalResult]:
+        """
+        Use clause indexer for instant clause lookup
+        """
+        if not self.clause_indexer:
+            return []
+        
+        try:
+            clause_matches = self.clause_indexer.lookup_clause(query)
+            results = []
+            
+            for match in clause_matches:
+                results.append(RetrievalResult(
+                    chunk_id=match.chunk_id,
+                    doc_id=match.doc_id,
+                    content=match.content,
+                    score=match.confidence,
+                    vertical=match.vertical,
+                    metadata={'source': 'clause_indexer'},
+                    rewrite_source='clause_indexer'
+                ))
+            
+            return results
+            
+        except Exception as e:
+            print(f"Clause indexer lookup failed: {e}")
+            return []
+    
+    def _fallback_clause_scan(
+        self, 
+        query: str, 
+        collection_names: List[str]
+    ) -> List[RetrievalResult]:
+        """
+        Fallback exact clause scanner for legal queries
+        When regular search fails, scan for exact clause matches
+        """
+        import re
+        
+        query_lower = query.lower()
+        
+        # Extract clause/section patterns
+        clause_patterns = []
+        
+        # Section X
+        section_match = re.search(r'section\s+(\d+)', query_lower)
+        if section_match:
+            section_num = section_match.group(1)
+            clause_patterns.extend([
+                f'section {section_num}',
+                f'section {section_num}.',
+                f'({section_num})',
+                f'{section_num})'
+            ])
+        
+        # Rule X
+        rule_match = re.search(r'rule\s+(\d+)', query_lower)
+        if rule_match:
+            rule_num = rule_match.group(1)
+            clause_patterns.extend([
+                f'rule {rule_num}',
+                f'rule {rule_num}.',
+                f'({rule_num})'
+            ])
+        
+        # Article X
+        article_match = re.search(r'article\s+(\d+\w*)', query_lower)
+        if article_match:
+            article_num = article_match.group(1)
+            clause_patterns.extend([
+                f'article {article_num}',
+                f'article {article_num}.'
+            ])
+        
+        if not clause_patterns:
+            return []
+        
+        # Search for exact matches in legal collection
+        legal_collections = [c for c in collection_names if 'legal' in c.lower()]
+        if not legal_collections:
+            return []
+        
+        try:
+            results = []
+            
+            for collection in legal_collections:
+                # Use simple text search since Filter might be complex
+                for pattern in clause_patterns[:2]:  # Limit patterns to avoid timeout
+                    try:
+                        search_results = self.qdrant_client.scroll(
+                            collection_name=collection,
+                            limit=10,
+                            with_payload=True
+                        )
+                        
+                        if search_results[0]:
+                            for point in search_results[0]:
+                                content = point.payload.get('content', '').lower()
+                                if pattern in content:
+                                    results.append(RetrievalResult(
+                                        chunk_id=str(point.id),
+                                        doc_id=point.payload.get('doc_id', 'unknown'),
+                                        content=point.payload.get('content', ''),
+                                        score=1.0,  # High score for exact matches
+                                        vertical='legal',
+                                        metadata=point.payload,
+                                        rewrite_source='fallback_clause_scanner'
+                                    ))
+                    except Exception as e:
+                        print(f"Pattern search failed for {pattern}: {e}")
+                        continue
+            
+            # Remove duplicates and return top 3
+            unique_results = {}
+            for result in results:
+                if result.chunk_id not in unique_results:
+                    unique_results[result.chunk_id] = result
+            
+            return list(unique_results.values())[:3]
+            
+        except Exception as e:
+            print(f"Fallback clause scanner failed: {e}")
+            return []
+
     def cleanup(self):
         """Clean up resources (thread pool, etc.)"""
         if hasattr(self, 'executor'):

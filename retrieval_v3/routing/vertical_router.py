@@ -144,7 +144,10 @@ class VerticalRouter:
             verticals = self._default_routing(query)
         
         # Convert to list and sort by priority
-        return self._prioritize_verticals(list(verticals), query)
+        prioritized = self._prioritize_verticals(list(verticals), query)
+        
+        # Step 5: Apply legal boosting for clause queries
+        return self._apply_legal_boosting(prioritized, query)
     
     def _route_by_entities(
         self, 
@@ -265,6 +268,34 @@ class VerticalRouter:
         )
         
         return sorted_verticals
+    
+    def _apply_legal_boosting(self, verticals: List[Vertical], query: str) -> List[Vertical]:
+        """Apply legal boosting for clause/section queries"""
+        if not self._is_legal_clause_query(query):
+            return verticals
+        
+        # If legal is already in the list, move it to the front
+        if Vertical.LEGAL in verticals:
+            verticals_copy = verticals.copy()
+            verticals_copy.remove(Vertical.LEGAL)
+            return [Vertical.LEGAL] + verticals_copy
+        
+        # If legal not in list but it's a clause query, add it as priority
+        return [Vertical.LEGAL] + verticals
+    
+    def _is_legal_clause_query(self, query: str) -> bool:
+        """Check if query is asking for specific legal clause/section/rule"""
+        query_lower = query.lower()
+        patterns = [
+            r'\b(?:section|clause|article|rule|sub-rule|amendment)\s+\d+',
+            r'\b(?:rte|cce|apsermc|education)\s+act\b',
+            r'\b\d+\(\d+\)\(\w+\)\b',  # 12(1)(c) pattern
+            r'\b(?:act|rule|regulation)\s+\d+',
+            r'\bsection\s+\d+\b',
+            r'\brule\s+\d+\b',
+            r'\barticle\s+\d+\w*\b'
+        ]
+        return any(re.search(pattern, query_lower) for pattern in patterns)
     
     def get_collection_names(self, verticals: List[Vertical]) -> List[str]:
         """
