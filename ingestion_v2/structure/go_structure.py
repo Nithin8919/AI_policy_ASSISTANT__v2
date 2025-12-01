@@ -46,11 +46,13 @@ class GOStructureParser:
             re.compile(r'^Read\s*:\s*(.+?)(?=^\s*&{3}|^\s*[A-Z][a-z]+)', re.IGNORECASE | re.MULTILINE | re.DOTALL)
         ]
         
-        # Order section markers
+        # Order section markers - Enhanced
         self.order_markers = [
             re.compile(r'^ORDER[S]?\s*:?\s*$', re.IGNORECASE | re.MULTILINE),
             re.compile(r'^ORDERS?\s*:?\s*$', re.IGNORECASE | re.MULTILINE),
-            re.compile(r'Government\s+Order', re.IGNORECASE)
+            re.compile(r'Government\s+Order', re.IGNORECASE),
+            re.compile(r'The\s+following\s+orders?\s+(?:are\s+)?issued', re.IGNORECASE),
+            re.compile(r'Government\s+hereby\s+orders?', re.IGNORECASE)
         ]
         
         # Numbered orders patterns
@@ -73,7 +75,9 @@ class GOStructureParser:
             re.compile(r'(Director|Commissioner|Secretary|Minister|Principal Secretary)\s+of\s+([A-Z][A-Za-z\s&]+)', re.IGNORECASE),
             re.compile(r'(Additional|Joint|Deputy)\s+(Secretary|Commissioner|Director)', re.IGNORECASE),
             re.compile(r'Government\s+of\s+Andhra\s+Pradesh', re.IGNORECASE),
-            re.compile(r'^\s*To\s*$', re.IGNORECASE | re.MULTILINE)  # "To" section indicates end of signature
+            re.compile(r'^\s*To\s*$', re.IGNORECASE | re.MULTILINE),  # "To" section indicates end of signature
+            re.compile(r'//\s*FORWARDED\s*::\s*BY\s*ORDER\s*//', re.IGNORECASE), # Common footer
+            re.compile(r'SECTION\s+OFFICER', re.IGNORECASE)
         ]
         
         # Preamble end markers
@@ -88,7 +92,8 @@ class GOStructureParser:
         self.annexure_markers = [
             re.compile(r'^ANNEXURE[S]?\s*[:-]?', re.IGNORECASE | re.MULTILINE),
             re.compile(r'^ANNEX[:\s]', re.IGNORECASE | re.MULTILINE),
-            re.compile(r'^APPENDIX', re.IGNORECASE | re.MULTILINE)
+            re.compile(r'^APPENDIX', re.IGNORECASE | re.MULTILINE),
+            re.compile(r'^SCHEDULE', re.IGNORECASE | re.MULTILINE)
         ]
         
         # GO number pattern
@@ -205,6 +210,10 @@ class GOStructureParser:
             else:
                 end_pos = len(text)
             
+            # Special handling: Signature should not overlap with Annexure if Annexure comes after
+            if section_type == 'signature' and annexure_pos and annexure_pos > pos:
+                 end_pos = annexure_pos
+
             content = text[pos:end_pos].strip()
             if content:
                 sections.append(GOSection(
@@ -256,19 +265,16 @@ class GOStructureParser:
     
     def _find_signature_position(self, text: str) -> Optional[int]:
         """Find signature section position"""
-        # Look in the last 30% of the document for signature
-        search_start = int(len(text) * 0.7)
+        # Look in the last 40% of the document for signature (increased from 30%)
+        search_start = int(len(text) * 0.6)
         search_text = text[search_start:]
         
         # Look for patterns that indicate signature section
-        signature_indicators = [
-            re.compile(r'^\s*([A-Z][a-z]+\s+[A-Z][a-z]+)\s*^\s*(DIRECTOR|COMMISSIONER)', re.IGNORECASE | re.MULTILINE | re.DOTALL),
-            re.compile(r'^\s*(DIRECTOR|COMMISSIONER|SECRETARY)\s*^\s*(MID DAY MEAL|SCHOOL EDUCATION)', re.IGNORECASE | re.MULTILINE | re.DOTALL),
-            re.compile(r'The receipt of this order will be acknowledged', re.IGNORECASE)
-        ]
+        # We want the earliest indication of the signature block
         
         earliest_pos = None
-        for pattern in signature_indicators:
+        
+        for pattern in self.signature_patterns:
             match = pattern.search(search_text)
             if match:
                 pos = search_start + match.start()

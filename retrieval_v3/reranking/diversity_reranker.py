@@ -65,3 +65,4 @@ class DiversityReranker:
                 category_counts[cat] += 1
         
         return selected
+

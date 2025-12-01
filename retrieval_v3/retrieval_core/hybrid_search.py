@@ -422,3 +422,4 @@ if __name__ == "__main__":
         print(f"   Vector: {result.vector_score:.3f}, BM25: {result.bm25_score:.3f}")
         print(f"   Final: {result.final_score:.3f}")
         print()
+

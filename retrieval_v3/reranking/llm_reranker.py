@@ -79,3 +79,4 @@ Return only IDs comma-separated (most relevant first):"""
         except Exception as e:
             print(f"LLM rerank failed: {e}")
             return sorted(results, key=lambda x: x.get('score', 0), reverse=True)[:top_k]
+

@@ -301,3 +301,4 @@ if __name__ == "__main__":
     variants = normalizer.get_normalized_variants(query)
     for i, variant in enumerate(variants, 1):
         print(f"{i}. {variant}")
+

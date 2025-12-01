@@ -184,3 +184,4 @@ if __name__ == "__main__":
         for cat in categories:
             print(f"  {cat}: {scores[cat]:.3f}")
         print("-" * 80)
+

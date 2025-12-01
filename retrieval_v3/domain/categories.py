@@ -45,3 +45,4 @@ CATEGORIES = {
 def get_category_keywords(category: str):
     """Get keywords for a category"""
     return CATEGORIES.get(category, [])
+

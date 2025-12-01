@@ -84,6 +84,57 @@ class QdrantClientWrapper:
             print(f"Error searching collection {collection_name}: {e}")
             return []
     
+    def query_points(
+        self,
+        collection_name: str,
+        query: Sequence[float],
+        limit: int = 10,
+        score_threshold: Optional[float] = None,
+        query_filter: Optional[Dict] = None,
+        with_payload: bool = True,
+        with_vectors: bool = False
+    ):
+        """
+        Query points directly (for V3 compatibility).
+        Returns the response object with .points attribute.
+        
+        Args:
+            collection_name: Collection to search
+            query: Query embedding
+            limit: Number of results
+            score_threshold: Minimum score
+            query_filter: Qdrant filter dict
+            with_payload: Include payload
+            with_vectors: Include vectors
+            
+        Returns:
+            Response object with .points attribute
+        """
+        try:
+            vector_payload = (
+                query.tolist()
+                if hasattr(query, "tolist")
+                else list(query)
+            )
+            
+            return self.client.query_points(
+                collection_name=collection_name,
+                query=vector_payload,
+                limit=limit,
+                score_threshold=score_threshold,
+                query_filter=query_filter,
+                with_payload=with_payload,
+                with_vectors=with_vectors
+            )
+        
+        except Exception as e:
+            print(f"Error querying collection {collection_name}: {e}")
+            # Return mock response object for compatibility
+            class MockResponse:
+                def __init__(self):
+                    self.points = []
+            return MockResponse()
+    
     def get_collections(self):
         """Expose underlying client's get_collections"""
         try:

@@ -97,29 +97,60 @@ class AnswerGenerator:
     
     def _format_context(self, results: List[Dict]) -> str:
         """
-        Format context with clear doc numbers.
+        Format context with clear doc numbers and GO NUMBERS EXPLICIT.
         
-        FIXED: Use correct result structure - data is directly on result, not in 'payload'
+        CRITICAL FIX: Extract and prominently display GO numbers
         """
         context_parts = []
         
         for i, result in enumerate(results, 1):
-            # FIXED: Data is directly on result object
-            text = result.get("text", "")
+            # Get basic info
+            text = result.get("text", "") or result.get("content", "")
             vertical = result.get("vertical", "")
             
-            # Get metadata for source info
+            # Get metadata for GO numbers and source info
             metadata = result.get("metadata", {})
-            source = metadata.get("source", "Unknown Source")
             
-            # Fallback to chunk_id if no source
-            if source == "Unknown Source":
-                source = result.get("chunk_id", "Unknown")
+            # CRITICAL FIX: Extract GO number from multiple possible fields
+            go_number = None
+            possible_go_fields = ['go_number', 'go_num', 'go_id', 'doc_id', 'source', 'chunk_id']
+            
+            for field in possible_go_fields:
+                value = metadata.get(field) or result.get(field)
+                if value and isinstance(value, str):
+                    # Check if this looks like a GO number
+                    if any(pattern in value.lower() for pattern in ['ms', 'rt', 'go', '20']):
+                        go_number = value
+                        break
+            
+            # If still no GO number, try to extract from text
+            if not go_number and text:
+                import re
+                go_matches = re.search(r'(?:G\.O\.?|GO)[\s\.]?(?:MS|RT)[\s\.]?No[\s\.]?(\d+)', text, re.IGNORECASE)
+                if go_matches:
+                    go_number = f"G.O.MS.No.{go_matches.group(1)}"
+            
+            # Get source for fallback
+            source = metadata.get("source", go_number or result.get("chunk_id", "Unknown"))
+            
+            # CRITICAL: Format with GO number prominently displayed
+            if go_number:
+                doc_header = f"Doc {i}: {go_number}"
+                if vertical:
+                    doc_header += f" ({vertical})"
+            else:
+                doc_header = f"Doc {i}: {source}"
+                if vertical:
+                    doc_header += f" ({vertical})"
+            
+            # Add year if available
+            year = metadata.get("year")
+            if year:
+                doc_header += f" - Year: {year}"
             
             context_parts.append(f"""
-Doc {i}:
-Source: {source} ({vertical})
-Content: {text}
+{doc_header}
+Content: {text[:800]}{"..." if len(text) > 800 else ""}
 """)
         
         return "\n".join(context_parts)
@@ -142,18 +173,23 @@ CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
 5. NEVER make claims without citations
 6. The Doc numbers correspond to "Doc #:" in the context below
 
+SPECIAL INSTRUCTION FOR GOVERNMENT ORDERS:
+7. When mentioning Government Orders, ALWAYS include the specific GO number from the document header
+8. Format as: "G.O.MS.No.XXX" or the exact format shown in the document
+9. Include the year when available
+
 GOOD EXAMPLE:
-"Section 12 mandates free education for children aged 6-14. [Doc 1] The implementation is monitored by state authorities. [Doc 2]"
+"Recent Government Orders include G.O.MS.No.190 (2022) regarding teacher transfers [Doc 1] and G.O.MS.No.155 (2022) on educational policies [Doc 2]."
 
 BAD EXAMPLE (DO NOT DO THIS):
-"Section 12 mandates free education. Implementation is monitored by state authorities."
+"Recent government orders include various policies on education."
 
 Context Documents:
 {context}
 
 Question: {query}
 
-Provide a concise, accurate answer with mandatory citations after every claim:
+Provide a concise, accurate answer with mandatory citations and specific GO numbers:
 """
         
         elif mode == "deep_think":

@@ -59,3 +59,4 @@ class ScoreFusion:
         results.sort(key=lambda x: x['final_score'], reverse=True)
         
         return results
+

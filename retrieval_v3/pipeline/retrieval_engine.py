@@ -40,6 +40,14 @@ from bm25_boosting import BM25Booster
 # Import production clause indexer  
 from production_clause_indexer import ProductionClauseIndexer
 
+# Import answer generation components
+from answer_generation.answer_builder import AnswerBuilder, Answer
+from answer_generation.answer_validator import AnswerValidator
+
+# Import relation-entity system
+sys.path.insert(0, str(retrieval_v3_dir / "retrieval"))
+from relation_reranker import RelationEntityProcessor
+
 
 @dataclass
 class RetrievalResult:
@@ -89,7 +97,9 @@ class RetrievalEngine:
         gemini_api_key: Optional[str] = None,
         use_llm_rewrites: bool = False,
         use_llm_reranking: bool = True,
+        use_cross_encoder: bool = False,
         enable_cache: bool = True,
+        use_relation_entity: bool = True,
     ):
         """
         Initialize retrieval engine
@@ -100,6 +110,8 @@ class RetrievalEngine:
             gemini_api_key: API key for Gemini Flash
             use_llm_rewrites: Use Gemini for query rewrites
             use_llm_reranking: Use Gemini for reranking
+            use_cross_encoder: Use cross-encoder model for reranking
+            use_relation_entity: Use relation and entity aware processing
         """
         # Core components
         self.qdrant_client = qdrant_client
@@ -109,7 +121,9 @@ class RetrievalEngine:
         # Flags
         self.use_llm_rewrites = use_llm_rewrites
         self.use_llm_reranking = use_llm_reranking
+        self.use_cross_encoder = use_cross_encoder
         self.enable_cache = enable_cache
+        self.use_relation_entity = use_relation_entity
         
         # Simple caches for speed
         if self.enable_cache:
@@ -135,11 +149,26 @@ class RetrievalEngine:
         # Initialize production clause indexer for instant clause lookup
         self.clause_indexer = ProductionClauseIndexer(qdrant_client) if qdrant_client else None
         
+        # Initialize answer generation and validation components
+        self.answer_builder = AnswerBuilder(use_llm=True, api_key=self.gemini_api_key)
+        self.answer_validator = AnswerValidator()
+        
+        # Initialize cross-encoder model (lazy loading)
+        self.cross_encoder = None
+        if self.use_cross_encoder:
+            self._init_cross_encoder()
+        
+        # Initialize relation-entity processor
+        self.relation_entity_processor = None
+        if self.use_relation_entity:
+            self.relation_entity_processor = RelationEntityProcessor(qdrant_client)
+        
         # Stats
         self.stats = {
             'total_queries': 0,
             'avg_processing_time': 0,
             'cache_hits': 0,
+            'validation_scores': [],
         }
     
     def retrieve(
@@ -169,7 +198,75 @@ class RetrievalEngine:
         # 1.1: Normalize query (fast, no parallelization needed)
         normalized_query = self.normalizer.normalize_query(query)
         
-        # 1.2: Submit parallel tasks for query understanding
+        # 1.2: CLAUSE INDEXER FAST PATH - Handle legal clause queries instantly
+        # ====================================================================
+        if self._is_legal_clause_query(normalized_query) and self.clause_indexer:
+            print(f"🔍 Legal clause query detected - trying fast path: {normalized_query}")
+            
+            # Use original query for clause lookup (avoids normalized tokens)
+            clause_results = self._clause_indexer_lookup(query)  # Original query, not normalized
+            
+            # If we found good clause matches, use fast path
+            if clause_results and len(clause_results) >= 2:
+                print(f"⚡ Fast path successful - found {len(clause_results)} clause matches")
+                
+                # Create minimal interpretation for legal queries
+                from query_understanding.query_interpreter import QueryType, QueryScope, QueryInterpretation
+                fast_interpretation = QueryInterpretation(
+                    query_type=QueryType.QA,  # Legal clause queries are QA type
+                    scope=QueryScope.NARROW,  # Specific legal clause
+                    needs_internet=False,
+                    needs_deep_mode=False,
+                    confidence=0.95,
+                    detected_entities={"legal_clauses": [normalized_query]},
+                    keywords=[normalized_query.lower()],
+                    temporal_references=[],
+                    reasoning="legal_clause_fast_path_detected"
+                )
+                
+                # Create simple plan for fast path
+                from routing.retrieval_plan import RetrievalPlan
+                final_top_k = min(top_k or 10, len(clause_results))
+                fast_plan = RetrievalPlan(
+                    num_rewrites=1,
+                    num_hops=1,
+                    top_k_per_vertical=final_top_k,
+                    top_k_total=final_top_k,
+                    use_internet=False,
+                    use_hybrid=False,
+                    rerank_top_k=final_top_k,
+                    diversity_weight=0.0,  # No diversity needed for clause lookup
+                    mode="fast_clause_lookup"
+                )
+                
+                # Build fast output
+                processing_time = time.time() - start_time
+                
+                output = RetrievalOutput(
+                    query=query,
+                    normalized_query=normalized_query,
+                    interpretation=fast_interpretation,
+                    plan=fast_plan,
+                    rewrites=[normalized_query],  # Single rewrite
+                    verticals_searched=['legal'],
+                    results=clause_results[:final_top_k],
+                    total_candidates=len(clause_results),
+                    final_count=len(clause_results[:final_top_k]),
+                    processing_time=processing_time,
+                    metadata={
+                        'fast_path': True,
+                        'clause_indexer_hits': len(clause_results),
+                        'bypass_full_pipeline': True,
+                        'fast_path_confidence': 0.95
+                    }
+                )
+                
+                self._update_stats(output)
+                return output
+            else:
+                print(f"⚠️ Fast path unsuccessful - found {len(clause_results)} matches, falling back to full pipeline")
+        
+        # 1.3: Submit parallel tasks for query understanding (Full Pipeline)
         understanding_futures = {}
         
         # Interpretation task
@@ -256,7 +353,9 @@ class RetrievalEngine:
             top_k=plan.top_k_per_vertical,
             hop_number=1
         )
-        all_results.extend(hop1_results)
+        # Normalize scores before merging
+        hop1_normalized = self._normalize_scores(hop1_results, method='min-max')
+        all_results.extend(hop1_normalized)
         
         # 3.2: Multi-hop retrieval (if enabled)
         if plan.num_hops > 1 and hop1_results:
@@ -267,13 +366,49 @@ class RetrievalEngine:
                 top_k=plan.top_k_per_vertical // 2,
                 hop_number=2
             )
-            all_results.extend(hop2_results)
+            # Normalize scores before merging
+            hop2_normalized = self._normalize_scores(hop2_results, method='min-max')
+            all_results.extend(hop2_normalized)
         
-        # STEP 4: AGGREGATION
+        # STEP 4: AGGREGATION WITH RRF FUSION
         # ====================================================================
         
-        # 4.1: Deduplicate by chunk_id
-        unique_results = self._deduplicate_results(all_results)
+        # 4.1: Apply Reciprocal Rank Fusion for better multi-source merging
+        if len(expanded_rewrites) > 1 or plan.num_hops > 1:
+            # Group results by source for RRF
+            result_lists = []
+            
+            # Group hop1 results by rewrite
+            hop1_by_rewrite = {}
+            hop2_by_rewrite = {}
+            
+            for result in all_results:
+                hop_num = result.metadata.get('hop_number', 1)
+                rewrite_source = result.rewrite_source or 'original'
+                
+                if hop_num == 1:
+                    if rewrite_source not in hop1_by_rewrite:
+                        hop1_by_rewrite[rewrite_source] = []
+                    hop1_by_rewrite[rewrite_source].append(result)
+                else:
+                    if rewrite_source not in hop2_by_rewrite:
+                        hop2_by_rewrite[rewrite_source] = []
+                    hop2_by_rewrite[rewrite_source].append(result)
+            
+            # Sort each group by score and add to result_lists
+            for rewrite_results in hop1_by_rewrite.values():
+                sorted_results = sorted(rewrite_results, key=lambda x: x.score, reverse=True)
+                result_lists.append(sorted_results)
+            
+            for rewrite_results in hop2_by_rewrite.values():
+                sorted_results = sorted(rewrite_results, key=lambda x: x.score, reverse=True)
+                result_lists.append(sorted_results)
+            
+            # Apply RRF fusion
+            unique_results = self._reciprocal_rank_fusion(result_lists)
+        else:
+            # Single source - just deduplicate
+            unique_results = self._deduplicate_results(all_results)
         
         # 4.2: Limit to total budget
         unique_results = unique_results[:plan.top_k_total]
@@ -294,17 +429,44 @@ class RetrievalEngine:
             boost_threshold=0.3
         )
         
-        # 5.3: LLM-based reranking (if enabled)
+        # 5.3: RELATION-ENTITY PROCESSING (NEW!) - Currency detection + Entity awareness
+        # ====================================================================
+        if self.use_relation_entity and self.relation_entity_processor:
+            print(f"🔗 Starting relation-entity processing...")
+            
+            relation_enhanced = self.relation_entity_processor.process_complete(
+                query=normalized_query,
+                results=bm25_boosted,
+                phases_enabled={
+                    'relation_scoring': True,      # Phase 1: +30-40% quality
+                    'entity_matching': True,       # Phase 2: +15-20% quality  
+                    'entity_expansion': True,      # Phase 3: +20-25% quality
+                    'bidirectional_search': False  # Phase 4: DISABLED (needs Qdrant indexes)
+                }
+            )
+            print(f"✅ Relation-entity processing complete: {len(bm25_boosted)} → {len(relation_enhanced)} results")
+        else:
+            relation_enhanced = bm25_boosted
+        
+        # 5.4: Advanced reranking (priority: LLM > Cross-Encoder > Score-based)
         if self.use_llm_reranking and self.gemini_api_key:
+            # Primary: LLM reranking (best quality, slowest)
             reranked = self._llm_rerank(
                 normalized_query,
-                bm25_boosted,
+                relation_enhanced,
+                top_k=plan.rerank_top_k
+            )
+        elif self.use_cross_encoder and self.cross_encoder:
+            # Secondary: Cross-encoder reranking (good quality, medium speed)
+            reranked = self._cross_encoder_rerank(
+                normalized_query,
+                relation_enhanced,
                 top_k=plan.rerank_top_k
             )
         else:
-            # Simple score-based ranking
+            # Fallback: Simple score-based ranking (fast, basic quality)
             reranked = sorted(
-                bm25_boosted,
+                relation_enhanced,
                 key=lambda x: x.score,
                 reverse=True
             )[:plan.rerank_top_k]
@@ -366,20 +528,150 @@ class RetrievalEngine:
         
         return output
     
+    def retrieve_and_answer(
+        self,
+        query: str,
+        mode: str = "qa",
+        top_k: Optional[int] = None,
+        validate_answer: bool = True
+    ) -> tuple[RetrievalOutput, Answer, Dict]:
+        """
+        Complete pipeline: retrieve + build answer + validate
+        
+        Args:
+            query: User query
+            mode: Answer mode (qa, policy, framework, etc.)
+            top_k: Override final result count
+            validate_answer: Whether to validate the generated answer
+            
+        Returns:
+            (RetrievalOutput, Answer, validation_metadata)
+        """
+        # Step 1: Retrieve results
+        retrieval_output = self.retrieve(query, top_k=top_k)
+        
+        # Step 2: Convert RetrievalResult to dict format for answer builder
+        results_for_builder = []
+        for result in retrieval_output.results:
+            results_for_builder.append({
+                'content': result.content,
+                'chunk_id': result.chunk_id,
+                'doc_id': result.doc_id,
+                'score': result.score,
+                'vertical': result.vertical,
+                'metadata': result.metadata,
+                'url': result.metadata.get('url') if 'url' in result.metadata else None
+            })
+        
+        # Step 3: Build answer
+        answer = self.answer_builder.build_answer(
+            query=query,
+            results=results_for_builder,
+            mode=mode
+        )
+        
+        # Step 4: Validate answer (if enabled)
+        validation_metadata = {}
+        if validate_answer:
+            # Convert Answer object to dict for validator
+            answer_dict = {
+                'summary': answer.summary,
+                'sections': answer.sections,
+                'citations': answer.citations,
+                'confidence': answer.confidence,
+                'metadata': answer.metadata
+            }
+            
+            # Validate
+            is_valid, issues = self.answer_validator.validate_answer(
+                answer_dict, results_for_builder, query
+            )
+            
+            # Get quality score
+            quality_score = self.answer_validator.get_quality_score(
+                answer_dict, results_for_builder, query
+            )
+            
+            # Get suggestions
+            suggestions = self.answer_validator.suggest_improvements(
+                answer_dict, results_for_builder, query
+            )
+            
+            # Update answer metadata with validation info
+            answer.metadata.update({
+                'validation': {
+                    'is_valid': is_valid,
+                    'issues': issues,
+                    'quality_score': quality_score,
+                    'suggestions': suggestions
+                }
+            })
+            
+            validation_metadata = {
+                'is_valid': is_valid,
+                'issues': issues,
+                'quality_score': quality_score,
+                'suggestions': suggestions
+            }
+            
+            # Track validation scores for stats
+            self.stats['validation_scores'].append(quality_score)
+            
+            # Log validation issues if any
+            if not is_valid:
+                print(f"⚠️ Answer validation issues for query '{query}':")
+                for issue in issues[:3]:  # Show top 3 issues
+                    print(f"   - {issue}")
+                if suggestions:
+                    print(f"   Suggestions: {suggestions[0]}")
+        
+        return retrieval_output, answer, validation_metadata
+    
     def _is_legal_clause_query(self, query: str) -> bool:
         """Check if query is asking for specific legal clause/section/rule"""
         import re
         query_lower = query.lower()
+        
+        # Enhanced patterns for better legal clause detection
         patterns = [
+            # Basic section/article/rule patterns
             r'\b(?:section|clause|article|rule|sub-rule|amendment)\s+\d+',
-            r'\b(?:rte|cce|apsermc|education)\s+act\b',
+            r'\bsection\s+\d+\b',
+            r'\brule\s+\d+\b', 
+            r'\barticle\s+\d+\w*\b',
+            
+            # Act + section combinations
+            r'\b(?:rte|cce|apsermc|education)\s+(?:act\s+)?section\s+\d+',
+            r'\b(?:rte|cce|apsermc)\s+(?:act|rule)\b',
+            r'\bsection\s+\d+\s+(?:of\s+)?(?:rte|cce|apsermc|education)\s+act',
+            
+            # Complex legal patterns
             r'\b\d+\(\d+\)\(\w+\)\b',  # 12(1)(c) pattern
             r'\b(?:act|rule|regulation)\s+\d+',
-            r'\bsection\s+\d+\b',
-            r'\brule\s+\d+\b',
-            r'\barticle\s+\d+\w*\b'
+            r'\b(?:go|government\s+order)\s+(?:no\.?\s*)?\d+',
+            
+            # Preserved token patterns (handle normalization artifacts)
+            r'__preserved_\d+__',  # Catches normalized numbers
+            r'\b(?:section|article|rule)\s+__preserved_\d+__',
         ]
-        return any(re.search(pattern, query_lower) for pattern in patterns)
+        
+        # Check all patterns
+        for pattern in patterns:
+            if re.search(pattern, query_lower):
+                print(f"🔍 Legal clause pattern matched: '{pattern}' in '{query_lower}'")
+                return True
+        
+        # Additional heuristic: check for legal keywords + numbers
+        has_legal_keyword = any(keyword in query_lower for keyword in [
+            'section', 'article', 'rule', 'clause', 'act', 'rte', 'cce', 'apsermc'
+        ])
+        has_number = re.search(r'\d+', query_lower)
+        
+        if has_legal_keyword and has_number:
+            print(f"🔍 Legal heuristic matched: legal_keyword + number in '{query_lower}'")
+            return True
+            
+        return False
     
     def _clause_indexer_lookup(self, query: str) -> List[RetrievalResult]:
         """
@@ -600,12 +892,15 @@ class RetrievalEngine:
         
         # Perform search
         try:
-            search_results = self.qdrant_client.search(
+            response = self.qdrant_client.query_points(
                 collection_name=collection,
-                query_vector=embedding,
+                query=embedding,
                 limit=top_k,
-                score_threshold=0.3
+                score_threshold=0.3,
+                with_payload=True,
+                with_vectors=False
             )
+            search_results = response.points
             
             # Convert to RetrievalResult objects
             results = []
@@ -691,11 +986,15 @@ class RetrievalEngine:
             for collection in collections:
                 try:
                     # Vector search
-                    search_results = self.qdrant_client.search(
+                    response = self.qdrant_client.query_points(
                         collection_name=collection,
-                        query_vector=query_vector,
-                        limit=top_k
+                        query=query_vector,
+                        limit=top_k,
+                        score_threshold=0.0,
+                        with_payload=True,
+                        with_vectors=False
                     )
+                    search_results = response.points
                     
                     # Convert to RetrievalResult objects
                     for hit in search_results:
@@ -772,6 +1071,117 @@ class RetrievalEngine:
         
         # Return sorted by score
         return sorted(seen.values(), key=lambda x: x.score, reverse=True)
+    
+    def _normalize_scores(
+        self, 
+        results: List[RetrievalResult], 
+        method: str = 'min-max'
+    ) -> List[RetrievalResult]:
+        """
+        Normalize scores to 0-1 range for better multi-hop/multi-rewrite fusion
+        
+        Args:
+            results: List of retrieval results
+            method: 'min-max' or 'z-score'
+            
+        Returns:
+            Results with normalized scores
+        """
+        if not results:
+            return results
+        
+        scores = [r.score for r in results]
+        
+        if method == 'min-max':
+            min_score = min(scores)
+            max_score = max(scores)
+            
+            # Handle edge case where all scores are the same
+            if max_score == min_score:
+                for r in results:
+                    r.score = 1.0
+                return results
+            
+            # Min-max normalization to [0, 1]
+            for r in results:
+                r.score = (r.score - min_score) / (max_score - min_score)
+        
+        elif method == 'z-score':
+            import statistics
+            mean_score = statistics.mean(scores)
+            stdev_score = statistics.stdev(scores) if len(scores) > 1 else 1.0
+            
+            if stdev_score == 0:
+                stdev_score = 1.0
+            
+            # Z-score normalization, then shift to [0, 1]
+            for r in results:
+                z_score = (r.score - mean_score) / stdev_score
+                r.score = max(0.0, min(1.0, (z_score + 3) / 6))  # Assuming 3-sigma range
+        
+        return results
+    
+    def _reciprocal_rank_fusion(
+        self,
+        result_lists: List[List[RetrievalResult]],
+        k: int = 60
+    ) -> List[RetrievalResult]:
+        """
+        Reciprocal Rank Fusion - combine multiple ranked lists
+        
+        RRF works better than score averaging because:
+        - Results appearing in multiple sources get boosted (strong consensus signal)
+        - Handles different score scales naturally 
+        - Position-based relevance (rank matters more than raw score)
+        
+        Formula: RRF_score(chunk) = Σ 1/(k + rank_in_list_i) for all lists containing chunk
+        
+        Args:
+            result_lists: List of ranked result lists (from different sources)
+            k: RRF parameter (typically 60, controls rank smoothing)
+            
+        Returns:
+            Fused results sorted by RRF score
+        """
+        if not result_lists:
+            return []
+        
+        chunk_scores = {}
+        chunk_to_result = {}
+        
+        # Calculate RRF scores
+        for result_list in result_lists:
+            for rank, result in enumerate(result_list, start=1):
+                chunk_id = result.chunk_id
+                
+                # Add RRF score contribution
+                rrf_contribution = 1.0 / (k + rank)
+                chunk_scores[chunk_id] = chunk_scores.get(chunk_id, 0) + rrf_contribution
+                
+                # Store the result object (keep highest-scored version)
+                if chunk_id not in chunk_to_result or result.score > chunk_to_result[chunk_id].score:
+                    chunk_to_result[chunk_id] = result
+        
+        # Sort by RRF score (descending)
+        sorted_chunks = sorted(
+            chunk_scores.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        
+        # Build final result list with RRF scores
+        fused_results = []
+        for chunk_id, rrf_score in sorted_chunks:
+            result = chunk_to_result[chunk_id]
+            # Update metadata with RRF info
+            result.metadata['rrf_score'] = rrf_score
+            result.metadata['fusion_method'] = 'rrf'
+            result.metadata['original_score'] = result.score
+            # Update main score to RRF score for consistency
+            result.score = rrf_score
+            fused_results.append(result)
+        
+        return fused_results
     
     def _llm_rerank(
         self,
@@ -863,6 +1273,81 @@ Output format: 0,5,2,8,1,... (just the IDs, comma-separated)"""
             print(f"LLM reranking failed: {e}, using score-based ranking")
             return sorted(results, key=lambda x: x.score, reverse=True)[:top_k]
     
+    def _init_cross_encoder(self):
+        """Initialize cross-encoder model for reranking"""
+        try:
+            from sentence_transformers import CrossEncoder
+            
+            # Use a good cross-encoder model for relevance scoring
+            # ms-marco-MiniLM-L-6-v2 is fast and effective
+            model_name = 'cross-encoder/ms-marco-MiniLM-L-6-v2'
+            print(f"🔧 Loading cross-encoder model: {model_name}")
+            self.cross_encoder = CrossEncoder(model_name)
+            print(f"✅ Cross-encoder model loaded successfully")
+            
+        except ImportError:
+            print("⚠️ sentence-transformers not installed, cross-encoder reranking disabled")
+            print("   Install with: pip install sentence-transformers")
+            self.cross_encoder = None
+            self.use_cross_encoder = False
+            
+        except Exception as e:
+            print(f"❌ Failed to load cross-encoder model: {e}")
+            self.cross_encoder = None
+            self.use_cross_encoder = False
+    
+    def _cross_encoder_rerank(
+        self,
+        query: str,
+        results: List[RetrievalResult],
+        top_k: int = 20
+    ) -> List[RetrievalResult]:
+        """
+        Rerank using cross-encoder model for semantic relevance
+        
+        Cross-encoders are more accurate than bi-encoders for reranking
+        but slower than LLM reranking. Good middle ground.
+        """
+        if not self.cross_encoder or not results:
+            return results[:top_k]
+        
+        try:
+            # Prepare query-document pairs for cross-encoder
+            candidates = results[:min(50, len(results))]  # Limit for speed
+            
+            query_doc_pairs = []
+            for result in candidates:
+                # Use first 512 characters of content for cross-encoder
+                content = result.content[:512]
+                query_doc_pairs.append([query, content])
+            
+            # Get relevance scores from cross-encoder
+            print(f"🔄 Cross-encoder reranking {len(query_doc_pairs)} candidates...")
+            scores = self.cross_encoder.predict(query_doc_pairs)
+            
+            # Combine results with new scores
+            scored_results = []
+            for i, result in enumerate(candidates):
+                # Update result with cross-encoder score
+                result.score = float(scores[i])
+                result.metadata['original_score'] = result.metadata.get('original_score', result.score)
+                result.metadata['rerank_method'] = 'cross_encoder'
+                scored_results.append(result)
+            
+            # Sort by cross-encoder scores
+            reranked = sorted(scored_results, key=lambda x: x.score, reverse=True)
+            
+            # Add remaining results that weren't reranked
+            remaining = results[len(candidates):]
+            reranked.extend(remaining)
+            
+            print(f"✅ Cross-encoder reranking complete")
+            return reranked[:top_k]
+            
+        except Exception as e:
+            print(f"❌ Cross-encoder reranking failed: {e}, using score-based ranking")
+            return sorted(results, key=lambda x: x.score, reverse=True)[:top_k]
+    
     def _diversity_rerank(
         self,
         results: List[RetrievalResult],
@@ -948,6 +1433,37 @@ Output format: 0,5,2,8,1,... (just the IDs, comma-separated)"""
         old_avg = self.stats['avg_processing_time']
         self.stats['avg_processing_time'] = \
             (old_avg * (n - 1) + output.processing_time) / n
+    
+    def get_validation_stats(self) -> Dict:
+        """Get validation performance statistics"""
+        validation_scores = self.stats.get('validation_scores', [])
+        
+        if not validation_scores:
+            return {
+                'total_validated': 0,
+                'avg_quality_score': 0.0,
+                'quality_distribution': {}
+            }
+        
+        import statistics
+        
+        avg_score = statistics.mean(validation_scores)
+        
+        # Quality distribution
+        high_quality = len([s for s in validation_scores if s >= 0.8])
+        medium_quality = len([s for s in validation_scores if 0.6 <= s < 0.8])
+        low_quality = len([s for s in validation_scores if s < 0.6])
+        
+        return {
+            'total_validated': len(validation_scores),
+            'avg_quality_score': avg_score,
+            'quality_distribution': {
+                'high_quality': high_quality,
+                'medium_quality': medium_quality, 
+                'low_quality': low_quality
+            },
+            'latest_scores': validation_scores[-5:]  # Last 5 scores
+        }
 
 
 # Convenience function

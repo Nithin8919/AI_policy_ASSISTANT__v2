@@ -46,3 +46,4 @@ class SignalScorer:
         score = max(0.0, 1.0 - (age * 0.1))
         
         return score
+

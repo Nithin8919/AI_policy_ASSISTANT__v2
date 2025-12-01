@@ -35,6 +35,46 @@ class BM25Booster:
     
     # Keywords that indicate infrastructure/scheme content but low embedding similarity
     BOOST_CATEGORIES = {
+        'government_orders': {
+            'keywords': [
+                # GO number patterns
+                'go ms no', 'go rt no', 'go no', 'government order',
+                'ms no 1', 'ms no 2', 'ms no 3', 'ms no 4', 'ms no 5',
+                'rt no 1', 'rt no 2', 'rt no 3', 'rt no 4', 'rt no 5',
+                
+                # GO content patterns
+                'orders issued', 'hereby ordered', 'notification', 'circular',
+                'policy guidelines', 'implementation instructions', 'directions',
+                'subject approval', 'sanctioned', 'authorized', 'constituted',
+                
+                # Administrative terms
+                'commissioner', 'secretary', 'director', 'principal secretary',
+                'government of andhra pradesh', 'school education department',
+                'higher education department', 'finance department',
+                
+                # Policy actions
+                'establishment', 'appointment', 'transfer', 'posting',
+                'budget allocation', 'fund release', 'scheme implementation',
+                'monitoring committee', 'review meeting'
+            ],
+            'boost_factor': 1.8,  # 80% boost for GO-specific content
+            'pattern_type': 'go_specific'  # Special handling for GO patterns
+        },
+        
+        'legal_clauses': {
+            'keywords': [
+                'section 12', 'section 13', 'section 14', 'section 15', 'section 16',
+                'article 21a', 'article 45', 'right to education', 'rte act',
+                'cce rules', 'assessment rules', 'examination rules',
+                'admission criteria', 'age criteria', 'reservation quota',
+                'free and compulsory education', 'neighbourhood school',
+                'special category', 'economically weaker section',
+                'private school', 'government school', 'aided school'
+            ],
+            'boost_factor': 2.0,  # 100% boost for exact legal clause matches
+            'pattern_type': 'exact_phrase'  # Require exact phrase matching
+        },
+        
         'infrastructure': {
             'keywords': [
                 'nadu nedu', 'infrastructure', 'building', 'classroom', 'toilet',
@@ -45,7 +85,8 @@ class BM25Booster:
                 'CCTV', 'security', 'fire safety', 'emergency exit', 'sanitation',
                 'hygiene', 'medical room', 'first aid', 'compound', 'fencing'
             ],
-            'boost_factor': 1.5  # 50% boost for infrastructure matches
+            'boost_factor': 1.5,  # 50% boost for infrastructure matches
+            'pattern_type': 'flexible'  # Allow word boundary matching
         },
         
         'welfare_schemes': {
@@ -58,7 +99,8 @@ class BM25Booster:
                 'health checkup', 'medical assistance', 'free textbook',
                 'bicycle scheme', 'student welfare', 'social security'
             ],
-            'boost_factor': 1.4  # 40% boost for welfare scheme matches
+            'boost_factor': 1.4,  # 40% boost for welfare scheme matches
+            'pattern_type': 'phrase_priority'  # Prioritize multi-word phrases
         },
         
         'safety_compliance': {
@@ -70,7 +112,8 @@ class BM25Booster:
                 'boundary security', 'staff verification', 'background check',
                 'child safety policy', 'harassment prevention', 'grievance'
             ],
-            'boost_factor': 1.3  # 30% boost for safety matches
+            'boost_factor': 1.3,  # 30% boost for safety matches
+            'pattern_type': 'phrase_priority'
         },
         
         'technical_specifications': {
@@ -81,7 +124,8 @@ class BM25Booster:
                 'rate analysis', 'cost estimation', 'budget allocation',
                 'financial provision', 'expenditure', 'utilization certificate'
             ],
-            'boost_factor': 1.2  # 20% boost for technical terms
+            'boost_factor': 1.2,  # 20% boost for technical terms
+            'pattern_type': 'flexible'
         }
     }
     
@@ -97,27 +141,73 @@ class BM25Booster:
         self.total_docs = 0
     
     def _compile_patterns(self):
-        """Pre-compile keyword patterns for efficiency"""
+        """Pre-compile keyword patterns for efficiency with improved specificity"""
         self.category_patterns = {}
         
         for category, config in self.BOOST_CATEGORIES.items():
             patterns = []
+            pattern_type = config.get('pattern_type', 'flexible')
+            
             for keyword in config['keywords']:
-                # Create flexible pattern that matches variations
-                pattern = r'\b' + re.escape(keyword.lower()) + r'\b'
+                keyword_lower = keyword.lower()
+                
+                if pattern_type == 'exact_phrase':
+                    # Exact phrase matching for legal clauses
+                    pattern = r'\b' + re.escape(keyword_lower) + r'\b'
+                    
+                elif pattern_type == 'go_specific':
+                    # Special handling for GO patterns
+                    if 'ms no' in keyword_lower or 'rt no' in keyword_lower or 'go no' in keyword_lower:
+                        # Match GO number patterns more flexibly
+                        pattern = keyword_lower.replace(' ', r'\s*').replace('no', r'(?:no\.?|number)')
+                        pattern = r'\b' + pattern + r'\s*\d*'
+                    else:
+                        # Standard word boundary matching for other GO terms
+                        pattern = r'\b' + re.escape(keyword_lower) + r'\b'
+                    
+                elif pattern_type == 'phrase_priority':
+                    # Multi-word phrases get higher priority
+                    if ' ' in keyword_lower:
+                        # For phrases, allow slight variations
+                        words = keyword_lower.split()
+                        pattern = r'\b' + r'\s+'.join(re.escape(word) for word in words) + r'\b'
+                    else:
+                        # Single words with word boundaries
+                        pattern = r'\b' + re.escape(keyword_lower) + r'\b'
+                
+                else:  # flexible (default)
+                    # Standard word boundary matching
+                    pattern = r'\b' + re.escape(keyword_lower) + r'\b'
+                
                 patterns.append(re.compile(pattern, re.IGNORECASE))
+                
             self.category_patterns[category] = {
                 'patterns': patterns,
-                'boost_factor': config['boost_factor']
+                'boost_factor': config['boost_factor'],
+                'pattern_type': pattern_type
             }
     
     def should_boost_query(self, query: str) -> bool:
         """Check if query should trigger BM25 boosting"""
         boost_triggers = [
+            # Legal and GO triggers
+            'government order', 'go no', 'ms no', 'rt no', 'notification',
+            'section', 'article', 'rule', 'act', 'policy', 'guidelines',
+            'commissioner', 'secretary', 'director', 'department',
+            
+            # Infrastructure triggers  
             'infrastructure', 'facility', 'building', 'construction',
-            'scheme', 'welfare', 'benefit', 'assistance',
-            'safety', 'security', 'compliance', 'standard',
-            'technical', 'specification', 'procurement'
+            'nadu nedu', 'classroom', 'toilet', 'laboratory',
+            
+            # Scheme triggers
+            'scheme', 'welfare', 'benefit', 'assistance', 'amma vodi',
+            'scholarship', 'hostel', 'transport', 'nutrition',
+            
+            # Safety and compliance
+            'safety', 'security', 'compliance', 'standard', 'audit',
+            
+            # Technical and procurement
+            'technical', 'specification', 'procurement', 'tender'
         ]
         
         query_lower = query.lower()

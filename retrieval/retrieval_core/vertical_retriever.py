@@ -99,12 +99,16 @@ class VerticalRetriever:
             from ..config.vertical_map import get_collection_name
             collection_name = get_collection_name(self.vertical)
             
-            results = self.qdrant_client.search(
+            response = self.qdrant_client.client.query_points(
                 collection_name=collection_name,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=top_k,
-                query_filter=qdrant_filter
+                score_threshold=0.0,
+                query_filter=qdrant_filter,
+                with_payload=True,
+                with_vectors=False
             )
+            results = response.points
             
             # V2: Apply hybrid search if enabled and we have results
             if should_use_hybrid and results:
@@ -145,12 +149,16 @@ class VerticalRetriever:
             from ..config.vertical_map import get_collection_name
             collection_name = get_collection_name(self.vertical)
             
-            results = self.qdrant_client.search(
+            response = self.qdrant_client.client.query_points(
                 collection_name=collection_name,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=top_k,
-                query_filter=qdrant_filter
+                score_threshold=0.0,
+                query_filter=qdrant_filter,
+                with_payload=True,
+                with_vectors=False
             )
+            results = response.points
             
             logger.info(f"✅ Found {len(results)} results in {self.vertical}")
             return results

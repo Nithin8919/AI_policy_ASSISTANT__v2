@@ -261,3 +261,4 @@ for result in prioritized:
         print(f"   Rerank score: {result['rerank_score']:.3f}")
         print(f"   Authority boost: {result['authority_boost']:.2f}x")
         print()
+

@@ -30,3 +30,4 @@ __all__ = [
     'MergedResult',
     'merge_results',
 ]
+

@@ -32,3 +32,4 @@ class CategoryDetector:
                     break
         
         return matches
+

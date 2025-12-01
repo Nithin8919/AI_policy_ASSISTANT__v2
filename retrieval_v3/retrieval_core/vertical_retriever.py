@@ -67,9 +67,20 @@ class VerticalRetriever:
         if filter_conditions:
             search_params['query_filter'] = filter_conditions
         
-        # Execute search
+        # Execute search - FIXED API CALL
         try:
-            hits = self.client.search(**search_params)
+            # Use correct Qdrant API
+            response = self.client.query_points(
+                collection_name=vertical,
+                query=query_vector,
+                limit=top_k,
+                score_threshold=score_threshold,
+                query_filter=filter_conditions,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            hits = response.points
             
             # Convert to SearchResult objects
             results = []
@@ -174,3 +185,4 @@ if __name__ == "__main__":
         top_k_per_vertical=15
     )
     """)
+

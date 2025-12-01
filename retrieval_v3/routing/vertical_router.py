@@ -389,3 +389,4 @@ if __name__ == "__main__":
         print(f"Verticals: {[v.value for v in verticals]}")
         print(f"Collections: {collections}")
         print("-" * 80)
+

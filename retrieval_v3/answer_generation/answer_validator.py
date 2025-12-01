@@ -265,3 +265,4 @@ suggestions = validator.suggest_improvements(answer, results, query)
 for suggestion in suggestions:
     print(f"  → {suggestion}")
 """)
+
