@@ -160,8 +160,8 @@ export function PremiumSidebar({
 
       <SidebarFooter className="p-4 border-t border-gray-800">
         <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-800 cursor-pointer transition-colors">
-          <Avatar className="w-8 h-8 bg-blue-600">
-            <AvatarFallback className="text-white text-sm font-medium bg-blue-600">
+          <Avatar className="w-8 h-8 bg-orange-600">
+            <AvatarFallback className="text-white text-sm font-medium bg-orange-600">
               N
             </AvatarFallback>
           </Avatar>

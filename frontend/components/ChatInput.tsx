@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Send, Plus, Mic, Loader2, Zap, Brain, Lightbulb, Cog, Paperclip, Camera, Search, Image, BookOpen, MoreHorizontal, X } from 'lucide-react'
+import { Send, Plus, Loader2, Zap, Brain, Lightbulb, Cog, Paperclip, Camera, Search, Image, BookOpen, MoreHorizontal, X } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { 
   DropdownMenu, 
@@ -171,6 +171,8 @@ export function ChatInput({
           {/* Text Input */}
           <div className="flex-1 relative">
             <textarea
+              id="chat-message-input"
+              name="message"
               ref={textareaRef}
               value={message}
               onChange={handleInput}
@@ -180,27 +182,12 @@ export function ChatInput({
               className="w-full bg-transparent border-0 text-foreground placeholder:text-muted-foreground resize-none focus:outline-none text-base leading-6"
               rows={1}
               style={{ minHeight: '24px', maxHeight: '200px' }}
+              aria-label="Chat message input"
             />
           </div>
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Voice Input */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent"
-                >
-                  <Mic className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Voice input</p>
-              </TooltipContent>
-            </Tooltip>
-
             {/* Send Button */}
             <Tooltip>
               <TooltipTrigger asChild>

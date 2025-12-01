@@ -3,10 +3,8 @@
 import * as React from "react"
 import {
   ArrowUpCircleIcon,
-  HelpCircleIcon,
   MessageSquare,
   Plus,
-  SearchIcon,
   SettingsIcon,
   Trash2,
   BookOpenIcon,
@@ -30,35 +28,18 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-const data = {
-  user: {
-    name: "Nithin",
-    email: "nithin@gitam.edu",
-    avatar: "/avatars/nithin.jpg",
+const navSecondaryData = [
+  {
+    title: "Documentation",
+    url: "/documentation",
+    icon: BookOpenIcon,
   },
-  navSecondary: [
-    {
-      title: "Documentation",
-      url: "/documentation",
-      icon: BookOpenIcon,
-    },
-    {
-      title: "Settings",
-      url: "#",
-      icon: SettingsIcon,
-    },
-    {
-      title: "Get Help",
-      url: "#",
-      icon: HelpCircleIcon,
-    },
-    {
-      title: "Search",
-      url: "#",
-      icon: SearchIcon,
-    },
-  ],
-}
+  {
+    title: "Settings",
+    url: "#",
+    icon: SettingsIcon,
+  },
+]
 
 interface ChatHistoryItem {
   id: string
@@ -73,29 +54,21 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   onNewChat?: () => void
   onSelectChat?: (chatId: string) => void
   onDeleteChat?: (chatId: string) => void
-  showDebugPanel?: boolean
-  onToggleDebugPanel?: () => void
-  simulateFailure?: boolean
-  onToggleSimulateFailure?: () => void
 }
 
-export function AppSidebar({ 
-  chatHistory = [], 
-  activeChatId, 
-  onNewChat, 
-  onSelectChat, 
-  onDeleteChat, 
-  showDebugPanel,
-  onToggleDebugPanel,
-  simulateFailure,
-  onToggleSimulateFailure,
-  ...props 
+export function AppSidebar({
+  chatHistory = [],
+  activeChatId,
+  onNewChat,
+  onSelectChat,
+  onDeleteChat,
+  ...props
 }: AppSidebarProps) {
   const formatTime = (date: Date) => {
     const now = new Date()
     const diff = now.getTime() - date.getTime()
     const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-    
+
     if (days === 0) {
       return 'Today'
     } else if (days === 1) {
@@ -107,16 +80,23 @@ export function AppSidebar({
     }
   }
 
+  // Default user data
+  const userData = {
+    name: 'GITAM User',
+    email: 'user@gitam.edu',
+    avatar: '/avatars/default.jpg',
+  }
+
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
-      <SidebarHeader>
+    <Sidebar collapsible="offcanvas" {...props} className="flex flex-col">
+      <SidebarHeader className="flex-shrink-0">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="#">
+              <a href="/">
                 <ArrowUpCircleIcon className="h-5 w-5" />
                 <span className="text-base font-semibold">GITAM Policy AI</span>
               </a>
@@ -124,11 +104,11 @@ export function AppSidebar({
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      
+
       {/* Scrollable Chat History Section */}
-      <SidebarContent className="flex-1 overflow-hidden">
-        <SidebarGroup className="h-full flex flex-col">
-          <SidebarGroupLabel className="flex items-center justify-between">
+      <SidebarContent className="flex-1 overflow-y-auto min-h-0">
+        <SidebarGroup className="flex flex-col">
+          <SidebarGroupLabel className="flex items-center justify-between flex-shrink-0">
             <span>Recent Chats</span>
             {onNewChat && (
               <Button
@@ -141,7 +121,7 @@ export function AppSidebar({
               </Button>
             )}
           </SidebarGroupLabel>
-          <SidebarGroupContent className="flex-1 overflow-y-auto sidebar-scrollbar">
+          <SidebarGroupContent className="flex-1 overflow-y-auto sidebar-scrollbar min-h-0">
             <SidebarMenu>
               {chatHistory.length === 0 ? (
                 <div className="px-2 py-4 text-center text-sm text-muted-foreground">
@@ -188,11 +168,11 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      
+
       {/* Fixed Bottom Section */}
-      <SidebarFooter className="flex flex-col gap-0">
-        <NavSecondary 
-          items={data.navSecondary} 
+      <SidebarFooter className="flex-shrink-0 flex flex-col gap-0 border-t border-border mt-auto">
+        <NavSecondary
+          items={navSecondaryData}
           customRenderers={{
             "Settings": (item) => (
               <SettingsDialog>
@@ -206,12 +186,8 @@ export function AppSidebar({
             )
           }}
         />
-        <NavUser 
-          user={data.user}
-          showDebugPanel={showDebugPanel}
-          onToggleDebugPanel={onToggleDebugPanel}
-          simulateFailure={simulateFailure}
-          onToggleSimulateFailure={onToggleSimulateFailure}
+        <NavUser
+          user={userData}
         />
       </SidebarFooter>
     </Sidebar>

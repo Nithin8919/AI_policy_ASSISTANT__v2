@@ -58,6 +58,7 @@ from retrieval_core.bm25_retriever import BM25Retriever
 from retrieval_core.supersession_manager import SupersessionManager
 from reranking.cross_encoder_reranker import CrossEncoderReranker
 from retrieval_core.hybrid_search import HybridSearcher
+from cache.query_cache import QueryCache
 
 
 @dataclass
@@ -127,7 +128,12 @@ class RetrievalEngine:
         # Core components
         self.qdrant_client = qdrant_client
         self.embedder = embedder
-        self.gemini_api_key = gemini_api_key or os.getenv('GEMINI_API_KEY')
+        # Prefer explicit arg, then GEMINI_API_KEY, then GOOGLE_API_KEY for backward compatibility
+        self.gemini_api_key = (
+            gemini_api_key
+            or os.getenv('GEMINI_API_KEY')
+            or os.getenv('GOOGLE_API_KEY')
+        )
         
         # Flags
         self.use_llm_rewrites = use_llm_rewrites
@@ -183,6 +189,13 @@ class RetrievalEngine:
         if self.use_relation_entity:
             self.relation_entity_processor = RelationEntityProcessor(qdrant_client)
         
+        # Initialize query cache (10 minute TTL)
+        self.query_cache = QueryCache(ttl_seconds=600)
+        
+        # Initialize Diagnostic Runner
+        from diagnostics.diagnostic_runner import DiagnosticRunner
+        self.diagnostic_runner = DiagnosticRunner(api_key=self.gemini_api_key)
+        
         # Stats
         self.stats = {
             'total_queries': 0,
@@ -223,8 +236,11 @@ class RetrievalEngine:
         force_filter = None
         if "recent" in normalized_query.lower() and ("go" in normalized_query.lower() or "government order" in normalized_query.lower()):
             import time as time_module
+            # Round to start of day for cache stability
+            # This ensures the filter doesn't change every second
             now_ts = int(time_module.time())
-            eighteen_months_ago = now_ts - (18 * 30 * 86400)
+            start_of_day = (now_ts // 86400) * 86400
+            eighteen_months_ago = start_of_day - (18 * 30 * 86400)
             
             force_filter = {
                 "must": [
@@ -241,6 +257,13 @@ class RetrievalEngine:
                 })
             
             logger.info(f"🎯 Auto-pinned filters for recent GOs query (last 18 months)")
+        
+        # CHECK CACHE FIRST (after normalization and filter determination)
+        cached_result = self.query_cache.get(normalized_query, force_filter)
+        if cached_result:
+            self.stats['cache_hits'] += 1
+            return cached_result
+
         
         # 1.2: CLAUSE INDEXER FAST PATH - Handle legal clause queries instantly
         # ====================================================================
@@ -640,6 +663,9 @@ class RetrievalEngine:
         # Update stats
         self._update_stats(output)
         
+        # CACHE THE RESULT before returning
+        self.query_cache.set(normalized_query, output, force_filter)
+        
         return output
     
     def retrieve_and_answer(
@@ -740,6 +766,38 @@ class RetrievalEngine:
                     print(f"   Suggestions: {suggestions[0]}")
         
         return retrieval_output, answer, validation_metadata
+    
+    def run_diagnostic(self, query: str, test_type: str = "full") -> Dict[str, Any]:
+        """
+        Run diagnostic tests on a query
+        
+        Args:
+            query: User query
+            test_type: 'full' for master prompt, 'all' for all tests, or specific test name
+            
+        Returns:
+            Diagnostic results
+        """
+        # Perform retrieval first
+        retrieval_output = self.retrieve(query)
+        results = retrieval_output.results
+        
+        if test_type == "full":
+            return self.diagnostic_runner.run_full_diagnostic(query, results)
+        elif test_type == "all":
+            return self.diagnostic_runner.run_all_tests(query, results)
+        elif test_type == "sanity":
+            return self.diagnostic_runner.run_retrieval_sanity_test(query, results)
+        elif test_type == "missing":
+            return self.diagnostic_runner.run_missing_info_test(query, results)
+        elif test_type == "structure":
+            return self.diagnostic_runner.run_policy_structure_test(query, results)
+        elif test_type == "reasoning":
+            return self.diagnostic_runner.run_reasoning_test(query, results)
+        elif test_type == "contradiction":
+            return self.diagnostic_runner.run_contradiction_test(query, results)
+        else:
+            return {"error": f"Unknown test type: {test_type}"}
     
     def _is_legal_clause_query(self, query: str) -> bool:
         """Check if query is asking for specific legal clause/section/rule"""
@@ -1327,7 +1385,8 @@ class RetrievalEngine:
             import google.generativeai as genai
             
             genai.configure(api_key=self.gemini_api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash-8b')
+            # Use standard Gemini Flash model (v1beta-compatible)
+            model = genai.GenerativeModel("gemini-1.5-flash-latest")
             
             # Prepare candidates (top results only to save tokens)
             candidates = results[:min(30, len(results))]

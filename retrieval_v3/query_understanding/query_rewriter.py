@@ -476,7 +476,7 @@ class QueryRewriter:
             
             # Get API key from env if not provided
             if not api_key:
-                api_key = os.getenv('GEMINI_API_KEY')
+                api_key = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
             
             if not api_key:
                 print("No Gemini API key found, falling back to rule-based rewrites")
@@ -484,7 +484,8 @@ class QueryRewriter:
             
             # Configure Gemini Flash (fastest, cheapest)
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash-8b')  # Ultra-fast, ultra-cheap
+            # Use Gemini 1.5 Flash with version suffix for stability
+            model = genai.GenerativeModel('gemini-1.5-flash-latest')
             
             # Create prompt for domain-specific rewrites
             prompt = f"""You are an expert in Indian education policy. Generate {num_rewrites} different rewrites of this query, each targeting different aspects of education policy:

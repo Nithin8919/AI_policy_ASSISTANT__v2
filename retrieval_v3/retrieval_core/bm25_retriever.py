@@ -79,19 +79,55 @@ class BM25Retriever:
                     
                     points, offset = client_instance.scroll(
                         collection_name=collection_name,
-                        limit=1000,
+                        limit=100,
                         offset=offset,
                         with_payload=True,
                         with_vectors=False
                     )
                     
                     for point in points:
-                        content = point.payload.get("content", "") or point.payload.get("text", "")
-                        if not content:
+                        payload = point.payload
+                        
+                        # OPTIMIZED TEXT SOURCE: title + headers + entities + truncated content
+                        text_parts = []
+                        
+                        # Title/GO number (high weight - add twice for importance)
+                        if payload.get('title'):
+                            text_parts.append(payload['title'])
+                            text_parts.append(payload['title'])  # Double weight
+                        if payload.get('go_number'):
+                            text_parts.append(payload['go_number'])
+                            text_parts.append(payload['go_number'])  # Double weight
+                        
+                        # Section type and headers
+                        if payload.get('section_type'):
+                            text_parts.append(payload['section_type'])
+                        if payload.get('section_header'):
+                            text_parts.append(payload['section_header'])
+                        
+                        # Entities (departments, acts, keywords)
+                        entities = payload.get('entities', {})
+                        for entity_type in ['departments', 'acts', 'keywords', 'schemes']:
+                            if entities.get(entity_type):
+                                if isinstance(entities[entity_type], list):
+                                    text_parts.extend(entities[entity_type])
+                                else:
+                                    text_parts.append(str(entities[entity_type]))
+                        
+                        # Content (truncated to first 500 chars to avoid table noise)
+                        content = payload.get('content', '')
+                        if len(content) > 500:
+                            content = content[:500]  # First 500 chars only
+                        text_parts.append(content)
+                        
+                        # Combine all parts
+                        doc_text = ' '.join(str(part) for part in text_parts if part)
+                        
+                        if not doc_text:
                             continue
                             
                         # Simple tokenization
-                        tokens = self._tokenize(content)
+                        tokens = self._tokenize(doc_text)
                         
                         corpus_tokens.append(tokens)
                         self.corpus_ids.append(point.id)

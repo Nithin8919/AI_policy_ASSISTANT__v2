@@ -30,7 +30,7 @@ export default function DocumentationPage() {
       <SidebarInset>
         <SiteHeader />
         <div className="flex flex-1 flex-col">
-          <div className="px-6 py-6">
+          <div className="px-4 sm:px-6 py-6 flex flex-col min-h-0">
             <div className="mb-6">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
@@ -43,13 +43,7 @@ export default function DocumentationPage() {
               </div>
             </div>
 
-            <div className="mb-4 flex justify-end">
-              <Button asChild variant="outline" size="sm">
-                <a href="/chat">Back to Chat</a>
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
               {sections.map((s) => (
                 <Card key={s.title} className="hover:shadow-md transition-shadow">
                   <CardHeader className="pb-2">
@@ -70,6 +64,14 @@ export default function DocumentationPage() {
                   </CardContent>
                 </Card>
               ))}
+            </div>
+
+            <div className="mt-auto pt-6 border-t border-gray-200">
+              <div className="flex justify-end">
+                <Button asChild className="bg-orange-600 hover:bg-orange-700 text-white px-7 py-5 text-base font-semibold" size="lg">
+                  <a href="/chat">Back to Chat</a>
+                </Button>
+              </div>
             </div>
           </div>
         </div>

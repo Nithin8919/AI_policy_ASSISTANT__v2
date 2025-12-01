@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from 'react'
 import { ChatMessage } from '@/components/ChatMessage'
 import { ChatInput } from '@/components/ChatInput'
 import { TypingIndicator } from '@/components/TypingIndicator'
-import { DebugPanel } from './DebugPanel'
 import { queryAPI, queryModelDirect, type QueryResponse } from '@/lib/api'
 import { modelService } from '@/lib/modelService'
 import { AIModel } from '@/lib/models'
@@ -21,14 +20,13 @@ interface Message {
 }
 
 interface ChatBotProps {
-  showDebugPanel: boolean
-  simulateFailure: boolean
+  selectedModel: string
   onUpdateChatHistory?: (chatId: string, title: string, preview: string) => void
 }
 
 type QueryMode = 'qa' | 'deep_think' | 'brainstorm'
 
-export function ChatBot({ showDebugPanel, simulateFailure, onUpdateChatHistory }: ChatBotProps) {
+export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [queryMode, setQueryMode] = useState<QueryMode>('qa')
@@ -64,7 +62,7 @@ export function ChatBot({ showDebugPanel, simulateFailure, onUpdateChatHistory }
       // Use backend API with current query mode
       const response = await queryAPI({
         query: content,
-        simulate_failure: simulateFailure,
+        simulate_failure: false,
         mode: queryMode
       })
       
@@ -157,13 +155,6 @@ export function ChatBot({ showDebugPanel, simulateFailure, onUpdateChatHistory }
             </div>
           </div>
         </>
-      )}
-
-      {/* Debug Panel */}
-      {showDebugPanel && (
-        <DebugPanel 
-          lastResponse={messages[messages.length - 1]?.response}
-        />
       )}
     </div>
   )

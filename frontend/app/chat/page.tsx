@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
@@ -16,8 +17,6 @@ interface ChatHistoryItem {
 }
 
 export default function ChatPage() {
-  const [showDebugPanel, setShowDebugPanel] = useState(false)
-  const [simulateFailure, setSimulateFailure] = useState(false)
   const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([])
   const [activeChatId, setActiveChatId] = useState<string | undefined>()
   const [selectedModel, setSelectedModel] = useState<string>("")
@@ -110,17 +109,28 @@ export default function ChatPage() {
   // Otherwise render the normal chat interface with sidebar and header
   return (
     <SidebarProvider>
-      <AppSidebar 
-        variant="inset" 
+      {/* Logo in bottom right corner */}
+      <div className="fixed bottom-3 right-3 sm:bottom-6 sm:right-6 z-50">
+        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-1.5 sm:p-2 md:p-2.5 border border-white/20">
+          <Image
+            src="/Techbharat_logo.png"
+            alt="TechBharat Logo"
+            width={50}
+            height={17}
+            className="object-contain w-[50px] h-[17px] sm:w-[60px] sm:h-[20px] md:w-[80px] md:h-[27px]"
+            priority
+            loading="eager"
+          />
+        </div>
+      </div>
+
+      <AppSidebar
+        variant="inset"
         chatHistory={chatHistory}
         activeChatId={activeChatId}
         onNewChat={handleNewChat}
         onSelectChat={handleSelectChat}
         onDeleteChat={handleDeleteChat}
-        showDebugPanel={showDebugPanel}
-        onToggleDebugPanel={() => setShowDebugPanel(!showDebugPanel)}
-        simulateFailure={simulateFailure}
-        onToggleSimulateFailure={() => setSimulateFailure(!simulateFailure)}
       />
       <SidebarInset>
         <SiteHeader 
@@ -131,9 +141,7 @@ export default function ChatPage() {
         
         <div className="flex-1 flex flex-col min-h-0">
           {selectedModel ? (
-            <ChatBot 
-              showDebugPanel={showDebugPanel}
-              simulateFailure={simulateFailure}
+            <ChatBot
               onUpdateChatHistory={handleUpdateChatHistory}
               selectedModel={selectedModel}
             />

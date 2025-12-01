@@ -42,7 +42,8 @@ class AnswerBuilder:
             api_key: Gemini API key
         """
         self.use_llm = use_llm
-        self.api_key = api_key or os.getenv('GEMINI_API_KEY')
+        # Prefer explicit arg, then GEMINI_API_KEY, then GOOGLE_API_KEY (used elsewhere in the project)
+        self.api_key = api_key or os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
     
     def build_answer(
         self,
@@ -77,7 +78,8 @@ class AnswerBuilder:
             import google.generativeai as genai
             
             genai.configure(api_key=self.api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash-8b')
+            # Use standard Gemini Flash model (v1beta-compatible)
+            model = genai.GenerativeModel('gemini-1.5-flash-latest')
             
             # Prepare context from results
             context = self._prepare_context(results)

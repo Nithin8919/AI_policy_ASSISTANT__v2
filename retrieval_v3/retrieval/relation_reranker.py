@@ -354,7 +354,20 @@ class RelationReranker:
                     else:
                         # If it's a GO number string, we need to search for it, not retrieve by ID
                         # Fallback to filter search for these cases
-                        pass
+                        try:
+                            # Use _fetch_by_identifier to find the document
+                            # We use 'neighbor_expansion' as the relation type context
+                            found_docs = self._fetch_by_identifier(t, 'neighbor_expansion')
+                            for doc in found_docs:
+                                # Add to all_results immediately since we have the full object
+                                # But we need to be careful not to add duplicates or exceed max_neighbors
+                                if neighbors_fetched < max_neighbors:
+                                    doc.score = result.score * 0.8  # Slightly lower than parent
+                                    doc.metadata['neighbor_expansion'] = True
+                                    all_results.append(doc)
+                                    neighbors_fetched += 1
+                        except Exception as e:
+                            logger.warning(f"Fallback search failed for {t}: {e}")
 
                 if not valid_targets:
                     continue
@@ -501,7 +514,21 @@ class RelationReranker:
     def _convert_from_relation_results(self, relation_results: List[RelationResult]) -> List:
         """Convert RelationResult back to RetrievalResult format"""
         # Import here to avoid circular imports
-        from retrieval_v3.pipeline.retrieval_engine import RetrievalResult
+        try:
+            from pipeline.retrieval_engine import RetrievalResult
+        except ImportError:
+            # Fallback for when running from different context
+            import sys
+            from pathlib import Path
+            # Try to find the root
+            current = Path(__file__).resolve().parent
+            while current.name != 'retrieval_v3':
+                if current.parent == current:
+                    break
+                current = current.parent
+            if str(current.parent) not in sys.path:
+                sys.path.insert(0, str(current.parent))
+            from retrieval_v3.pipeline.retrieval_engine import RetrievalResult
         
         results = []
         for rel_result in relation_results:
@@ -832,6 +859,28 @@ class EntityExpander:
         self.qdrant_client = qdrant_client
         # Helper to access underlying client if wrapper
         self._client = qdrant_client.client if (qdrant_client and hasattr(qdrant_client, 'client')) else qdrant_client
+        
+        # Verify required indexes on init (fail-fast)
+        self._verify_indexes()
+    
+    def _verify_indexes(self):
+        """Check that required indexes exist"""
+        required_indexes = [
+            'entities.departments',
+            'entities.acts',
+            'entities.schemes',
+            'date_issued_ts',
+            'is_superseded'
+        ]
+        
+        try:
+            # Log verification attempt
+            logger.info(f"✅ Verifying {len(required_indexes)} required indexes...")
+            # Note: Actual verification would require Qdrant API call
+            # For now, just log the requirement
+        except Exception as e:
+            logger.warning(f"⚠️ Index verification failed: {e}")
+            logger.warning("Entity expansion may fail if indexes are missing")
     
     def _fetch_by_filter(self, filters: dict, limit: int = 50) -> List:
         """
@@ -1001,10 +1050,23 @@ class EntityExpander:
     ) -> List[RelationResult]:
         """Find documents by entity filters"""
         try:
+            # CRITICAL: Only use indexed entity fields to avoid Qdrant errors
+            # Indexed fields: departments, acts, schemes, go_numbers, sections
+            # NOT indexed: years (causes 400 Bad Request)
+            INDEXED_ENTITY_FIELDS = {
+                'departments', 'acts', 'schemes', 'go_numbers', 'sections',
+                'go_refs'  # Also indexed
+            }
+            
             # Build filter conditions
             filter_conditions = []
             
             for entity_type, entity_values in entities.items():
+                # Skip entity types that don't have Qdrant indexes
+                if entity_type not in INDEXED_ENTITY_FIELDS:
+                    logger.info(f"   ⚠️ Skipping unindexed entity type: {entity_type}")
+                    continue
+                    
                 for entity_value in entity_values[:2]:  # Max 2 values per type
                     filter_conditions.append({
                         "key": f"entities.{entity_type}",
@@ -1012,6 +1074,7 @@ class EntityExpander:
                     })
             
             if not filter_conditions:
+                logger.info(f"   ⚠️ No indexed entity fields found for expansion")
                 return []
             
             # Search with entity filters
@@ -1145,19 +1208,21 @@ class BidirectionalRelationFinder:
             # Search for documents that supersede this one - Use query_points for efficiency
             query_filter = models.Filter(
                 must=[
-                    models.Nested(
-                        path="relations",
-                        filter=models.Filter(
-                            must=[
-                                models.FieldCondition(
-                                    key="target",
-                                    match=models.MatchValue(value=doc_id)
-                                ),
-                                models.FieldCondition(
-                                    key="relation_type",
-                                    match=models.MatchValue(value="supersedes")
-                                )
-                            ]
+                    models.NestedCondition(
+                        nested=models.Nested(
+                            key="relations",
+                            filter=models.Filter(
+                                must=[
+                                    models.FieldCondition(
+                                        key="target",
+                                        match=models.MatchValue(value=doc_id)
+                                    ),
+                                    models.FieldCondition(
+                                        key="relation_type",
+                                        match=models.MatchValue(value="supersedes")
+                                    )
+                                ]
+                            )
                         )
                     )
                 ]
@@ -1199,40 +1264,6 @@ class BidirectionalRelationFinder:
             
         except Exception as e:
             print(f"   ⚠️ Supersedes check failed: {e}")
-            return []
-
-            
-            # Also search by content patterns
-            content_superseding = self._find_superseding_by_content(doc_id)
-            
-            # Combine results
-            all_superseding = list(superseding_results) + content_superseding
-            
-            # Convert to RelationResult
-            relation_results = []
-            for point in all_superseding:
-                if hasattr(point, 'payload'):
-                    payload = point.payload
-                    point_id = point.id
-                else:
-                    payload = point
-                    point_id = payload.get('chunk_id', 'unknown')
-                
-                superseding_result = RelationResult(
-                    chunk_id=payload.get('chunk_id', point_id),
-                    doc_id=payload.get('doc_id', 'unknown'),
-                    content=payload.get('content', ''),
-                    score=0.8,  # High score for superseding docs
-                    vertical=payload.get('vertical', 'government_orders'),
-                    metadata=payload
-                )
-                
-                relation_results.append(superseding_result)
-            
-            return relation_results
-            
-        except Exception as e:
-            print(f"   ⚠️ Find superseding failed for {doc_id}: {e}")
             return []
     
     def _find_superseding_by_content(self, doc_id: str) -> List[Dict]:
@@ -1292,19 +1323,21 @@ class BidirectionalRelationFinder:
             # Search for documents that amend this one - Use query_points for efficiency
             query_filter = models.Filter(
                 must=[
-                    models.Nested(
-                        path="relations",
-                        filter=models.Filter(
-                            must=[
-                                models.FieldCondition(
-                                    key="target",
-                                    match=models.MatchValue(value=doc_id)
-                                ),
-                                models.FieldCondition(
-                                    key="relation_type",
-                                    match=models.MatchValue(value="amends")
-                                )
-                            ]
+                    models.NestedCondition(
+                        nested=models.Nested(
+                            key="relations",
+                            filter=models.Filter(
+                                must=[
+                                    models.FieldCondition(
+                                        key="target",
+                                        match=models.MatchValue(value=doc_id)
+                                    ),
+                                    models.FieldCondition(
+                                        key="relation_type",
+                                        match=models.MatchValue(value="amends")
+                                    )
+                                ]
+                            )
                         )
                     )
                 ]

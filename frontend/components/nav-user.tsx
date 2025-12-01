@@ -1,27 +1,8 @@
 "use client"
 
 import {
-  BarChartIcon,
-  BellIcon,
-  Bug,
-  ChevronRightIcon,
-  CreditCardIcon,
-  DatabaseIcon,
-  FileCodeIcon,
-  FileIcon,
-  FileTextIcon,
-  FolderIcon,
   LogOutIcon,
   MoreVerticalIcon,
-  SearchIcon,
-  SettingsIcon,
-  UserCircleIcon,
-  UsersIcon,
-  Globe,
-  Building2Icon,
-  LayersIcon,
-  NetworkIcon,
-  ServerIcon,
 } from "lucide-react"
 
 import {
@@ -32,13 +13,9 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -47,25 +24,23 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { useRouter } from "next/navigation"
 
 export function NavUser({
   user,
-  showDebugPanel,
-  onToggleDebugPanel,
-  simulateFailure,
-  onToggleSimulateFailure,
 }: {
   user: {
     name: string
     email: string
     avatar: string
   }
-  showDebugPanel?: boolean
-  onToggleDebugPanel?: () => void
-  simulateFailure?: boolean
-  onToggleSimulateFailure?: () => void
 }) {
   const { isMobile } = useSidebar()
+  const router = useRouter()
+
+  const handleLogout = () => {
+    router.push('/login')
+  }
 
   return (
     <SidebarMenu>
@@ -110,154 +85,7 @@ export function NavUser({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <UserCircleIcon />
-                Account
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <CreditCardIcon />
-                Billing
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <BellIcon />
-                Notifications
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Developer Tools</DropdownMenuLabel>
-              {onToggleDebugPanel && (
-                <DropdownMenuItem onClick={onToggleDebugPanel}>
-                  <Bug />
-                  {showDebugPanel ? 'Hide Debug Panel' : 'Show Debug Panel'}
-                </DropdownMenuItem>
-              )}
-              {onToggleSimulateFailure && (
-                <DropdownMenuItem onClick={onToggleSimulateFailure}>
-                  <Bug />
-                  {simulateFailure ? 'Disable Failure Simulation' : 'Enable Failure Simulation'}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={() => window.open('/web-scraper', '_blank')}>
-                <Globe />
-                Web Scraper
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Architecture</DropdownMenuLabel>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Building2Icon />
-                  System Architecture
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem onClick={() => window.open('/architecture', '_blank')}>
-                    <LayersIcon />
-                    System Overview
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.open('/architecture/database', '_blank')}>
-                    <DatabaseIcon />
-                    Database Schema
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.open('/architecture/api', '_blank')}>
-                    <NetworkIcon />
-                    API Structure
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => window.open('/architecture/infrastructure', '_blank')}>
-                    <ServerIcon />
-                    Infrastructure
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Manage</DropdownMenuLabel>
-              
-              {/* Content Management Group */}
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <FileTextIcon />
-                  Content
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem>
-                    <SearchIcon />
-                    Policy Search
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <FileTextIcon />
-                    Education Policies
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <FileIcon />
-                    Administrative
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <DatabaseIcon />
-                    Policy Database
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-
-              {/* Analytics & Reports Group */}
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <BarChartIcon />
-                  Analytics
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem>
-                    <BarChartIcon />
-                    Reports
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <FolderIcon />
-                    Documents
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-
-              {/* Team & Collaboration Group */}
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <UsersIcon />
-                  Team
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem>
-                    <UsersIcon />
-                    Members
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <UserCircleIcon />
-                    Permissions
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-
-              {/* AI & Development Group */}
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <FileCodeIcon />
-                  AI Tools
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem>
-                    <FileCodeIcon />
-                    AI Prompts
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Bug />
-                    Model Testing
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOutIcon />
               Log out
             </DropdownMenuItem>
