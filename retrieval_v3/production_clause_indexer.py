@@ -68,7 +68,7 @@ class ProductionClauseIndexer:
     def _search_by_clause_key(self, query: str) -> List[ClauseMatch]:
         """Search by exact clause key"""
         try:
-            results = self.qdrant_client.scroll(
+            results = self.qdrant_client.client.scroll if hasattr(self.qdrant_client, "client") else self.qdrant_client.scroll(
                 collection_name=CLAUSE_INDEX_COLLECTION,
                 limit=10,
                 with_payload=True,
@@ -105,7 +105,7 @@ class ProductionClauseIndexer:
         """Search for partial matches using contains"""
         try:
             # Get all clause index entries
-            results = self.qdrant_client.scroll(
+            results = self.qdrant_client.client.scroll if hasattr(self.qdrant_client, "client") else self.qdrant_client.scroll(
                 collection_name=CLAUSE_INDEX_COLLECTION,
                 limit=100,  # Get more for partial matching
                 with_payload=True,

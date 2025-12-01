@@ -54,6 +54,8 @@ class RelationReranker:
     def __init__(self, qdrant_client=None):
         """Initialize relation reranker"""
         self.qdrant_client = qdrant_client
+        # Helper to access underlying client if wrapper
+        self._client = qdrant_client.client if (qdrant_client and hasattr(qdrant_client, 'client')) else qdrant_client
         self.stats = {
             'queries_processed': 0,
             'relations_found': 0,
@@ -365,7 +367,7 @@ class RelationReranker:
             # Strategy 3: Content search as fallback
             if not filter_conditions:
                 # Use scroll with text search
-                results, _ = self.qdrant_client.scroll(
+                results, _ = self._client.scroll(
                     collection_name="ap_government_orders",  # Try GO collection first
                     scroll_filter=None,
                     limit=3,
@@ -382,7 +384,7 @@ class RelationReranker:
                 return matched_results[:2]  # Max 2 from content search
             
             # Execute filter search
-            results, _ = self.qdrant_client.scroll(
+            results, _ = self._client.scroll(
                 collection_name="ap_government_orders",  # Primary collection
                 scroll_filter={"should": filter_conditions},
                 limit=3,
@@ -773,6 +775,8 @@ class EntityExpander:
     def __init__(self, qdrant_client=None):
         """Initialize entity expander"""
         self.qdrant_client = qdrant_client
+        # Helper to access underlying client if wrapper
+        self._client = qdrant_client.client if (qdrant_client and hasattr(qdrant_client, 'client')) else qdrant_client
     
     def expand_by_entities(
         self,
@@ -911,7 +915,7 @@ class EntityExpander:
                 return []
             
             # Search with entity filters
-            results, _ = self.qdrant_client.scroll(
+            results, _ = self._client.scroll(
                 collection_name="ap_government_orders",
                 scroll_filter={"should": filter_conditions},
                 limit=max_results,
@@ -956,6 +960,8 @@ class BidirectionalRelationFinder:
     def __init__(self, qdrant_client=None):
         """Initialize bidirectional finder"""
         self.qdrant_client = qdrant_client
+        # Helper to access underlying client if wrapper
+        self._client = qdrant_client.client if (qdrant_client and hasattr(qdrant_client, 'client')) else qdrant_client
     
     def enhance_with_bidirectional_search(
         self,
@@ -1037,7 +1043,7 @@ class BidirectionalRelationFinder:
         
         try:
             # Search for documents that supersede this one - FIXED QDRANT FILTER SYNTAX
-            superseding_results, _ = self.qdrant_client.scroll(
+            superseding_results, _ = self._client.scroll(
                 collection_name="ap_government_orders",
                 scroll_filter={
                     "must": [
@@ -1125,7 +1131,7 @@ class BidirectionalRelationFinder:
             superseding_docs = []
             
             for pattern in supersession_patterns:
-                results, _ = self.qdrant_client.scroll(
+                results, _ = self._client.scroll(
                     collection_name="ap_government_orders",
                     scroll_filter=None,  # Content search, no specific filter
                     limit=20,
@@ -1153,7 +1159,7 @@ class BidirectionalRelationFinder:
         
         try:
             # Search for documents that amend this one - FIXED QDRANT FILTER SYNTAX
-            amending_results, _ = self.qdrant_client.scroll(
+            amending_results, _ = self._client.scroll(
                 collection_name="ap_government_orders",
                 scroll_filter={
                     "must": [

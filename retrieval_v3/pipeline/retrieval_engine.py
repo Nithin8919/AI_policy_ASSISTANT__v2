@@ -48,6 +48,12 @@ from answer_generation.answer_validator import AnswerValidator
 sys.path.insert(0, str(retrieval_v3_dir / "retrieval"))
 from relation_reranker import RelationEntityProcessor
 
+# NEW IMPORTS
+from retrieval_core.bm25_retriever import BM25Retriever
+from retrieval_core.supersession_manager import SupersessionManager
+from reranking.cross_encoder_reranker import CrossEncoderReranker
+from retrieval_core.hybrid_search import HybridSearcher
+
 
 @dataclass
 class RetrievalResult:
@@ -97,7 +103,7 @@ class RetrievalEngine:
         gemini_api_key: Optional[str] = None,
         use_llm_rewrites: bool = False,
         use_llm_reranking: bool = True,
-        use_cross_encoder: bool = False,
+        use_cross_encoder: bool = True, # Default to True now
         enable_cache: bool = True,
         use_relation_entity: bool = True,
     ):
@@ -146,6 +152,15 @@ class RetrievalEngine:
         self.diversity_reranker = DiversityReranker(self.category_predictor)
         self.bm25_booster = BM25Booster()
         
+        # NEW: Initialize BM25 Retriever
+        self.bm25_retriever = BM25Retriever(qdrant_client) if qdrant_client else None
+        
+        # NEW: Initialize Hybrid Searcher
+        self.hybrid_searcher = HybridSearcher()
+        
+        # NEW: Initialize Supersession Manager
+        self.supersession_manager = SupersessionManager(qdrant_client) if qdrant_client else None
+        
         # Initialize production clause indexer for instant clause lookup
         self.clause_indexer = ProductionClauseIndexer(qdrant_client) if qdrant_client else None
         
@@ -156,7 +171,7 @@ class RetrievalEngine:
         # Initialize cross-encoder model (lazy loading)
         self.cross_encoder = None
         if self.use_cross_encoder:
-            self._init_cross_encoder()
+            self.cross_encoder = CrossEncoderReranker()
         
         # Initialize relation-entity processor
         self.relation_entity_processor = None
@@ -341,92 +356,134 @@ class RetrievalEngine:
         if top_k:
             plan.top_k_total = top_k
         
-        # STEP 3: RETRIEVAL
+        # STEP 3: RETRIEVAL (HYBRID)
         # ====================================================================
         
         all_results = []
         
-        # 3.1: First hop - parallel retrieval with all rewrites
-        hop1_results = self._parallel_retrieve_hop(
-            expanded_rewrites,
-            collection_names,
-            top_k=plan.top_k_per_vertical,
-            hop_number=1
-        )
-        # Normalize scores before merging
-        hop1_normalized = self._normalize_scores(hop1_results, method='min-max')
-        all_results.extend(hop1_normalized)
+        # 3.1: Parallel Hybrid Retrieval
+        # We run vector search and BM25 search in parallel for all rewrites
         
+        # Helper for single hybrid search
+        def _single_hybrid_search(search_query, hop=1):
+            # Vector Search
+            vector_res = self._parallel_retrieve_hop(
+                [search_query], 
+                collection_names, 
+                top_k=plan.top_k_per_vertical, 
+                hop_number=hop
+            )
+            
+            # BM25 Search
+            bm25_res = []
+            if self.bm25_retriever:
+                bm25_raw = self.bm25_retriever.search(search_query, top_k=plan.top_k_per_vertical)
+                # Convert to RetrievalResult
+                for r in bm25_raw:
+                    bm25_res.append(RetrievalResult(
+                        chunk_id=r['chunk_id'],
+                        doc_id=r['metadata'].get('doc_id', 'unknown'),
+                        content=r['content'],
+                        score=r['score'],
+                        vertical=r['vertical'],
+                        metadata=r['metadata'],
+                        rewrite_source=f"bm25_{search_query}",
+                        hop_number=hop
+                    ))
+            
+            # Fuse Vector + BM25 for this query
+            if not bm25_res:
+                return vector_res
+                
+            # Use RRF to combine
+            fused_ids = self.hybrid_searcher.rrf_fusion(
+                [r.chunk_id for r in vector_res],
+                [r.chunk_id for r in bm25_res]
+            )
+            
+            # Reconstruct results from fused IDs
+            fused_results = []
+            seen_ids = set()
+            
+            # Create a lookup map
+            all_candidates_map = {r.chunk_id: r for r in vector_res + bm25_res}
+            
+            for rank, cid in enumerate(fused_ids):
+                if cid in all_candidates_map and cid not in seen_ids:
+                    res = all_candidates_map[cid]
+                    # Assign a normalized score based on rank
+                    res.score = 1.0 / (rank + 1)
+                    fused_results.append(res)
+                    seen_ids.add(cid)
+            
+            return fused_results
+
+        # Execute for all rewrites
+        # Run hybrid for original query
+        all_results.extend(_single_hybrid_search(normalized_query, hop=1))
+        
+        # Run vector-only for rewrites (to keep it fast)
+        if len(expanded_rewrites) > 1:
+            rewrite_results = self._parallel_retrieve_hop(
+                expanded_rewrites[1:], # Skip original
+                collection_names,
+                top_k=plan.top_k_per_vertical,
+                hop_number=1
+            )
+            all_results.extend(self._normalize_scores(rewrite_results, method='min-max'))
+            
         # 3.2: Multi-hop retrieval (if enabled)
-        if plan.num_hops > 1 and hop1_results:
-            hop2_queries = self._generate_hop2_queries(hop1_results, limit=3)
+        if plan.num_hops > 1 and all_results:
+            hop2_queries = self._generate_hop2_queries(all_results, limit=3)
             hop2_results = self._parallel_retrieve_hop(
                 hop2_queries,
                 collection_names,
                 top_k=plan.top_k_per_vertical // 2,
                 hop_number=2
             )
-            # Normalize scores before merging
-            hop2_normalized = self._normalize_scores(hop2_results, method='min-max')
-            all_results.extend(hop2_normalized)
+            all_results.extend(self._normalize_scores(hop2_results, method='min-max'))
         
-        # STEP 4: AGGREGATION WITH RRF FUSION
+        # STEP 4: AGGREGATION & FILTERING
         # ====================================================================
         
-        # 4.1: Apply Reciprocal Rank Fusion for better multi-source merging
-        if len(expanded_rewrites) > 1 or plan.num_hops > 1:
-            # Group results by source for RRF
-            result_lists = []
+        # 4.1: Deduplicate
+        unique_results = self._deduplicate_results(all_results)
+        
+        # 4.2: Supersession Filtering
+        if self.supersession_manager:
+            active_results = []
+            superseded_results = []
             
-            # Group hop1 results by rewrite
-            hop1_by_rewrite = {}
-            hop2_by_rewrite = {}
-            
-            for result in all_results:
-                hop_num = result.metadata.get('hop_number', 1)
-                rewrite_source = result.rewrite_source or 'original'
-                
-                if hop_num == 1:
-                    if rewrite_source not in hop1_by_rewrite:
-                        hop1_by_rewrite[rewrite_source] = []
-                    hop1_by_rewrite[rewrite_source].append(result)
+            for res in unique_results:
+                if self.supersession_manager.is_superseded(res.doc_id):
+                    # Mark as superseded in metadata
+                    res.metadata['is_superseded'] = True
+                    res.metadata['superseded_by'] = self.supersession_manager.get_superseding_doc_id(res.doc_id)
+                    superseded_results.append(res)
                 else:
-                    if rewrite_source not in hop2_by_rewrite:
-                        hop2_by_rewrite[rewrite_source] = []
-                    hop2_by_rewrite[rewrite_source].append(result)
+                    active_results.append(res)
             
-            # Sort each group by score and add to result_lists
-            for rewrite_results in hop1_by_rewrite.values():
-                sorted_results = sorted(rewrite_results, key=lambda x: x.score, reverse=True)
-                result_lists.append(sorted_results)
-            
-            for rewrite_results in hop2_by_rewrite.values():
-                sorted_results = sorted(rewrite_results, key=lambda x: x.score, reverse=True)
-                result_lists.append(sorted_results)
-            
-            # Apply RRF fusion
-            unique_results = self._reciprocal_rank_fusion(result_lists)
-        else:
-            # Single source - just deduplicate
-            unique_results = self._deduplicate_results(all_results)
+            # Prioritize active results, but keep superseded ones at the bottom if relevant
+            unique_results = active_results + superseded_results
         
-        # 4.2: Limit to total budget
-        unique_results = unique_results[:plan.top_k_total]
+        # 4.3: Limit to total budget
+        unique_results = unique_results[:plan.top_k_total * 2] # Keep more for reranking
         
-        # STEP 5: ENHANCED RERANKING WITH CATEGORY COVERAGE
+        # STEP 5: ENHANCED RERANKING
         # ====================================================================
         
-        # 5.1: Predict required policy categories for comprehensive coverage
+        # 5.1: Predict categories
         predicted_categories = self.category_predictor.predict_categories(
             normalized_query, 
             query_type=interpretation.query_type.value
         )
         
-        # 5.2: BM25 boosting for infrastructure/scheme documents
+        # 5.2: BM25 Boosting (Infrastructure/Scheme)
+        # We apply this even if we used BM25 retrieval, as this logic is specific to categories
         bm25_boosted = self.bm25_booster.boost_results(
             normalized_query,
             unique_results,
-            boost_threshold=0.3
+            boost_threshold=0.0 # Boost anything relevant
         )
         
         # 5.3: RELATION-ENTITY PROCESSING (NEW!) - Currency detection + Entity awareness
@@ -437,41 +494,27 @@ class RetrievalEngine:
             relation_enhanced = self.relation_entity_processor.process_complete(
                 query=normalized_query,
                 results=bm25_boosted,
-                phases_enabled={
-                    'relation_scoring': True,      # Phase 1: +30-40% quality
-                    'entity_matching': True,       # Phase 2: +15-20% quality  
-                    'entity_expansion': True,      # Phase 3: +20-25% quality
-                    'bidirectional_search': False  # Phase 4: DISABLED (needs Qdrant indexes)
-                }
+                phases_enabled={'relation_scoring': True, 'entity_matching': True, 'entity_expansion': True}
             )
-            print(f"✅ Relation-entity processing complete: {len(bm25_boosted)} → {len(relation_enhanced)} results")
         else:
             relation_enhanced = bm25_boosted
-        
-        # 5.4: Advanced reranking (priority: LLM > Cross-Encoder > Score-based)
-        if self.use_llm_reranking and self.gemini_api_key:
-            # Primary: LLM reranking (best quality, slowest)
-            reranked = self._llm_rerank(
-                normalized_query,
-                relation_enhanced,
-                top_k=plan.rerank_top_k
-            )
-        elif self.use_cross_encoder and self.cross_encoder:
-            # Secondary: Cross-encoder reranking (good quality, medium speed)
-            reranked = self._cross_encoder_rerank(
-                normalized_query,
-                relation_enhanced,
-                top_k=plan.rerank_top_k
-            )
+            
+        # 5.4: Cross-Encoder Reranking (High Precision)
+        if self.use_cross_encoder and self.cross_encoder:
+            # Convert to dicts for reranker
+            res_dicts = [{'content': r.content, 'score': r.score, 'obj': r} for r in relation_enhanced]
+            reranked_dicts = self.cross_encoder.rerank(normalized_query, res_dicts, top_k=plan.rerank_top_k)
+            
+            # Update scores in objects
+            reranked = []
+            for rd in reranked_dicts:
+                r_obj = rd['obj']
+                r_obj.score = rd['score']
+                reranked.append(r_obj)
         else:
-            # Fallback: Simple score-based ranking (fast, basic quality)
-            reranked = sorted(
-                relation_enhanced,
-                key=lambda x: x.score,
-                reverse=True
-            )[:plan.rerank_top_k]
-        
-        # 5.4: Diversity reranking with mandatory category coverage
+            reranked = sorted(relation_enhanced, key=lambda x: x.score, reverse=True)[:plan.rerank_top_k]
+            
+        # 5.5: Diversity Reranking (MMR)
         final_results = self.diversity_reranker.rerank_with_diversity(
             normalized_query,
             reranked,
@@ -480,7 +523,7 @@ class RetrievalEngine:
             diversity_weight=plan.diversity_weight
         )
         
-        # 5.5: Clause indexer lookup for legal queries with poor results
+        # 5.6: Clause indexer lookup for legal queries with poor results
         if self._is_legal_clause_query(normalized_query) and len(final_results) < 3:
             clause_results = self._clause_indexer_lookup(normalized_query)
             if clause_results:
@@ -635,24 +678,24 @@ class RetrievalEngine:
         # Enhanced patterns for better legal clause detection
         patterns = [
             # Basic section/article/rule patterns
-            r'\b(?:section|clause|article|rule|sub-rule|amendment)\s+\d+',
-            r'\bsection\s+\d+\b',
-            r'\brule\s+\d+\b', 
-            r'\barticle\s+\d+\w*\b',
+            r'\\b(?:section|clause|article|rule|sub-rule|amendment)\\s+\\d+',
+            r'\\bsection\\s+\\d+\\b',
+            r'\\brule\\s+\\d+\\b', 
+            r'\\barticle\\s+\\d+\\w*\\b',
             
             # Act + section combinations
-            r'\b(?:rte|cce|apsermc|education)\s+(?:act\s+)?section\s+\d+',
-            r'\b(?:rte|cce|apsermc)\s+(?:act|rule)\b',
-            r'\bsection\s+\d+\s+(?:of\s+)?(?:rte|cce|apsermc|education)\s+act',
+            r'\\b(?:rte|cce|apsermc|education)\\s+(?:act\\s+)?section\\s+\\d+',
+            r'\\b(?:rte|cce|apsermc)\\s+(?:act|rule)\\b',
+            r'\\bsection\\s+\\d+\\s+(?:of\\s+)?(?:rte|cce|apsermc|education)\\s+act',
             
             # Complex legal patterns
-            r'\b\d+\(\d+\)\(\w+\)\b',  # 12(1)(c) pattern
-            r'\b(?:act|rule|regulation)\s+\d+',
-            r'\b(?:go|government\s+order)\s+(?:no\.?\s*)?\d+',
+            r'\\b\\d+\\(\\d+\\)\\(\\w+\\)\\b',  # 12(1)(c) pattern
+            r'\\b(?:act|rule|regulation)\\s+\\d+',
+            r'\\b(?:go|government\\s+order)\\s+(?:no\\.?\\s*)?\\d+',
             
             # Preserved token patterns (handle normalization artifacts)
-            r'__preserved_\d+__',  # Catches normalized numbers
-            r'\b(?:section|article|rule)\s+__preserved_\d+__',
+            r'__preserved_\\d+__',  # Catches normalized numbers
+            r'\\b(?:section|article|rule)\\s+__preserved_\\d+__',
         ]
         
         # Check all patterns
@@ -665,7 +708,7 @@ class RetrievalEngine:
         has_legal_keyword = any(keyword in query_lower for keyword in [
             'section', 'article', 'rule', 'clause', 'act', 'rte', 'cce', 'apsermc'
         ])
-        has_number = re.search(r'\d+', query_lower)
+        has_number = re.search(r'\\d+', query_lower)
         
         if has_legal_keyword and has_number:
             print(f"🔍 Legal heuristic matched: legal_keyword + number in '{query_lower}'")
@@ -718,7 +761,7 @@ class RetrievalEngine:
         clause_patterns = []
         
         # Section X
-        section_match = re.search(r'section\s+(\d+)', query_lower)
+        section_match = re.search(r'section\\s+(\\d+)', query_lower)
         if section_match:
             section_num = section_match.group(1)
             clause_patterns.extend([
@@ -729,7 +772,7 @@ class RetrievalEngine:
             ])
         
         # Rule X
-        rule_match = re.search(r'rule\s+(\d+)', query_lower)
+        rule_match = re.search(r'rule\\s+(\\d+)', query_lower)
         if rule_match:
             rule_num = rule_match.group(1)
             clause_patterns.extend([
@@ -739,7 +782,7 @@ class RetrievalEngine:
             ])
         
         # Article X
-        article_match = re.search(r'article\s+(\d+\w*)', query_lower)
+        article_match = re.search(r'article\\s+(\\d+\\w*)', query_lower)
         if article_match:
             article_num = article_match.group(1)
             clause_patterns.extend([
@@ -762,7 +805,7 @@ class RetrievalEngine:
                 # Use simple text search since Filter might be complex
                 for pattern in clause_patterns[:2]:  # Limit patterns to avoid timeout
                     try:
-                        search_results = self.qdrant_client.scroll(
+                        search_results = self.qdrant_client.client.scroll if hasattr(self.qdrant_client, "client") else self.qdrant_client.scroll(
                             collection_name=collection,
                             limit=10,
                             with_payload=True

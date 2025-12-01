@@ -99,7 +99,7 @@ class ClauseIndexer:
         
         try:
             # Scroll through all chunks in collection
-            scroll_result = self.qdrant_client.scroll(
+            scroll_result = self.qdrant_client.client.scroll if hasattr(self.qdrant_client, "client") else self.qdrant_client.scroll(
                 collection_name=collection,
                 limit=1000,  # Process in batches
                 with_payload=True
@@ -118,7 +118,7 @@ class ClauseIndexer:
                 
                 # Get next batch
                 if next_offset:
-                    scroll_result = self.qdrant_client.scroll(
+                    scroll_result = self.qdrant_client.client.scroll if hasattr(self.qdrant_client, "client") else self.qdrant_client.scroll(
                         collection_name=collection,
                         limit=1000,
                         offset=next_offset,
