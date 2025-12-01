@@ -11,6 +11,11 @@ from dataclasses import dataclass, field
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+import logging
+
+# Configure logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Query understanding imports
 import sys
@@ -210,8 +215,32 @@ class RetrievalEngine:
         # STEP 1: QUERY UNDERSTANDING (PARALLEL PROCESSING)
         # ====================================================================
         
-        # 1.1: Normalize query (fast, no parallelization needed)
+        # 1.1: Normalize query
         normalized_query = self.normalizer.normalize_query(query)
+        logger.info(f"📝 Normalized query: {normalized_query}")
+        
+        # P1 Quick Win #3: Auto-pin filters for "recent GOs" queries
+        force_filter = None
+        if "recent" in normalized_query.lower() and ("go" in normalized_query.lower() or "government order" in normalized_query.lower()):
+            import time as time_module
+            now_ts = int(time_module.time())
+            eighteen_months_ago = now_ts - (18 * 30 * 86400)
+            
+            force_filter = {
+                "must": [
+                    {"key": "vertical", "match": {"value": "go"}},
+                    {"key": "date_issued_ts", "range": {"gte": eighteen_months_ago}}
+                ]
+            }
+            
+            # Extract department if mentioned
+            if "school education" in normalized_query.lower():
+                force_filter["must"].append({
+                    "key": "department",
+                    "match": {"value": "School Education"}
+                })
+            
+            logger.info(f"🎯 Auto-pinned filters for recent GOs query (last 18 months)")
         
         # 1.2: CLAUSE INDEXER FAST PATH - Handle legal clause queries instantly
         # ====================================================================
@@ -366,30 +395,59 @@ class RetrievalEngine:
         
         # Helper for single hybrid search
         def _single_hybrid_search(search_query, hop=1):
-            # Vector Search
-            vector_res = self._parallel_retrieve_hop(
-                [search_query], 
-                collection_names, 
-                top_k=plan.top_k_per_vertical, 
-                hop_number=hop
-            )
+            import concurrent.futures
             
-            # BM25 Search
+            vector_res = []
             bm25_res = []
-            if self.bm25_retriever:
-                bm25_raw = self.bm25_retriever.search(search_query, top_k=plan.top_k_per_vertical)
-                # Convert to RetrievalResult
-                for r in bm25_raw:
-                    bm25_res.append(RetrievalResult(
-                        chunk_id=r['chunk_id'],
-                        doc_id=r['metadata'].get('doc_id', 'unknown'),
-                        content=r['content'],
-                        score=r['score'],
-                        vertical=r['vertical'],
-                        metadata=r['metadata'],
-                        rewrite_source=f"bm25_{search_query}",
-                        hop_number=hop
-                    ))
+            
+            def run_vector_search():
+                return self._parallel_retrieve_hop(
+                    [search_query], 
+                    collection_names, 
+                    top_k=plan.top_k_per_vertical, 
+                    hop_number=hop
+                )
+            
+            def run_bm25_search():
+                res = []
+                if self.bm25_retriever:
+                    try:
+                        bm25_raw = self.bm25_retriever.search(search_query, top_k=plan.top_k_per_vertical)
+                        for r in bm25_raw:
+                            res.append(RetrievalResult(
+                                chunk_id=r['chunk_id'],
+                                doc_id=r['metadata'].get('doc_id', 'unknown'),
+                                content=r['content'],
+                                score=r['score'],
+                                vertical=r['vertical'],
+                                metadata=r['metadata'],
+                                rewrite_source=f"bm25_{search_query}",
+                                hop_number=hop
+                            ))
+                    except Exception as e:
+                        logger.warning(f"BM25 search failed: {e}")
+                return res
+
+            # P1 Quick Win #5: Parallelize BM25 and Dense searches
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                future_vector = executor.submit(run_vector_search)
+                future_bm25 = executor.submit(run_bm25_search)
+                
+                try:
+                    # 5s timeout for vector, 2s for BM25
+                    vector_res = future_vector.result(timeout=5.0)
+                    bm25_res = future_bm25.result(timeout=2.0)
+                except concurrent.futures.TimeoutError:
+                    logger.warning("Search timeout - using partial results")
+                    if future_vector.done():
+                        vector_res = future_vector.result()
+                    if future_bm25.done():
+                        bm25_res = future_bm25.result()
+                except Exception as e:
+                    logger.warning(f"Parallel search error: {e}")
+                    # Fallback to sequential if parallel fails
+                    if not vector_res:
+                        vector_res = run_vector_search()
             
             # Fuse Vector + BM25 for this query
             if not bm25_res:
@@ -415,6 +473,19 @@ class RetrievalEngine:
                     res.score = 1.0 / (rank + 1)
                     fused_results.append(res)
                     seen_ids.add(cid)
+            
+            # P1 Quick Win #1: Apply section type boost (orders > annexure > preamble)
+            try:
+                from retrieval_v3.retrieval_core.scoring import section_type_boost
+                for result in fused_results:
+                    section_type = result.metadata.get('section_type')
+                    if section_type:
+                        boost = section_type_boost(section_type)
+                        if boost > 1.0:
+                            result.score *= boost
+                            result.metadata['section_boost'] = boost
+            except Exception as e:
+                logger.warning(f"Section boost failed: {e}")
             
             return fused_results
 

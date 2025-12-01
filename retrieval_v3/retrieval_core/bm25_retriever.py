@@ -38,10 +38,28 @@ class BM25Retriever:
         # Collections to index
         self.collections = ["go", "legal", "judicial", "scheme", "data"]
         
-        # Try to load existing index
-        if not self._load_index():
-            logger.info("⚠️ No BM25 index found. Building from Qdrant (this may take a while)...")
+        # Try to load existing index (don't build in __init__ to avoid blocking)
+        self._load_index()
+    
+    def ensure_bm25_ready(self) -> bool:
+        """Ensure BM25 index is loaded and ready. Returns True if ready, False otherwise."""
+        if self.bm25 is not None:
+            return True
+        
+        # Try to load from cache first
+        if self._load_index():
+            return True
+        
+        # Build index if not cached
+        logger.warning("BM25 index not found, building from Qdrant...")
+        try:
             self._build_index()
+            self._save_index()
+            return self.bm25 is not None
+        except Exception as e:
+            logger.error(f"BM25 build failed: {e}. Continuing without BM25.")
+            self.bm25 = None
+            return False
     
     def _build_index(self):
         """Fetch all documents from Qdrant and build BM25 index"""
@@ -145,19 +163,21 @@ class BM25Retriever:
             logger.warning(f"Failed to load BM25 index: {e}")
             return False
             
-    def search(self, query: str, top_k: int = 20) -> List[Dict]:
-        """
-        Search using BM25
-        
-        Returns:
-            List of dicts with keys: id, score, content, metadata, vertical
-        """
-        if not self.bm25:
+    def search(self, query: str, top_k: int = 100) -> List[Dict]:
+        """Search using BM25"""
+        # Ensure index is ready
+        if not self.ensure_bm25_ready():
             logger.warning("BM25 index not initialized")
             return []
-            
-        tokenized_query = self._tokenize(query)
-        scores = self.bm25.get_scores(tokenized_query)
+        
+        # Double-check BM25 is not None
+        if self.bm25 is None:
+            logger.warning("BM25 index is None after ensure_ready")
+            return []
+        
+        # Tokenize query
+        query_tokens = self._tokenize(query)
+        scores = self.bm25.get_scores(query_tokens)
         
         # Get top-k indices
         top_n = np.argsort(scores)[::-1][:top_k]

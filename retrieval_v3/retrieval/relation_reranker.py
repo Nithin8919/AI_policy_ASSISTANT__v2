@@ -21,7 +21,14 @@ Phases:
 import time
 from typing import List, Dict, Optional, Set, Tuple, Any
 from dataclasses import dataclass
+import numpy as np
+import logging
+
+# Configure logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 from collections import defaultdict, Counter
+from qdrant_client import models
 import re
 
 
@@ -279,54 +286,106 @@ class RelationReranker:
         max_neighbors: int
     ) -> List[RelationResult]:
         """
-        1-hop neighbor expansion using relations metadata
-        
-        For each result with relations, fetch the target documents
+        P1 Quick Win #2: Surgical 1-hop neighbor expansion
+        - ONLY expand from top-20 results
+        - ONLY along amends/supersedes relations
+        - Skip if recent docs already present in same GO family
         """
         if not self.qdrant_client:
             return results
         
-        print(f"🔗 1-hop expansion: checking {len(results)} results for neighbors...")
+        # ONLY expand from top-20
+        top_results = results[:20]
+        print(f"🔗 Surgical expansion: checking top-{len(top_results)} results for neighbors...")
+        
+        # ONLY expand along amends/supersedes
+        valid_rel_types = {'amends', 'supersedes', 'amended_by', 'superseded_by'}
+        
+        # Skip if we already have recent docs for this GO family
+        recent_go_numbers = {
+            r.metadata.get('go_number')
+            for r in top_results
+            if r.metadata.get('year') and int(r.metadata.get('year', 0)) >= 2024
+        }
         
         all_results = results.copy()
         neighbors_fetched = 0
         
-        for result in results:
+        for result in top_results:
+            if neighbors_fetched >= max_neighbors:
+                break
+                
             relations = result.metadata.get('relations', [])
-            
             if not relations:
                 continue
             
-            # Extract unique targets from relations
-            targets = set()
+            # Extract targets from valid relation types only
+            targets_to_fetch = []
             for rel in relations:
-                target = rel.get('target')
-                rel_type = rel.get('type')
+                rel_type = rel.get('relation_type') or rel.get('type')
+                if rel_type not in valid_rel_types:
+                    continue
                 
-                if target and rel_type in ['supersedes', 'amends', 'implements', 'cites']:
-                    targets.add((target, rel_type))
+                target = rel.get('target')
+                if not target:
+                    continue
+                
+                # Skip if we already have recent version
+                skip = False
+                for go_num in recent_go_numbers:
+                    if go_num and go_num in str(target):
+                        skip = True
+                        break
+                
+                if not skip:
+                    targets_to_fetch.append(target)
             
-            # Fetch neighbors for each target
-            for target, rel_type in list(targets)[:max_neighbors]:
-                try:
-                    neighbor_results = self._fetch_by_identifier(target, rel_type)
+            if not targets_to_fetch:
+                continue
+            
+            # Fetch neighbors (single lookup per batch, not scroll)
+            try:
+                # Validate IDs before calling retrieve (must be int or UUID)
+                valid_targets = []
+                for t in targets_to_fetch[:max_neighbors - neighbors_fetched]:
+                    # Check if it looks like a UUID or int
+                    if isinstance(t, int) or (isinstance(t, str) and (t.isdigit() or len(t) == 36)):
+                        valid_targets.append(t)
+                    else:
+                        # If it's a GO number string, we need to search for it, not retrieve by ID
+                        # Fallback to filter search for these cases
+                        pass
+
+                if not valid_targets:
+                    continue
+
+                # Use retrieve instead of scroll for efficiency
+                points = self._client.retrieve(
+                    collection_name="ap_government_orders",
+                    ids=valid_targets,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                
+                for point in points:
+                    # Convert to RelationResult
+                    neighbor = RelationResult(
+                        chunk_id=point.id,
+                        doc_id=point.payload.get('doc_id', point.id),
+                        content=point.payload.get('content', ''),
+                        score=result.score * 0.8,  # Slightly lower than parent
+                        metadata=point.payload,
+                        vertical=point.payload.get('vertical', 'go')
+                    )
+                    neighbor.metadata['neighbor_expansion'] = True
+                    all_results.append(neighbor)
+                    neighbors_fetched += 1
                     
-                    for neighbor in neighbor_results:
-                        neighbor.score *= 0.7  # Downweight neighbors
-                        neighbor.found_via_relation = rel_type
-                        neighbor.metadata['found_via_relation'] = rel_type
-                        neighbor.metadata['relation_source'] = result.doc_id
-                        neighbor.metadata['neighbor_expansion'] = True
-                        
-                        all_results.append(neighbor)
-                        neighbors_fetched += 1
-                        
-                except Exception as e:
-                    print(f"   ⚠️ Failed to fetch neighbor {target}: {e}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch neighbors: {e}")
+                continue
         
-        print(f"   ✅ Fetched {neighbors_fetched} neighbors")
-        self.stats['neighbors_fetched'] += neighbors_fetched
-        
+        print(f"   ✅ Fetched {neighbors_fetched} neighbors via surgical expansion (amends/supersedes only)")
         return all_results
     
     def _fetch_by_identifier(
@@ -570,34 +629,30 @@ class EntityMatcher:
                 enhanced_count += 1
                 print(f"   📈 Entity boost: {result.doc_id} ({original_score:.3f} → {result.score:.3f}, overlap: {overlap_score:.2f})")
             
-            # CRITICAL FIX: Apply recency filtering when user asks for "recent" documents
+            # CRITICAL FIX: Apply recency scoring using trusted date_issued_ts
             if wants_recent:
-                year = result.metadata.get('year')
-                if year:
-                    try:
-                        year_num = int(year)
-                        current_year = 2024  # Update this as needed
-                        
-                        if year_num >= 2023:
-                            # Boost very recent documents (2023+)
-                            recency_boost = 1.5
-                            result.score *= recency_boost
-                            result.metadata['recency_boost_applied'] = recency_boost
-                            print(f"   📅 Recent boost: {result.doc_id} ({year}) - boosted by 50%")
-                        elif year_num >= 2020:
-                            # Slight boost for moderately recent (2020-2022)
-                            recency_boost = 1.2
-                            result.score *= recency_boost
-                            result.metadata['recency_boost_applied'] = recency_boost
-                            print(f"   📅 Moderate boost: {result.doc_id} ({year}) - boosted by 20%")
-                        elif year_num < 2015:
-                            # Downrank very old documents when user asks for recent
-                            recency_penalty = 0.5
-                            result.score *= recency_penalty
-                            result.metadata['recency_penalty_applied'] = recency_penalty
-                            print(f"   📅 Old document penalty: {result.doc_id} ({year}) - reduced by 50%")
-                    except ValueError:
-                        pass  # Skip if year is not a valid number
+                try:
+                    from retrieval_v3.retrieval_core.scoring import time_score
+                    import time as time_module
+                    
+                    now_ts = int(time_module.time())
+                    time_bonus = time_score(result.metadata, now_ts)
+                    
+                    if time_bonus > 0.5:  # Recent, active doc
+                        boost_factor = 1.0 + (time_bonus * 0.5)  # Up to 75% boost
+                        original_score = result.score
+                        result.score *= boost_factor
+                        result.metadata['recency_boost'] = time_bonus
+                        print(f"   📅 Recent boost: {result.doc_id} (time_score: {time_bonus:.2f}, {original_score:.3f} → {result.score:.3f})")
+                    elif time_bonus < -0.5:  # Superseded or expired
+                        penalty_factor = 0.3  # Heavy downrank
+                        original_score = result.score
+                        result.score *= penalty_factor
+                        result.metadata['superseded_penalty'] = time_bonus
+                        print(f"   📅 Superseded penalty: {result.doc_id} (time_score: {time_bonus:.2f}, {original_score:.3f} → {result.score:.3f})")
+                except Exception as e:
+                    # Fallback to old logic if scoring fails
+                    logger.warning(f"Time scoring failed for {result.doc_id}: {e}")
         
         print(f"   ✅ Enhanced {enhanced_count}/{len(results)} results with entity matching")
         if wants_recent:
@@ -777,6 +832,51 @@ class EntityExpander:
         self.qdrant_client = qdrant_client
         # Helper to access underlying client if wrapper
         self._client = qdrant_client.client if (qdrant_client and hasattr(qdrant_client, 'client')) else qdrant_client
+    
+    def _fetch_by_filter(self, filters: dict, limit: int = 50) -> List:
+        """
+        P1 Quick Win #4: Single filter query instead of scroll storm
+        """
+        try:
+            # Use query_points with filter instead of scroll
+            if hasattr(self._client, 'query_points'):
+                results = self._client.query_points(
+                    collection_name="ap_government_orders",
+                    query_filter=filters,
+                    limit=limit,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                return results.points if results else []
+            else:
+                # Fallback for older clients
+                results = self._client.scroll(
+                    collection_name="ap_government_orders",
+                    scroll_filter=filters,
+                    limit=limit,
+                    with_payload=True,
+                    with_vectors=False
+                )[0]
+                return results
+        except Exception as e:
+            print(f"   ⚠️ Filter query failed: {e}")
+            return []
+
+    def _fetch_recent_gos(self, department: str, limit: int = 50):
+        """Fetch recent GOs using filter query"""
+        import time
+        now_ts = int(time.time())
+        eighteen_months_ago = now_ts - (18 * 30 * 86400)
+        
+        filters = {
+            "must": [
+                {"key": "vertical", "match": {"value": "go"}},
+                {"key": "department", "match": {"value": department}},
+                {"key": "date_issued_ts", "range": {"gte": eighteen_months_ago}}
+            ]
+        }
+        
+        return self._fetch_by_filter(filters, limit)
     
     def expand_by_entities(
         self,
@@ -1042,34 +1142,65 @@ class BidirectionalRelationFinder:
         doc_id = result.doc_id
         
         try:
-            # Search for documents that supersede this one - FIXED QDRANT FILTER SYNTAX
-            superseding_results, _ = self._client.scroll(
-                collection_name="ap_government_orders",
-                scroll_filter={
-                    "must": [
-                        {
-                            "nested": {
-                                "key": "relations",
-                                "filter": {
-                                    "must": [
-                                        {
-                                            "key": "type",
-                                            "match": {"value": "supersedes"}
-                                        },
-                                        {
-                                            "key": "target", 
-                                            "match": {"value": doc_id}
-                                        }
-                                    ]
-                                }
-                            }
-                        }
-                    ]
-                },
-                limit=3,
-                with_payload=True,
-                with_vectors=False
+            # Search for documents that supersede this one - Use query_points for efficiency
+            query_filter = models.Filter(
+                must=[
+                    models.Nested(
+                        path="relations",
+                        filter=models.Filter(
+                            must=[
+                                models.FieldCondition(
+                                    key="target",
+                                    match=models.MatchValue(value=doc_id)
+                                ),
+                                models.FieldCondition(
+                                    key="relation_type",
+                                    match=models.MatchValue(value="supersedes")
+                                )
+                            ]
+                        )
+                    )
+                ]
             )
+            
+            points = []
+            if hasattr(self._client, 'query_points'):
+                response = self._client.query_points(
+                    collection_name="ap_government_orders",
+                    query_filter=query_filter,
+                    limit=5,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                points = response.points
+            else:
+                # Fallback
+                response, _ = self._client.scroll(
+                    collection_name="ap_government_orders",
+                    scroll_filter=query_filter,
+                    limit=5,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                points = response
+                
+            superseding_results = []
+            for point in points:
+                superseding_results.append(RelationResult(
+                    chunk_id=point.id,
+                    doc_id=point.payload.get('doc_id', point.id),
+                    content=point.payload.get('content', ''),
+                    score=1.0,
+                    vertical=point.payload.get('vertical', 'go'),
+                    metadata=point.payload
+                ))
+                
+            return superseding_results
+            
+        except Exception as e:
+            print(f"   ⚠️ Supersedes check failed: {e}")
+            return []
+
             
             # Also search by content patterns
             content_superseding = self._find_superseding_by_content(doc_id)
@@ -1158,52 +1289,65 @@ class BidirectionalRelationFinder:
         doc_id = result.doc_id
         
         try:
-            # Search for documents that amend this one - FIXED QDRANT FILTER SYNTAX
-            amending_results, _ = self._client.scroll(
-                collection_name="ap_government_orders",
-                scroll_filter={
-                    "must": [
-                        {
-                            "nested": {
-                                "key": "relations",
-                                "filter": {
-                                    "must": [
-                                        {
-                                            "key": "type",
-                                            "match": {"value": "amends"}
-                                        },
-                                        {
-                                            "key": "target",
-                                            "match": {"value": doc_id}
-                                        }
-                                    ]
-                                }
-                            }
-                        }
-                    ]
-                },
-                limit=3,
-                with_payload=True,
-                with_vectors=False
+            # Search for documents that amend this one - Use query_points for efficiency
+            query_filter = models.Filter(
+                must=[
+                    models.Nested(
+                        path="relations",
+                        filter=models.Filter(
+                            must=[
+                                models.FieldCondition(
+                                    key="target",
+                                    match=models.MatchValue(value=doc_id)
+                                ),
+                                models.FieldCondition(
+                                    key="relation_type",
+                                    match=models.MatchValue(value="amends")
+                                )
+                            ]
+                        )
+                    )
+                ]
             )
             
-            # Convert to RelationResult
-            relation_results = []
-            for point in amending_results:
-                payload = point.payload
-                
-                amending_result = RelationResult(
-                    chunk_id=payload.get('chunk_id', point.id),
-                    doc_id=payload.get('doc_id', 'unknown'),
-                    content=payload.get('content', ''),
-                    score=0.7,  # Good score for amendments
-                    vertical=payload.get('vertical', 'government_orders'),
-                    metadata=payload
+            points = []
+            if hasattr(self._client, 'query_points'):
+                response = self._client.query_points(
+                    collection_name="ap_government_orders",
+                    query_filter=query_filter,
+                    limit=5,
+                    with_payload=True,
+                    with_vectors=False
                 )
+                points = response.points
+            else:
+                # Fallback
+                response, _ = self._client.scroll(
+                    collection_name="ap_government_orders",
+                    scroll_filter=query_filter,
+                    limit=5,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                points = response
                 
-                relation_results.append(amending_result)
+            amending_results = []
+            for point in points:
+                amending_results.append(RelationResult(
+                    chunk_id=point.id,
+                    doc_id=point.payload.get('doc_id', point.id),
+                    content=point.payload.get('content', ''),
+                    score=1.0,
+                    vertical=point.payload.get('vertical', 'go'),
+                    metadata=point.payload
+                ))
+                
+            return amending_results
             
-            return relation_results
+        except Exception as e:
+            print(f"   ⚠️ Amends check failed: {e}")
+            return []
+
             
         except Exception as e:
             print(f"   ⚠️ Find amendments failed for {doc_id}: {e}")

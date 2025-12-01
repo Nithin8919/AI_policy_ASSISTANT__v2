@@ -6,8 +6,17 @@ Creates well-formatted responses with proper attribution
 """
 
 import os
+import re
 from typing import List, Dict, Optional
 from dataclasses import dataclass, field
+from datetime import datetime
+
+# Import prompt templates
+try:
+    from .prompt_templates import get_prompt_template, format_documents_with_metadata
+except ImportError:
+    # Fallback if running standalone
+    from prompt_templates import get_prompt_template, format_documents_with_metadata
 
 
 @dataclass
@@ -133,55 +142,110 @@ class AnswerBuilder:
         )
     
     def _prepare_context(self, results: List[Dict]) -> str:
-        """Prepare context from results for LLM"""
-        context_parts = []
+        """Prepare context from results for LLM with enriched metadata"""
+        # Enrich results with formatted metadata
+        enriched_results = self._enrich_results_metadata(results[:10])
         
-        for i, result in enumerate(results[:10], 1):
-            content = result.get('content', '')
-            vertical = result.get('vertical', 'unknown')
-            context_parts.append(f"[{i}] [{vertical}] {content[:300]}")
+        # Use template formatter
+        return format_documents_with_metadata(enriched_results)
+    
+    def _enrich_results_metadata(self, results: List[Dict]) -> List[Dict]:
+        """Enrich results with formatted metadata for answer generation"""
+        enriched = []
         
-        return "\n\n".join(context_parts)
+        for i, result in enumerate(results, 1):
+            metadata = result.get('metadata', {})
+            
+            enriched_result = {
+                'doc_index': i,
+                'content': result.get('content', ''),
+                'doc_id': result.get('doc_id', result.get('chunk_id', 'unknown')),
+                
+                # Formatted metadata
+                'go_number': metadata.get('go_number', ''),
+                'date_formatted': self._format_date(metadata.get('date')),
+                'year': metadata.get('year'),
+                'department': metadata.get('department', ''),
+                'document_type': metadata.get('document_type', 'GO'),
+                
+                # Recency flag
+                'is_recent': self._is_recent_document(metadata.get('year')),
+                
+                # Relations summary
+                'supersedes': self._extract_supersedes(metadata.get('relations', [])),
+                'amended_by': self._extract_amendments(metadata.get('relations', [])),
+            }
+            
+            enriched.append(enriched_result)
+        
+        return enriched
+    
+    def _format_date(self, date_str: Optional[str]) -> str:
+        """Format date to DD-MM-YYYY"""
+        if not date_str:
+            return ''
+        
+        try:
+            # Try various date formats
+            for fmt in ['%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y', '%Y/%m/%d']:
+                try:
+                    dt = datetime.strptime(str(date_str), fmt)
+                    return dt.strftime('%d-%m-%Y')
+                except ValueError:
+                    continue
+            return str(date_str)  # Return as-is if can't parse
+        except:
+            return str(date_str) if date_str else ''
+    
+    def _is_recent_document(self, year: Optional[int]) -> bool:
+        """Check if document is recent (2024-2025)"""
+        if not year:
+            return False
+        try:
+            return int(year) >= 2024
+        except:
+            return False
+    
+    def _extract_supersedes(self, relations: List[Dict]) -> List[str]:
+        """Extract superseded document references"""
+        supersedes = []
+        for rel in relations:
+            if rel.get('relation_type') == 'supersedes' or rel.get('type') == 'supersedes':
+                target = rel.get('target', '')
+                if target:
+                    supersedes.append(target)
+        return supersedes
+    
+    def _extract_amendments(self, relations: List[Dict]) -> List[str]:
+        """Extract amending document references"""
+        amendments = []
+        for rel in relations:
+            if rel.get('relation_type') == 'amends' or rel.get('type') == 'amends':
+                target = rel.get('target', '')
+                if target:
+                    amendments.append(target)
+        return amendments
     
     def _build_prompt(self, query: str, context: str, mode: str) -> str:
-        """Build LLM prompt based on mode"""
-        if mode == "qa":
-            return f"""Answer this question using the provided context. Be concise and accurate.
-
-Question: {query}
-
-Context:
-{context}
-
-Answer (2-3 paragraphs, cite sources with [1], [2], etc.):"""
+        """Build LLM prompt based on mode using templates"""
+        # Map mode aliases
+        mode_map = {
+            'qa': 'qa',
+            'policy': 'deep_think',
+            'framework': 'deep_think',
+            'deep_think': 'deep_think',
+            'brainstorm': 'brainstorm',
+            'policy_brief': 'policy_brief',
+        }
         
-        elif mode == "policy":
-            return f"""Explain this policy using the provided context. Include key provisions, requirements, and implementation details.
-
-Query: {query}
-
-Context:
-{context}
-
-Policy Explanation (organized with sections, cite sources):"""
+        template_mode = mode_map.get(mode.lower(), 'qa')
+        template = get_prompt_template(template_mode)
         
-        elif mode == "framework":
-            return f"""Design a comprehensive framework addressing: {query}
-
-Use the provided context for guidelines and requirements.
-
-Context:
-{context}
-
-Framework (structured with sections):"""
-        
-        else:
-            return f"""Provide a detailed response to: {query}
-
-Context:
-{context}
-
-Response:"""
+        # Fill in template
+        return template.format(
+            query=query,
+            documents_with_metadata=context
+        )
     
     def _parse_llm_response(self, text: str) -> tuple[str, Dict[str, str]]:
         """Parse LLM response into summary and sections"""
