@@ -2,14 +2,14 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Send, Plus, Loader2, Zap, Brain, Lightbulb, Cog, Paperclip, Camera, Search, Image, BookOpen, MoreHorizontal, X } from 'lucide-react'
+import { Send, Plus, Loader2, Zap, Brain, Lightbulb, Cog, Paperclip, Camera, Search, Image, BookOpen, MoreHorizontal, X, Globe } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger, 
-  DropdownMenuSeparator 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu'
 
 interface ChatInputProps {
@@ -17,17 +17,20 @@ interface ChatInputProps {
   isLoading: boolean
   placeholder?: string
   onThinkingModeChange?: (mode: 'qa' | 'deep_think' | 'brainstorm') => void
+  onInternetToggle?: (enabled: boolean) => void
 }
 
-export function ChatInput({ 
-  onSendMessage, 
-  isLoading, 
+export function ChatInput({
+  onSendMessage,
+  isLoading,
   placeholder = "Ask about education policies or say hi...",
   onThinkingModeChange,
+  onInternetToggle,
 }: ChatInputProps) {
   const [message, setMessage] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [thinkingMode, setThinkingMode] = useState<'qa' | 'deep_think' | 'brainstorm'>('qa')
+  const [internetEnabled, setInternetEnabled] = useState(false)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,7 +38,7 @@ export function ChatInput({
 
     onSendMessage(message.trim())
     setMessage('')
-    
+
     // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
@@ -52,7 +55,7 @@ export function ChatInput({
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
     setMessage(value)
-    
+
     // Auto-resize textarea
     const textarea = e.target
     textarea.style.height = 'auto'
@@ -69,6 +72,12 @@ export function ChatInput({
   const handleThinkingModeChange = (value: 'qa' | 'deep_think' | 'brainstorm') => {
     setThinkingMode(value)
     onThinkingModeChange?.(value)
+  }
+
+  const handleInternetToggle = () => {
+    const newValue = !internetEnabled
+    setInternetEnabled(newValue)
+    onInternetToggle?.(newValue)
   }
 
   const getModeIcon = (mode: 'qa' | 'deep_think' | 'brainstorm') => {
@@ -94,22 +103,48 @@ export function ChatInput({
   return (
     <TooltipProvider>
       <div className="relative">
-        {/* Mode Display - always shows current mode */}
-        <div className="mb-3 group">
+        {/* Mode Display and Internet Toggle */}
+        <div className="mb-3 flex items-center justify-between gap-4">
+          {/* Mode Display */}
           <div className="flex items-center gap-2 text-sm text-blue-400">
             <div className="flex-shrink-0 w-3 h-3 flex items-center justify-center">
               {getModeIcon(thinkingMode)}
             </div>
             <span>{getModeDisplayText(thinkingMode)} Mode</span>
           </div>
+
+          {/* Internet Toggle Button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleInternetToggle}
+                className={`h-7 px-3 gap-2 text-xs font-medium transition-all ${internetEnabled
+                    ? 'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 border border-blue-500/30'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent border border-transparent'
+                  }`}
+              >
+                <Globe className={`h-3.5 w-3.5 ${internetEnabled ? 'text-blue-500' : ''
+                  }`} />
+                <span>Internet</span>
+                {internetEnabled && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{internetEnabled ? 'Internet search enabled' : 'Enable internet search'}</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         <div className="flex items-end gap-3 bg-background border border-border rounded-2xl p-4 shadow-lg hover:border-border/80 transition-colors">
           {/* Add Button with Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="icon"
                 className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent flex-shrink-0"
               >
@@ -130,11 +165,11 @@ export function ChatInput({
                 <Camera className="h-4 w-4 mr-2" />
                 Take photo
               </DropdownMenuItem>
-              
+
               <DropdownMenuSeparator />
-              
+
               {/* Query Mode Options */}
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => handleThinkingModeChange('qa')}
                 className={thinkingMode === 'qa' ? 'bg-blue-50 text-blue-600' : ''}
               >
@@ -142,7 +177,7 @@ export function ChatInput({
                 Q&A Mode
                 {thinkingMode === 'qa' && <span className="ml-auto text-blue-600">✓</span>}
               </DropdownMenuItem>
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => handleThinkingModeChange('deep_think')}
                 className={thinkingMode === 'deep_think' ? 'bg-blue-50 text-blue-600' : ''}
               >
@@ -150,7 +185,7 @@ export function ChatInput({
                 Deep Think
                 {thinkingMode === 'deep_think' && <span className="ml-auto text-blue-600">✓</span>}
               </DropdownMenuItem>
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => handleThinkingModeChange('brainstorm')}
                 className={thinkingMode === 'brainstorm' ? 'bg-blue-50 text-blue-600' : ''}
               >
@@ -158,9 +193,9 @@ export function ChatInput({
                 Brainstorm
                 {thinkingMode === 'brainstorm' && <span className="ml-auto text-blue-600">✓</span>}
               </DropdownMenuItem>
-              
+
               <DropdownMenuSeparator />
-              
+
               <DropdownMenuItem>
                 <MoreHorizontal className="h-4 w-4 mr-2" />
                 More
@@ -191,7 +226,7 @@ export function ChatInput({
             {/* Send Button */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button 
+                <Button
                   onClick={handleSubmit}
                   disabled={isLoading || !message.trim()}
                   className="h-8 w-8 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground rounded-full transition-colors"

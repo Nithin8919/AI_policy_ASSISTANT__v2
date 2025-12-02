@@ -30,6 +30,7 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [queryMode, setQueryMode] = useState<QueryMode>('qa')
+  const [internetEnabled, setInternetEnabled] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
 
@@ -45,6 +46,10 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
     setQueryMode(mode)
   }
 
+  const handleInternetToggle = (enabled: boolean) => {
+    setInternetEnabled(enabled)
+  }
+
   const handleSendMessage = async (content: string) => {
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -57,18 +62,19 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
     setIsLoading(true)
 
     try {
-      console.log(`ChatBot: Using query mode: ${queryMode}`)
-      
-      // Use backend API with current query mode
+      console.log(`ChatBot: Using query mode: ${queryMode}, Internet: ${internetEnabled}`)
+
+      // Use backend API with current query mode and internet setting
       const response = await queryAPI({
         query: content,
         simulate_failure: false,
-        mode: queryMode
+        mode: queryMode,
+        internet_enabled: internetEnabled
       })
-      
+
       // Fallback if response.answer is empty or undefined
       const responseContent = response.answer || `I received your message "${content}" but couldn't generate a proper response. This might be due to API configuration issues.`
-      
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: responseContent,
@@ -79,7 +85,7 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
       }
 
       setMessages(prev => [...prev, assistantMessage])
-      
+
       // Update chat history with the first user message
       if (messages.length === 0) {
         const chatId = Date.now().toString()
@@ -113,7 +119,7 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
               How can I help you with education policy today?
             </h1>
           </div>
-          
+
           {/* Centered Input Field */}
           <div className="w-full max-w-3xl">
             <ChatInput
@@ -121,6 +127,7 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
               isLoading={isLoading}
               placeholder="Ask about education policies or say hi..."
               onThinkingModeChange={handleQueryModeChange}
+              onInternetToggle={handleInternetToggle}
             />
           </div>
         </div>
@@ -151,6 +158,7 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
                 isLoading={isLoading}
                 placeholder="Ask about education policies or say hi..."
                 onThinkingModeChange={handleQueryModeChange}
+                onInternetToggle={handleInternetToggle}
               />
             </div>
           </div>

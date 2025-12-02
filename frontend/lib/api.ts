@@ -2,6 +2,8 @@ export interface QueryRequest {
   query: string
   simulate_failure?: boolean
   mode?: string
+  internet_enabled?: boolean
+
 }
 
 export interface Citation {

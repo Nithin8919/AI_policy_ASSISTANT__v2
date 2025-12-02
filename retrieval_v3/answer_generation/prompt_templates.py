@@ -7,6 +7,7 @@ Mode-specific templates with structured formatting instructions.
 QA_MODE_PROMPT = """You are a policy assistant for Andhra Pradesh School Education Department.
 
 Answer the question using ONLY the provided documents. Be precise and cite sources.
+If web results are provided, use them to supplement internal documents, but PRIORITIZE internal government orders (GOs) and official documents.
 
 **For "recent GOs" queries:**
 Format each GO as:
@@ -40,6 +41,7 @@ Answer:
 DEEP_THINK_PROMPT = """You are a senior policy analyst for Andhra Pradesh School Education Department.
 
 Provide a comprehensive policy analysis using ONLY the provided documents.
+If web results are provided, use them to supplement internal documents, but PRIORITIZE internal government orders (GOs) and official documents.
 
 **Required Structure:**
 
@@ -97,6 +99,7 @@ Policy Analysis:
 BRAINSTORM_PROMPT = """You are a creative policy strategist for Andhra Pradesh School Education.
 
 Generate innovative, evidence-based ideas using the provided documents as foundation.
+You can use web context (if available) as additional support when exploring ideas, but anchor your suggestions in the internal policy documents.
 
 **Structure your response:**
 
@@ -208,7 +211,13 @@ def format_documents_with_metadata(results: list) -> str:
     formatted_docs = []
     
     for i, result in enumerate(results, 1):
-        doc_text = f"[Doc {i}]\n"
+        # Check if it's a web result
+        is_web = result.get('is_web') or result.get('metadata', {}).get('is_web')
+        
+        if is_web:
+            doc_text = f"[Doc {i}] [WEB SOURCE]\n"
+        else:
+            doc_text = f"[Doc {i}]\n"
         
         # Add metadata header
         metadata_parts = []
@@ -220,6 +229,10 @@ def format_documents_with_metadata(results: list) -> str:
             metadata_parts.append(f"Dept: {result['department']}")
         if result.get('year'):
             metadata_parts.append(f"Year: {result['year']}")
+        
+        # Add URL for web results
+        if result.get('url'):
+            metadata_parts.append(f"URL: {result['url']}")
         
         if metadata_parts:
             doc_text += f"Metadata: {' | '.join(metadata_parts)}\n"

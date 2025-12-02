@@ -60,6 +60,7 @@ async def lifespan(app: FastAPI):
         v3_engine = RetrievalEngine(
             qdrant_client=qdrant,
             embedder=embedder,
+            gemini_api_key=os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY'),
             use_llm_rewrites=True,
             use_llm_reranking=True,
             enable_cache=True

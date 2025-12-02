@@ -302,3 +302,6 @@ if __name__ == "__main__":
     for i, variant in enumerate(variants, 1):
         print(f"{i}. {variant}")
 
+
+
+

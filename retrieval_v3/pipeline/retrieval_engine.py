@@ -59,6 +59,7 @@ from retrieval_core.supersession_manager import SupersessionManager
 from reranking.cross_encoder_reranker import CrossEncoderReranker
 from retrieval_core.hybrid_search import HybridSearcher
 from cache.query_cache import QueryCache
+from internet.google_search_client import GoogleSearchClient
 
 
 @dataclass
@@ -194,7 +195,12 @@ class RetrievalEngine:
         
         # Initialize Diagnostic Runner
         from diagnostics.diagnostic_runner import DiagnosticRunner
+        # Initialize Diagnostic Runner
+        from diagnostics.diagnostic_runner import DiagnosticRunner
         self.diagnostic_runner = DiagnosticRunner(api_key=self.gemini_api_key)
+        
+        # NEW: Initialize Google Search Client
+        self.google_search_client = GoogleSearchClient(api_key=self.gemini_api_key)
         
         # Stats
         self.stats = {
@@ -259,10 +265,13 @@ class RetrievalEngine:
             logger.info(f"🎯 Auto-pinned filters for recent GOs query (last 18 months)")
         
         # CHECK CACHE FIRST (after normalization and filter determination)
-        cached_result = self.query_cache.get(normalized_query, force_filter)
-        if cached_result:
-            self.stats['cache_hits'] += 1
-            return cached_result
+        logger.info(f"DEBUG: enable_cache={self.enable_cache}")
+        if self.enable_cache:
+            cached_result = self.query_cache.get(normalized_query, force_filter)
+            if cached_result:
+                self.stats['cache_hits'] += 1
+                return cached_result
+
 
         
         # 1.2: CLAUSE INDEXER FAST PATH - Handle legal clause queries instantly
@@ -536,6 +545,55 @@ class RetrievalEngine:
                 hop_number=2
             )
             all_results.extend(self._normalize_scores(hop2_results, method='min-max'))
+        
+        # 3.3: Internet Retrieval (Optional Layer)
+        # ====================================================================
+        internet_results = []
+        internet_enabled = False
+        
+        # Priority 1: Check if plan says internet is needed (automatic detection)
+        if plan.use_internet:
+            internet_enabled = True
+            logger.info(f"🌐 Internet enabled via automatic detection (query interpretation)")
+        
+        # Priority 2: Check custom_plan for manual overrides (backward compatibility)
+        if custom_plan:
+            if custom_plan.get('internet_enabled') is not None:
+                internet_enabled = custom_plan.get('internet_enabled')
+                logger.info(f"🌐 Internet {'enabled' if internet_enabled else 'disabled'} via custom_plan override")
+            elif custom_plan.get('use_internet') is not None:
+                internet_enabled = custom_plan.get('use_internet')
+                logger.info(f"🌐 Internet {'enabled' if internet_enabled else 'disabled'} via custom_plan (legacy)")
+            
+        if internet_enabled and self.google_search_client:
+            logger.info(f"🌐 Internet search enabled for: {query}")
+            try:
+                web_raw_results = self.google_search_client.search(query)
+                
+                # Convert to RetrievalResult objects
+                for i, res in enumerate(web_raw_results):
+                    internet_results.append(RetrievalResult(
+                        chunk_id=f"web_{i}_{int(time.time())}",
+                        doc_id=f"web_{i}",
+                        content=f"{res['title']}\n{res['snippet']}",
+                        score=0.85 - (i * 0.05), # Decay score for web results
+                        vertical="internet",
+                        metadata={
+                            'title': res['title'],
+                            'url': res['url'],
+                            'source': 'Google Search',
+                            'is_web': True
+                        },
+                        rewrite_source="original_query",
+                        hop_number=1
+                    ))
+                logger.info(f"🌐 Found {len(internet_results)} web results")
+            except Exception as e:
+                logger.error(f"Internet search failed: {e}")
+                
+        # Merge web results (append them, they will be re-ranked or just added)
+        # We add them to all_results so they go through deduplication and reranking
+        all_results.extend(internet_results)
         
         # STEP 4: AGGREGATION & FILTERING
         # ====================================================================
