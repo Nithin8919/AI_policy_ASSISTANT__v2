@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -29,6 +29,7 @@ from retrieval.retrieval_core.qdrant_client import get_qdrant_client
 from retrieval.embeddings.embedder import get_embedder
 from retrieval_v3.pipeline.retrieval_engine import RetrievalEngine
 from retrieval.answer_generator import get_answer_generator
+from retrieval_v3.file_processing.file_handler import FileHandler
 
 # Configure logging
 logging.basicConfig(
@@ -282,6 +283,176 @@ async def v3_query_endpoint(request: QueryRequest):
     except Exception as e:
         logger.error(f"❌ V3 Query error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"V3 processing error: {str(e)}")
+
+@app.post("/v3/query_with_files", response_model=QueryResponse)
+async def v3_query_with_files_endpoint(
+    query: str = Form(...),
+    mode: str = Form("qa"),
+    internet_enabled: bool = Form(False),
+    files: List[UploadFile] = File(...)
+):
+    """V3 query endpoint with file upload support"""
+    start_time = time.time()
+    
+    try:
+        logger.info(f"🔍 V3 Query with files: '{query}' (mode: {mode}, files: {len(files)})")
+        
+        # Validate number of files
+        if len(files) > 3:
+            raise HTTPException(
+                status_code=400,
+                detail="Maximum 3 files allowed per query"
+            )
+        
+        # Initialize file handler
+        file_handler = FileHandler()
+        
+        # Process uploaded files
+        file_contexts = []
+        file_errors = []
+        
+        for file in files:
+            logger.info(f"📄 Processing file: {file.filename}")
+            result = await file_handler.process_file(file)
+            
+            if result['success']:
+                file_contexts.append({
+                    'filename': result['filename'],
+                    'text': result['text'],
+                    'word_count': result['word_count']
+                })
+                logger.info(f"✅ Extracted {result['word_count']} words from {result['filename']}")
+            else:
+                file_errors.append({
+                    'filename': result['filename'],
+                    'error': result.get('error', 'Unknown error')
+                })
+                logger.warning(f"⚠️ Failed to process {result['filename']}: {result.get('error')}")
+        
+        # If all files failed, return error
+        if not file_contexts and file_errors:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Failed to process files: {', '.join(e['error'] for e in file_errors)}"
+            )
+        
+        # Augment query with file context
+        augmented_query = query
+        if file_contexts:
+            file_context_text = "\n\n".join([
+                f"--- Content from {fc['filename']} ({fc['word_count']} words) ---\n{fc['text']}"
+                for fc in file_contexts
+            ])
+        
+        logger.info(f"📝 File context length: {len(file_context_text)} chars")
+        
+        # V3 Retrieval with ORIGINAL query (don't confuse retriever with file content)
+        logger.info("⚡ Starting V3 retrieval...")
+        retrieval_start = time.time()
+        
+        # Build custom plan with internet setting
+        custom_plan = {'internet_enabled': internet_enabled} if internet_enabled else None
+        
+        v3_output = v3_engine.retrieve(
+            query=query,
+            top_k=10,
+            custom_plan=custom_plan
+        )
+        
+        retrieval_time = time.time() - retrieval_start
+        logger.info(f"📄 V3 Retrieved {v3_output.final_count} results in {retrieval_time:.2f}s")
+        
+        # Convert V3 results to old format for answer generator
+        results = []
+        for result in v3_output.results:
+            results.append({
+                "chunk_id": result.chunk_id,
+                "text": result.content,
+                "doc_id": result.doc_id,
+                "score": result.score,
+                "metadata": result.metadata,
+                "vertical": result.vertical,
+                "rewrite_source": result.rewrite_source
+            })
+        
+        # Generate answer with citations AND file context
+        logger.info("💭 Generating answer...")
+        answer_start = time.time()
+        
+        answer_response = answer_generator.generate(
+            query=query,  # Use original query for answer generation
+            results=results,
+            mode=mode,
+            max_context_chunks=5 if mode == "qa" else 10,
+            external_context=file_context_text
+        )
+        
+        answer_time = time.time() - answer_start
+        
+        # Format citations for frontend
+        citations = []
+        for citation_num in answer_response.get("citations", []):
+            try:
+                result_idx = int(citation_num) - 1
+                if 0 <= result_idx < len(results):
+                    result = results[result_idx]
+                    v3_result = v3_output.results[result_idx]
+                    citations.append(Citation(
+                        docId=result.get("chunk_id", f"doc_{citation_num}"),
+                        page=1,
+                        span=result.get("text", "")[:150] + "...",
+                        source=result.get("metadata", {}).get("source", "Policy Document"),
+                        vertical=v3_result.vertical
+                    ))
+            except (ValueError, IndexError):
+                continue
+        
+        # Create V3 processing trace
+        processing_trace = ProcessingTrace(
+            language="en",
+            retrieval=V3RetrievalResult(
+                verticals_searched=v3_output.verticals_searched,
+                processing_time=v3_output.processing_time,
+                total_candidates=v3_output.total_candidates,
+                final_count=v3_output.final_count,
+                cache_hits=v3_engine.stats.get('cache_hits', 0),
+                rewrites_count=len(v3_output.rewrites)
+            ),
+            kg_traversal="v3_multi_hop_retrieval_with_files",
+            controller_iterations=v3_output.metadata.get('num_hops', 1)
+        )
+        
+        total_time = time.time() - start_time
+        
+        # Performance metrics
+        performance_metrics = {
+            "total_time": round(total_time, 3),
+            "retrieval_time": round(retrieval_time, 3),
+            "answer_time": round(answer_time, 3),
+            "files_processed": len(file_contexts),
+            "files_failed": len(file_errors),
+            "total_file_words": sum(fc['word_count'] for fc in file_contexts),
+            "verticals_searched": len(v3_output.verticals_searched),
+            "rewrites_generated": len(v3_output.rewrites),
+            "candidates_processed": v3_output.total_candidates,
+        }
+        
+        response = QueryResponse(
+            answer=answer_response.get("answer", "No answer generated"),
+            citations=citations,
+            processing_trace=processing_trace,
+            risk_assessment="low",
+            performance_metrics=performance_metrics
+        )
+        
+        logger.info(f"✅ V3 Query with files completed in {total_time:.2f}s")
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ V3 Query with files error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"V3 file processing error: {str(e)}")
 
 @app.get("/v3/status", response_model=SystemStatusResponse)
 async def get_v3_status():

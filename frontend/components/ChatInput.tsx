@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Send, Plus, Loader2, Zap, Brain, Lightbulb, Cog, Paperclip, Camera, Search, Image, BookOpen, MoreHorizontal, X, Globe } from 'lucide-react'
+import { Send, Plus, Loader2, Zap, Brain, Lightbulb, Paperclip, X, Globe, FileText } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   DropdownMenu,
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 interface ChatInputProps {
-  onSendMessage: (message: string) => void
+  onSendMessage: (message: string, files?: File[]) => void
   isLoading: boolean
   placeholder?: string
   onThinkingModeChange?: (mode: 'qa' | 'deep_think' | 'brainstorm') => void
@@ -29,15 +29,18 @@ export function ChatInput({
 }: ChatInputProps) {
   const [message, setMessage] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [thinkingMode, setThinkingMode] = useState<'qa' | 'deep_think' | 'brainstorm'>('qa')
   const [internetEnabled, setInternetEnabled] = useState(false)
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!message.trim() || isLoading) return
 
-    onSendMessage(message.trim())
+    onSendMessage(message.trim(), uploadedFiles.length > 0 ? uploadedFiles : undefined)
     setMessage('')
+    setUploadedFiles([])
 
     // Reset textarea height
     if (textareaRef.current) {
@@ -60,6 +63,50 @@ export function ChatInput({
     const textarea = e.target
     textarea.style.height = 'auto'
     textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+
+    // Validate file count
+    if (uploadedFiles.length + files.length > 3) {
+      alert('Maximum 3 files allowed')
+      return
+    }
+
+    // Validate file types
+    const validTypes = ['.pdf', '.txt', '.docx']
+    const invalidFiles = files.filter(file => {
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase()
+      return !validTypes.includes(ext)
+    })
+
+    if (invalidFiles.length > 0) {
+      alert(`Unsupported file types. Only PDF, TXT, and DOCX files are allowed.`)
+      return
+    }
+
+    // Validate file sizes (10MB max)
+    const oversizedFiles = files.filter(file => file.size > 10 * 1024 * 1024)
+    if (oversizedFiles.length > 0) {
+      alert(`File too large. Maximum size is 10MB per file.`)
+      return
+    }
+
+    setUploadedFiles(prev => [...prev, ...files])
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleFileButtonClick = () => {
+    fileInputRef.current?.click()
   }
 
   useEffect(() => {
@@ -98,7 +145,10 @@ export function ChatInput({
     }
   }
 
-  const isSpecialMode = thinkingMode !== 'qa'
+  const getFileIcon = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase()
+    return <FileText className="h-3.5 w-3.5" />
+  }
 
   return (
     <TooltipProvider>
@@ -125,8 +175,7 @@ export function ChatInput({
                     : 'text-muted-foreground hover:text-foreground hover:bg-accent border border-transparent'
                   }`}
               >
-                <Globe className={`h-3.5 w-3.5 ${internetEnabled ? 'text-blue-500' : ''
-                  }`} />
+                <Globe className={`h-3.5 w-3.5 ${internetEnabled ? 'text-blue-500' : ''}`} />
                 <span>Internet</span>
                 {internetEnabled && (
                   <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
@@ -139,7 +188,38 @@ export function ChatInput({
           </Tooltip>
         </div>
 
+        {/* File Chips */}
+        {uploadedFiles.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {uploadedFiles.map((file, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 text-blue-600 rounded-lg border border-blue-500/30 text-xs"
+              >
+                {getFileIcon(file.name)}
+                <span className="max-w-[150px] truncate">{file.name}</span>
+                <button
+                  onClick={() => removeFile(index)}
+                  className="hover:bg-blue-500/20 rounded-full p-0.5 transition-colors"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-end gap-3 bg-background border border-border rounded-2xl p-4 shadow-lg hover:border-border/80 transition-colors">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.txt,.docx"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+
           {/* Add Button with Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -153,17 +233,9 @@ export function ChatInput({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64">
               {/* File Options */}
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={handleFileButtonClick}>
                 <Paperclip className="h-4 w-4 mr-2" />
-                Add photos & files
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Camera className="h-4 w-4 mr-2" />
-                Take screenshot
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Camera className="h-4 w-4 mr-2" />
-                Take photo
+                Add files (PDF, TXT, DOCX)
               </DropdownMenuItem>
 
               <DropdownMenuSeparator />
@@ -192,13 +264,6 @@ export function ChatInput({
                 <Zap className="h-4 w-4 mr-2" />
                 Brainstorm
                 {thinkingMode === 'brainstorm' && <span className="ml-auto text-blue-600">✓</span>}
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator />
-
-              <DropdownMenuItem>
-                <MoreHorizontal className="h-4 w-4 mr-2" />
-                More
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -250,6 +315,7 @@ export function ChatInput({
         <div className="text-center mt-3">
           <p className="text-xs text-muted-foreground">
             Press Enter to send, Shift+Enter for new line
+            {uploadedFiles.length > 0 && ` • ${uploadedFiles.length} file(s) attached`}
           </p>
         </div>
       </div>

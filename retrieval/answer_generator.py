@@ -37,7 +37,8 @@ class AnswerGenerator:
         query: str,
         results: List[Dict],
         mode: str = "qa",
-        max_context_chunks: int = 5
+        max_context_chunks: int = 5,
+        external_context: Optional[str] = None
     ) -> Dict:
         """
         Generate answer with proper citations.
@@ -47,11 +48,12 @@ class AnswerGenerator:
             results: Retrieved results
             mode: Query mode
             max_context_chunks: Max chunks to include
+            external_context: Additional context (e.g. from uploaded files)
             
         Returns:
             Dict with answer, citations, bibliography
         """
-        if not results:
+        if not results and not external_context:
             return {
                 "answer": "I couldn't find relevant information to answer your query.",
                 "citations": [],
@@ -66,7 +68,7 @@ class AnswerGenerator:
         context_text = self._format_context(context_results)
         
         # Build prompt based on mode
-        prompt = self._build_prompt(query, context_text, mode)
+        prompt = self._build_prompt(query, context_text, mode, external_context)
         
         # Generate answer
         try:
@@ -155,12 +157,23 @@ Content: {text[:800]}{"..." if len(text) > 800 else ""}
         
         return "\n".join(context_parts)
     
-    def _build_prompt(self, query: str, context: str, mode: str) -> str:
+    def _build_prompt(self, query: str, context: str, mode: str, external_context: Optional[str] = None) -> str:
         """
         Build prompt with EXPLICIT citation instructions.
         
         This is the CRITICAL FIX - makes citations non-negotiable.
         """
+        # Append external context if provided
+        if external_context:
+            context = f"""
+{context}
+
+---
+ADDITIONAL CONTEXT FROM UPLOADED FILES:
+{external_context}
+---
+"""
+
         if mode == "qa":
             return f"""You are a policy assistant providing precise answers from official documents.
 

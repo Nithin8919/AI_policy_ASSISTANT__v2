@@ -49,7 +49,8 @@ class AnswerBuilder:
         self,
         query: str,
         results: List[Dict],
-        mode: str = "qa"
+        mode: str = "qa",
+        external_context: Optional[str] = None
     ) -> Answer:
         """
         Build structured answer from results
@@ -58,12 +59,13 @@ class AnswerBuilder:
             query: User query
             results: Retrieved results
             mode: Query mode (qa, policy, framework, etc.)
+            external_context: Additional context (e.g. from uploaded files)
             
         Returns:
             Structured Answer object
         """
         if self.use_llm and self.api_key:
-            return self._build_with_llm(query, results, mode)
+            return self._build_with_llm(query, results, mode, external_context)
         else:
             return self._build_template(query, results, mode)
     
@@ -71,7 +73,8 @@ class AnswerBuilder:
         self,
         query: str,
         results: List[Dict],
-        mode: str
+        mode: str,
+        external_context: Optional[str] = None
     ) -> Answer:
         """Build answer using Gemini Flash"""
         try:
@@ -79,10 +82,21 @@ class AnswerBuilder:
             
             genai.configure(api_key=self.api_key)
             # Use standard Gemini Flash model (v1beta-compatible)
-            model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            model = genai.GenerativeModel('gemini-1.5-flash')
             
             # Prepare context from results
             context = self._prepare_context(results)
+            
+            # Append external context if provided
+            if external_context:
+                context = f"""
+{context}
+
+---
+ADDITIONAL CONTEXT FROM UPLOADED FILES:
+{external_context}
+---
+"""
             
             # Build prompt based on mode
             prompt = self._build_prompt(query, context, mode)

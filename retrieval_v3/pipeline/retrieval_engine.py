@@ -216,6 +216,7 @@ class RetrievalEngine:
         top_k: Optional[int] = None,
         custom_plan: Optional[Dict] = None,
         force_verticals: Optional[List[str]] = None,
+        external_context: Optional[str] = None
     ) -> RetrievalOutput:
         """
         Main retrieval function - orchestrates entire pipeline
@@ -225,6 +226,7 @@ class RetrievalEngine:
             top_k: Override final result count
             custom_plan: Override retrieval plan parameters
             force_verticals: Force specific verticals (bypass routing)
+            external_context: Additional context (e.g. from uploaded files)
             
         Returns:
             RetrievalOutput with results and metadata
@@ -1444,7 +1446,7 @@ class RetrievalEngine:
             
             genai.configure(api_key=self.gemini_api_key)
             # Use standard Gemini Flash model (v1beta-compatible)
-            model = genai.GenerativeModel("gemini-1.5-flash-latest")
+            model = genai.GenerativeModel("gemini-1.5-flash")
             
             # Prepare candidates (top results only to save tokens)
             candidates = results[:min(30, len(results))]

@@ -36,7 +36,13 @@ class BM25Retriever:
         self.corpus_map: Dict[str, Dict] = {} # id -> metadata
         
         # Collections to index
-        self.collections = ["go", "legal", "judicial", "scheme", "data"]
+        self.collections = [
+            "ap_government_orders", 
+            "ap_legal_documents", 
+            "ap_judicial_documents", 
+            "ap_schemes", 
+            "ap_data_reports"
+        ]
         
         # Try to load existing index (don't build in __init__ to avoid blocking)
         self._load_index()
@@ -107,12 +113,18 @@ class BM25Retriever:
                         
                         # Entities (departments, acts, keywords)
                         entities = payload.get('entities', {})
-                        for entity_type in ['departments', 'acts', 'keywords', 'schemes']:
-                            if entities.get(entity_type):
-                                if isinstance(entities[entity_type], list):
-                                    text_parts.extend(entities[entity_type])
-                                else:
-                                    text_parts.append(str(entities[entity_type]))
+                        if isinstance(entities, dict):
+                            for entity_type in ['departments', 'acts', 'keywords', 'schemes']:
+                                if entities.get(entity_type):
+                                    if isinstance(entities[entity_type], list):
+                                        text_parts.extend(entities[entity_type])
+                                    else:
+                                        text_parts.append(str(entities[entity_type]))
+                        elif isinstance(entities, list):
+                            # Handle case where entities might be a list of strings
+                            text_parts.extend([str(e) for e in entities])
+                        else:
+                            logger.debug(f"Unexpected entities format in {point.id}: {type(entities)}")
                         
                         # Content (truncated to first 500 chars to avoid table noise)
                         content = payload.get('content', '')

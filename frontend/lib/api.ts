@@ -159,3 +159,40 @@ export async function queryModelDirect(request: QueryRequest): Promise<QueryResp
   return queryAPI(request)
 }
 
+
+export async function queryWithFiles(
+  query: string,
+  files: File[],
+  mode: string = 'qa',
+  internet_enabled: boolean = false
+): Promise<QueryResponse> {
+  try {
+    console.log('🔵 QueryWithFiles called with:', { query, fileCount: files.length, mode, internet_enabled })
+    
+    const formData = new FormData()
+    formData.append('query', query)
+    formData.append('mode', mode)
+    formData.append('internet_enabled', internet_enabled.toString())
+    
+    files.forEach((file) => {
+      formData.append('files', file)
+    })
+    
+    const response = await fetch(`${API_BASE_URL}/v3/query_with_files`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`API request failed: ${response.status} - ${errorText}`)
+    }
+
+    const data = await response.json()
+    console.log('✅ File upload response:', data)
+    return data
+  } catch (error) {
+    console.error('❌ Error calling query with files API:', error)
+    throw error
+  }
+}

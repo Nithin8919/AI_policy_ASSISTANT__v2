@@ -485,7 +485,7 @@ class QueryRewriter:
             # Configure Gemini Flash (fastest, cheapest)
             genai.configure(api_key=api_key)
             # Use Gemini 1.5 Flash with version suffix for stability
-            model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            model = genai.GenerativeModel('gemini-1.5-flash')
             
             # Create prompt for domain-specific rewrites
             prompt = f"""You are an expert in Indian education policy. Generate {num_rewrites} different rewrites of this query, each targeting different aspects of education policy:

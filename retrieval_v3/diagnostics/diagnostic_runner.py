@@ -32,7 +32,7 @@ class DiagnosticRunner:
         
         if self.api_key:
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
         else:
             logger.warning("No API key provided for DiagnosticRunner. Diagnostics will fail.")
             self.model = None
