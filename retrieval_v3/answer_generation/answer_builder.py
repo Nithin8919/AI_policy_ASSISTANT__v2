@@ -265,30 +265,47 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
     
     def _parse_llm_response(self, text: str) -> tuple[str, Dict[str, str]]:
         """Parse LLM response into summary and sections"""
-        lines = text.strip().split('\n')
+        text = text.strip()
+        lines = text.split('\n')
         
-        # First paragraph as summary
-        summary_lines = []
-        section_content = []
-        in_summary = True
+        summary = ""
+        sections = {}
         
-        for line in lines:
-            line = line.strip()
-            if not line:
-                if in_summary and summary_lines:
-                    in_summary = False
-                continue
+        # Check for structured format (Scenario 2)
+        # Look for "1. **Direct Answer" pattern
+        direct_answer_match = re.search(r"1\.\s*\*\*Direct Answer:?\*\*\s*(.*?)(?=\n\d+\.|\n\n|\Z)", text, re.DOTALL | re.IGNORECASE)
+        
+        if direct_answer_match:
+            summary = direct_answer_match.group(1).strip()
             
-            if in_summary:
-                summary_lines.append(line)
-            else:
-                section_content.append(line)
-        
-        summary = ' '.join(summary_lines)
-        
-        # Parse sections (simple - can be enhanced)
-        sections = {'main_content': ' '.join(section_content)} if section_content else {}
-        
+            # For the rest of the content, we want everything AFTER the direct answer
+            # Find where the direct answer ends
+            end_pos = direct_answer_match.end()
+            remaining_text = text[end_pos:].strip()
+            
+            if remaining_text:
+                sections['detailed_analysis'] = remaining_text
+        else:
+            # Fallback to first paragraph as summary
+            summary_lines = []
+            section_content = []
+            in_summary = True
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    if in_summary and summary_lines:
+                        in_summary = False
+                    continue
+                
+                if in_summary:
+                    summary_lines.append(line)
+                else:
+                    section_content.append(line)
+            
+            summary = ' '.join(summary_lines)
+            sections = {'main_content': '\n'.join(section_content)} if section_content else {}
+            
         return summary, sections
     
     def _create_summary(self, results: List[Dict]) -> str:

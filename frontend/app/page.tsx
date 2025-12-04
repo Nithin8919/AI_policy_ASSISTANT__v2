@@ -40,10 +40,10 @@ export default function HomePage() {
               <span className="sm:hidden">AI Policy Assistant</span>
             </div>
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-4 sm:mb-6 px-4 will-change-transform">
-              GITAM Policy AI
+              Policy Assistant
             </h1>
             <p className="text-base sm:text-lg md:text-xl text-muted-foreground mb-6 sm:mb-8 max-w-3xl mx-auto leading-relaxed px-4 will-change-transform">
-              Get instant, accurate answers about GITAM education policies with comprehensive citations and real-time processing insights.
+              Get instant, accurate answers about School  education policies with comprehensive citations and real-time processing insights.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4">
                 <Link href="/chat" className="w-full sm:w-auto">

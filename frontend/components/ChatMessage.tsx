@@ -91,40 +91,37 @@ export function ChatMessage({ message }: ChatMessageProps) {
   return (
     <div className={`flex gap-4 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
       {/* Avatar */}
-      <Avatar className={`w-8 h-8 ${
-        isUser 
-          ? 'bg-primary' 
-          : isSystem 
+      <Avatar className={`w-8 h-8 ${isUser
+        ? 'bg-primary'
+        : isSystem
+          ? 'bg-destructive'
+          : 'bg-secondary'
+        }`}>
+        <AvatarFallback className={`text-primary-foreground text-sm font-medium ${isUser
+          ? 'bg-primary'
+          : isSystem
             ? 'bg-destructive'
             : 'bg-secondary'
-      }`}>
-        <AvatarFallback className={`text-primary-foreground text-sm font-medium ${
-          isUser 
-            ? 'bg-primary' 
-            : isSystem 
-              ? 'bg-destructive'
-              : 'bg-secondary'
-        }`}>
+          }`}>
           {getInitials()}
         </AvatarFallback>
       </Avatar>
-      
+
       {/* Message Content */}
       <div className={`flex-1 max-w-3xl ${isUser ? 'text-right' : 'text-left'}`}>
-        <div className={`inline-block rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-          isUser 
-            ? 'bg-primary text-primary-foreground' 
-            : isSystem
-              ? 'bg-destructive/10 text-destructive border border-destructive/20'
-              : 'bg-muted text-foreground border border-border'
-        }`}>
+        <div className={`inline-block rounded-2xl px-4 py-3 text-sm leading-relaxed ${isUser
+          ? 'bg-primary text-primary-foreground'
+          : isSystem
+            ? 'bg-destructive/10 text-destructive border border-destructive/20'
+            : 'bg-transparent text-foreground p-0' // Transparent for assistant (NotebookLM style)
+          }`}>
           <div className="break-words">
-            <MarkdownRenderer 
-              content={cleanContent || message.content || 'No content available'} 
+            <MarkdownRenderer
+              content={cleanContent || message.content || 'No content available'}
               className="text-sm"
             />
           </div>
-          
+
           {/* Show placeholder warning for assistant messages */}
           {message.role === 'assistant' && message.content.includes('N/A') && (
             <div className="mt-3 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-400">
@@ -135,18 +132,32 @@ export function ChatMessage({ message }: ChatMessageProps) {
             </div>
           )}
 
-          {/* Citations Section for Assistant Messages - Always show if citations exist */}
+          {/* Citations Section - NotebookLM Style */}
           {message.role === 'assistant' && Array.isArray(message.response?.citations) && message.response.citations.length > 0 && (
-            <div className="mt-3 p-3 bg-blue-50/50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <div className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-2">Sources & Citations</div>
-              <div className="space-y-2">
+            <div className="mt-6 pt-4 border-t border-border/40">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-4 w-1 bg-primary/60 rounded-full" />
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sources</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {message.response.citations.map((citation: any, index: number) => (
-                  <div key={index} className="text-xs p-2 bg-white dark:bg-gray-800 border border-blue-100 dark:border-blue-700 rounded">
-                    <div className="font-medium text-blue-700 dark:text-blue-300">
-                      [Doc {index + 1}] {citation.docId}
-                    </div>
-                    <div className="text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                      {citation.span}
+                  <div
+                    key={index}
+                    className="group relative p-3 rounded-xl bg-card/50 hover:bg-card border border-border/50 hover:border-primary/20 transition-all duration-200 cursor-pointer"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
+                        {index + 1}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-medium text-foreground truncate pr-2">
+                          {citation.docId}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-relaxed group-hover:text-foreground/80 transition-colors">
+                          {citation.span}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -174,8 +185,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
                       <div>
                         <span className="font-medium text-foreground">Reasoning:</span>
                         <div className="ml-2 mt-1 text-xs text-muted-foreground">
-                          <MarkdownRenderer 
-                            content={thinkingContent || cloudThinkingContent || ''} 
+                          <MarkdownRenderer
+                            content={thinkingContent || cloudThinkingContent || ''}
                             className="text-xs"
                           />
                         </div>
@@ -191,7 +202,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                             <span className="ml-2 text-muted-foreground">{message.response.processing_trace.language}</span>
                           </div>
                         )}
-                        
+
                         {message.response.processing_trace.retrieval && (
                           <div>
                             <span className="font-medium text-foreground">Retrieval:</span>
@@ -219,7 +230,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                             </div>
                           </div>
                         )}
-                        
+
                         {message.response.processing_trace.kg_traversal && (
                           <div>
                             <span className="font-medium text-foreground">Knowledge Graph:</span>
@@ -228,7 +239,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                             </div>
                           </div>
                         )}
-                        
+
                         {message.response.processing_trace.controller_iterations && (
                           <div>
                             <span className="font-medium text-foreground">Controller Iterations:</span>
@@ -263,7 +274,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
             </div>
           )}
         </div>
-        
+
         <div className={`text-xs text-muted-foreground mt-2 ${isUser ? 'text-right' : 'text-left'}`}>
           {formatTime(message.timestamp)}
         </div>

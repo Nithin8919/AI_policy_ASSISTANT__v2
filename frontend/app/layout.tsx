@@ -10,7 +10,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: 'GITAM Education Policy AI',
+  title: 'Policy Assistant',
   description: 'High-accuracy AI system for querying education policies with comprehensive citation tracking',
 }
 

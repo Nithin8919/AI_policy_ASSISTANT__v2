@@ -82,8 +82,8 @@ export function AppSidebar({
 
   // Default user data
   const userData = {
-    name: 'GITAM User',
-    email: 'user@gitam.edu',
+    name: 'User',
+    email: 'user@gmail.com',
     avatar: '/avatars/default.jpg',
   }
 
@@ -98,7 +98,7 @@ export function AppSidebar({
             >
               <a href="/">
                 <ArrowUpCircleIcon className="h-5 w-5" />
-                <span className="text-base font-semibold">GITAM Policy AI</span>
+                <span className="text-base font-semibold">Policy Assistant</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>

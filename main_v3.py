@@ -110,6 +110,7 @@ class QueryRequest(BaseModel):
     query: str = Field(..., description="User query")
     mode: str = Field("qa", description="Query mode: qa, deep_think, or brainstorm")
     top_k: Optional[int] = Field(None, description="Override number of results")
+    internet_enabled: Optional[bool] = Field(False, description="Enable internet search")
 
 class Citation(BaseModel):
     docId: str
@@ -172,7 +173,7 @@ async def v3_query_endpoint(request: QueryRequest):
     start_time = time.time()
     
     try:
-        logger.info(f"🔍 V3 Query: '{request.query}' (mode: {request.mode})")
+        logger.info(f"🔍 V3 Query: '{request.query}' (mode: {request.mode}, internet: {request.internet_enabled})")
         
         # Validate mode
         valid_modes = ["qa", "deep_think", "brainstorm"]
@@ -186,9 +187,15 @@ async def v3_query_endpoint(request: QueryRequest):
         logger.info("⚡ Starting V3 parallel retrieval...")
         retrieval_start = time.time()
         
+        # Build custom plan with internet setting
+        # Force internet ON for brainstorm mode, otherwise use request setting
+        should_enable_internet = request.internet_enabled or request.mode == "brainstorm"
+        custom_plan = {'internet_enabled': True} if should_enable_internet else None
+        
         v3_output = v3_engine.retrieve(
             query=request.query,
-            top_k=request.top_k
+            top_k=request.top_k,
+            custom_plan=custom_plan
         )
         
         retrieval_time = time.time() - retrieval_start

@@ -50,7 +50,7 @@ export default function LoginPage() {
             </div>
           </div>
           <CardTitle className="text-2xl sm:text-3xl font-bold text-center text-foreground">
-            Welcome to GITAM Policy AI
+            Welcome to Policy Assistant
           </CardTitle>
           <CardDescription className="text-center text-muted-foreground text-sm sm:text-base">
             Sign in to access AI-powered education policy assistance
