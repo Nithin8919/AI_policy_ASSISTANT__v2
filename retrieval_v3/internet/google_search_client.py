@@ -3,6 +3,8 @@ import os
 from typing import List, Dict, Optional, Any
 from google import genai
 from google.genai import types
+import concurrent.futures
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -83,16 +85,63 @@ class GoogleSearchClient:
         # Default model name (starting point); search() will try multiple variants
         # For Vertex AI and AI Studio, "gemini-1.5-flash" is usually a good first try.
         self.model = "gemini-1.5-flash"
+        
+        # Initialize query rewriter for search optimization
+        try:
+            from retrieval_v3.query_understanding.query_rewriter import QueryRewriter
+            self.query_rewriter = QueryRewriter()
+            logger.info("✅ Query rewriter initialized for internet search optimization")
+        except Exception as e:
+            logger.warning(f"Query rewriter initialization failed: {e}, will use raw queries")
+            self.query_rewriter = None
 
-    def search(self, query: str) -> List[Dict[str, str]]:
+    def search(self, query: str, max_results: int = 5, timeout: float = 3.0) -> List[Dict[str, str]]:
         """
         Perform an internet search and return structured results.
-        Matches the user's 'internet_search' return format but adapted for the engine.
+        
+        Args:
+            query: Original user query
+            max_results: Maximum number of results to return (default: 5, increased from 1)
+            timeout: Timeout in seconds for the search operation (default: 3.0)
+            
+        Returns:
+            List of search results with title, snippet, url, and source
         """
         if not self.client:
             logger.error("GoogleSearchClient not initialized.")
             return []
+        
+        # OPTIMIZATION: Rewrite query for better search results
+        search_query = query
+        if self.query_rewriter:
+            try:
+                rewrites = self.query_rewriter.generate_rewrites(query, num_rewrites=1)
+                if rewrites:
+                    search_query = rewrites[0].text
+                    logger.info(f"🔄 Query rewritten for internet search: '{query}' → '{search_query}'")
+            except Exception as e:
+                logger.warning(f"Query rewriting failed: {e}, using original query")
+                search_query = query
 
+        try:
+            # Use timeout protection for internet search
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(self._perform_search, search_query, max_results)
+                try:
+                    results = future.result(timeout=timeout)
+                    return results
+                except concurrent.futures.TimeoutError:
+                    logger.warning(f"⏱️ Internet search timeout ({timeout}s), returning empty results")
+                    return []
+                except Exception as e:
+                    logger.error(f"Internet search failed: {e}")
+                    return []
+        except Exception as exc:
+            logger.error("Internet search failed: %s", exc)
+            return []
+    
+    def _perform_search(self, query: str, max_results: int) -> List[Dict[str, str]]:
+        """Internal method to perform the actual search (called with timeout protection)"""
         try:
             contents = [
                 types.Content(
@@ -192,14 +241,20 @@ class GoogleSearchClient:
                 logger.error(f"Internet search failed for all tried models. Last error: {last_error}")
                 return []
 
-            # Return in the format expected by retrieval_engine (list of dicts)
-            # The user's snippet returned: [{"title": "AI Response", "snippet": full_response_text, "link": ""}]
-            return [{
+            # Parse response to extract multiple results if possible
+            # For now, return as a single comprehensive result
+            # TODO: Parse structured results if the model returns them
+            results = [{
                 "title": "Google Search Summary",
                 "snippet": full_response_text,
-                "url": "https://google.com", # Placeholder as the model synthesized the answer
+                "url": "https://google.com",
                 "source": "Google Search"
             }]
+            
+            # If max_results > 1, we could split the response or make multiple calls
+            # For now, we return the single comprehensive result
+            logger.info(f"✅ Internet search returned {len(results)} result(s)")
+            return results[:max_results]
 
         except Exception as exc:
             logger.error("Internet search failed: %s", exc)

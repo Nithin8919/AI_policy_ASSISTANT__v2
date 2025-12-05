@@ -7,6 +7,25 @@ class EntityExtractor:
     # Strict GO regex - only matches valid GO formats
     GO_PATTERN = re.compile(
         r'G\.O\.(Ms|Rt)\.No\.\s*(\d+)',
+        r'G\.O\.(Ms|Rt)\.No\.\s*(\d+)',
+        re.IGNORECASE
+    )
+    
+    # HR/Staffing patterns
+    HR_PATTERN = re.compile(
+        r'\b(salary|payscale|recruitment|hiring|contract|private|appointment|vacancy|post|remuneration|staffing|service rules)\b',
+        re.IGNORECASE
+    )
+    
+    # Department pattern (simple)
+    DEPT_PATTERN = re.compile(
+        r'\b(education|finance|revenue|general administration|school education|higher education)\s+department\b',
+        re.IGNORECASE
+    )
+    
+    # Act pattern
+    ACT_PATTERN = re.compile(
+        r'\b(RTE|Right to Education|APSERMC|CCE)\s+Act\b',
         re.IGNORECASE
     )
     
@@ -32,6 +51,7 @@ class EntityExtractor:
         """
         return {
             'go_numbers': self.extract_go_numbers(text),
-            'departments': [],  # Can be extended
-            'acts': []  # Can be extended
+            'departments': self.DEPT_PATTERN.findall(text),
+            'acts': self.ACT_PATTERN.findall(text),
+            'hr_terms': self.HR_PATTERN.findall(text)
         }

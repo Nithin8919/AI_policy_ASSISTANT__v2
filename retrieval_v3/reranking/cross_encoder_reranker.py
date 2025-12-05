@@ -15,23 +15,26 @@ class CrossEncoderReranker:
     Reranks results using a Cross-Encoder model.
     """
     
-    def __init__(self, model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"):
+    def __init__(self, model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2", batch_size: int = 32):
         try:
             logger.info(f"Loading Cross-Encoder model: {model_name}")
             self.model = CrossEncoder(model_name)
+            self.batch_size = batch_size
             self.is_ready = True
+            logger.info(f"✅ Cross-Encoder ready with batch_size={batch_size}")
         except Exception as e:
             logger.error(f"Failed to load Cross-Encoder: {e}")
             self.is_ready = False
             
-    def rerank(self, query: str, results: List[Dict], top_k: int = 10) -> List[Dict]:
+    def rerank(self, query: str, results: List[Dict], top_k: int = 10, max_candidates: int = 50) -> List[Dict]:
         """
-        Rerank a list of results with timeout protection.
+        Rerank a list of results with timeout protection and smart batching.
         
         Args:
             query: User query
             results: List of result dicts (must have 'content' or 'text')
             top_k: Number of results to return
+            max_candidates: Maximum number of candidates to process (default: 50, increased from 25)
             
         Returns:
             Reranked list of results
@@ -39,47 +42,59 @@ class CrossEncoderReranker:
         if not self.is_ready or not results:
             return results[:top_k]
         
-        # LIMIT INPUT SIZE to prevent timeout (max 75 results for faster processing)
-        if len(results) > 75:
-            logger.warning(f"Too many results ({len(results)}), limiting to 75 for cross-encoder")
-            results = results[:75]
+        # Smart candidate selection: process up to max_candidates (default 50)
+        # This is a reasonable limit for performance while maintaining quality
+        num_to_process = min(len(results), max_candidates)
+        if len(results) > num_to_process:
+            logger.info(f"Processing top {num_to_process} candidates (out of {len(results)}) for cross-encoder")
+            candidates = results[:num_to_process]
+            remaining = results[num_to_process:]
+        else:
+            candidates = results
+            remaining = []
             
         try:
             # Prepare pairs for cross-encoder
             pairs = []
-            for res in results:
+            for res in candidates:
                 content = res.get("content") or res.get("text", "")
                 # Truncate content to avoid token limits (approx 500 words)
                 content = " ".join(content.split()[:500])
                 pairs.append([query, content])
                 
-            # Predict scores with timeout protection (5 seconds)
+            # Predict scores with timeout protection (8 seconds, reduced from 15s)
             import signal
             
             def timeout_handler(signum, frame):
                 raise TimeoutError("Cross-encoder timeout")
             
-            # Set 5-second timeout (increased from 3s)
+            # Set 8-second timeout for faster failure detection
             signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(5)
+            signal.alarm(8)
             
             try:
-                scores = self.model.predict(pairs)
+                # Process in batches for better performance
+                logger.info(f"Cross-encoder processing {len(pairs)} pairs in batches of {self.batch_size}")
+                scores = self.model.predict(pairs, batch_size=self.batch_size, show_progress_bar=False)
                 signal.alarm(0)  # Cancel alarm
+                logger.info(f"✅ Cross-encoder completed successfully")
             except TimeoutError:
-                logger.warning("⏱️ Cross-encoder timeout (5s), returning original ranking")
+                logger.warning("⏱️ Cross-encoder timeout (8s), returning original ranking")
                 signal.alarm(0)
                 return results[:top_k]
             
             # Update scores and sort
-            for i, res in enumerate(results):
+            for i, res in enumerate(candidates):
                 res["cross_encoder_score"] = float(scores[i])
                 res["score"] = float(scores[i])
                 
             # Sort by new score
-            results.sort(key=lambda x: x["score"], reverse=True)
+            candidates.sort(key=lambda x: x["score"], reverse=True)
             
-            return results[:top_k]
+            # Combine reranked candidates with remaining results
+            final_results = candidates + remaining
+            
+            return final_results[:top_k]
             
         except Exception as e:
             logger.error(f"❌ Cross-encoder failed: {e}, returning original ranking")

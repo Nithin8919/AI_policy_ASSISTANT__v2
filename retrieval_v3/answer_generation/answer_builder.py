@@ -85,7 +85,7 @@ class AnswerBuilder:
             
             genai.configure(api_key=self.api_key)
             # Use standard Gemini Flash model (v1beta-compatible)
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-1.5-flash-latest')
             
             # Prepare context from results
             context = self._prepare_context(results)

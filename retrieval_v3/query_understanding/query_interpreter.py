@@ -21,6 +21,7 @@ class QueryType(Enum):
     COMPARISON = "comparison"      # Compare policies/rules
     HISTORY = "history"            # Historical changes
     BRAINSTORM = "brainstorm"      # Generate ideas/strategies
+    HR = "hr"                      # HR/Staffing/Recruitment
 
 
 class QueryScope(Enum):
@@ -115,7 +116,27 @@ class QueryInterpreter:
         r'\bprevious\b',
         r'\bold\s+(version|rule|policy)\b',
         r'\bsuperseded\b',
+        r'\bsuperseded\b',
         r'\bamended\b',
+    ]
+    
+    HR_PATTERNS = [
+        r'\bhiring\b',
+        r'\brecruitment\b',
+        r'\bappointment\b',
+        r'\bvacancy\b',
+        r'\bpost\b',
+        r'\bjob\b',
+        r'\bsalary\b',
+        r'\bpayscale\b',
+        r'\bremuneration\b',
+        r'\bcontract\s+teacher\b',
+        r'\bprivate\s+sector\b',
+        r'\boutsourcing\b',
+        r'\bstaffing\b',
+        r'\bhuman\s+resource\b',
+        r'\bservice\s+rules\b',
+        r'\bemployment\b',
     ]
     
     # Scope detection patterns
@@ -162,6 +183,7 @@ class QueryInterpreter:
         'acts': r'(RTE|Right\s+to\s+Education|SSA|RMSA|MDM)\s+Act',
         'years': r'\b(19|20)\d{2}\b',
         'schemes': r'(Nadu-Nedu|Samagra\s+Shiksha|Mid\s+Day\s+Meal|Amma\s+Vodi)',
+        'hr_terms': r'(salary|payscale|recruitment|hiring|contract|private|appointment|vacancy|post)',
     }
     
     def __init__(self, use_llm_fallback: bool = False):
@@ -188,6 +210,7 @@ class QueryInterpreter:
             'narrow': [re.compile(p, re.IGNORECASE) for p in self.NARROW_INDICATORS],
             'broad': [re.compile(p, re.IGNORECASE) for p in self.BROAD_INDICATORS],
             'internet': [re.compile(p, re.IGNORECASE) for p in self.INTERNET_TRIGGERS],
+            'hr': [re.compile(p, re.IGNORECASE) for p in self.HR_PATTERNS],
         }
         
         self.entity_patterns = {
@@ -257,6 +280,7 @@ class QueryInterpreter:
             QueryType.COMPLIANCE: 0.0,
             QueryType.COMPARISON: 0.0,
             QueryType.HISTORY: 0.0,
+            QueryType.HR: 0.0,
         }
         
         # Score each type based on pattern matches
@@ -267,6 +291,7 @@ class QueryInterpreter:
             (QueryType.COMPLIANCE, self.compiled_patterns['compliance']),
             (QueryType.COMPARISON, self.compiled_patterns['comparison']),
             (QueryType.HISTORY, self.compiled_patterns['history']),
+            (QueryType.HR, self.compiled_patterns['hr']),
         ]:
             for pattern in patterns:
                 if pattern.search(query):

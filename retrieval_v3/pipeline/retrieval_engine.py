@@ -645,11 +645,28 @@ class RetrievalEngine:
         if self.use_relation_entity and self.relation_entity_processor:
             print(f"🔗 Starting relation-entity processing...")
             
-            relation_enhanced = self.relation_entity_processor.process_complete(
-                query=normalized_query,
-                results=bm25_boosted,
-                phases_enabled={'relation_scoring': True, 'entity_matching': True, 'entity_expansion': True}
-            )
+            # Add timeout protection (8s for deep think, 5s for regular)
+            # Deep think mode can take more time for quality
+            timeout_limit = 8.0 if interpretation.needs_deep_mode else 5.0
+            
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    self.relation_entity_processor.process_complete,
+                    query=normalized_query,
+                    results=bm25_boosted,
+                    phases_enabled={'relation_scoring': True, 'entity_matching': True, 'entity_expansion': True}
+                )
+                
+                try:
+                    relation_enhanced = future.result(timeout=timeout_limit)
+                    logger.info(f"✅ Relation-entity processing completed within {timeout_limit}s")
+                except concurrent.futures.TimeoutError:
+                    logger.warning(f"⏱️ Relation-entity timeout ({timeout_limit}s), using BM25 results")
+                    relation_enhanced = bm25_boosted
+                except Exception as e:
+                    logger.error(f"❌ Relation-entity processing failed: {e}, using BM25 results")
+                    relation_enhanced = bm25_boosted
         else:
             relation_enhanced = bm25_boosted
             

@@ -484,8 +484,36 @@ class QueryRewriter:
             
             # Configure Gemini Flash (fastest, cheapest)
             genai.configure(api_key=api_key)
-            # Use Gemini 1.5 Flash with version suffix for stability
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            
+            # Try different model names - API version compatibility varies
+            model_names_to_try = [
+                'models/gemini-1.5-flash',  # v1beta format
+                'gemini-1.5-flash',
+                'gemini-flash',
+                'models/gemini-pro',
+                'gemini-pro'
+            ]
+            
+            model = None
+            last_error = None
+            
+            for model_name in model_names_to_try:
+                try:
+                    model = genai.GenerativeModel(model_name)
+                    # Test if model works by attempting to generate
+                    test_response = model.generate_content(
+                        "test",
+                        generation_config={'max_output_tokens': 10}
+                    )
+                    print(f"✅ Successfully using model: {model_name}")
+                    break
+                except Exception as e:
+                    last_error = e
+                    continue
+            
+            if not model:
+                print(f"❌ All Gemini models failed: {last_error}, falling back to rule-based")
+                return self.generate_rewrites(query, num_rewrites)
             
             # Create prompt for domain-specific rewrites
             prompt = f"""You are an expert in Indian education policy. Generate {num_rewrites} different rewrites of this query, each targeting different aspects of education policy:

@@ -98,7 +98,7 @@ class RelationReranker:
         relation_results = self._convert_to_relation_results(results)
         
         # STEP 1: Apply relation-based scoring adjustments
-        scored_results = self._apply_relation_scoring(relation_results)
+        scored_results = self._apply_relation_scoring(query, relation_results)
         
         # STEP 2: 1-hop neighbor expansion (if enabled)
         if enable_1hop and self.qdrant_client:
@@ -137,16 +137,17 @@ class RelationReranker:
         
         return relation_results
     
-    def _apply_relation_scoring(self, results: List[RelationResult]) -> List[RelationResult]:
+    def _apply_relation_scoring(self, query: str, results: List[RelationResult]) -> List[RelationResult]:
         """
-        Apply relation-based scoring adjustments
+        Apply relation-based scoring adjustments (OPTIMIZED to reduce over-boosting)
         
         Key adjustments:
         - Downrank superseded documents (0.4x)
-        - Boost superseding documents (1.3x)
-        - Boost amendments (1.15x)
-        - Boost implementations (1.1x)
-        - Boost citations to major Acts (1.1x)
+        - Boost superseding documents (1.15x, reduced from 1.3x)
+        - Boost amendments (1.08x, reduced from 1.15x)
+        - Boost implementations (1.05x, reduced from 1.1x)
+        - Boost citations to major Acts (1.05x, reduced from 1.1x)
+        - Maximum cumulative boost: 1.25x (NEW)
         """
         print(f"📊 Applying relation scoring to {len(results)} results...")
         
@@ -176,45 +177,79 @@ class RelationReranker:
             
             # Check if document supersedes others (current version)
             if self._supersedes_others(result):
-                result.score *= 1.3  # Boost current versions
+                result.score *= 1.15  # Boost current versions (reduced from 1.3x)
                 result.metadata['currency_status'] = 'current'
                 boosted_count += 1
                 print(f"   📈 Current document boosted: {result.doc_id} ({original_score:.3f} → {result.score:.3f})")
             
-            # Boost based on relation types - ENHANCED FOR REAL DATA
+            # Boost based on relation types - OPTIMIZED to reduce over-boosting
             boost_applied = False
             boost_amount = 1.0
             
             if 'amends' in relation_types:
-                boost_amount *= 1.15  # Boost amendments
+                boost_amount *= 1.08  # Boost amendments (reduced from 1.15x)
                 boost_applied = True
                 print(f"   📈 Amendment boost: {result.doc_id}")
                 
             if 'implements' in relation_types:
-                boost_amount *= 1.1  # Boost implementations
+                boost_amount *= 1.05  # Boost implementations (reduced from 1.1x)
                 boost_applied = True
                 print(f"   📈 Implementation boost: {result.doc_id}")
                 
             if 'cites' in relation_types:
                 # Check if citing major Acts or important sections
                 if self._cites_important_refs(relations):
-                    boost_amount *= 1.1  # Boost citations to major refs
+                    boost_amount *= 1.05  # Boost citations to major refs (reduced from 1.1x)
                     boost_applied = True
                     print(f"   📈 Citation boost: {result.doc_id}")
             
             if 'governed_by' in relation_types:
-                boost_amount *= 1.08  # Boost for governance relations
+                boost_amount *= 1.05  # Boost for governance relations (reduced from 1.08x)
                 boost_applied = True
                 print(f"   📈 Governance boost: {result.doc_id}")
             
             if boost_applied:
-                result.score *= boost_amount
+                # CAP BOOST: Apply maximum cumulative boost of 1.25x to prevent over-boosting
+                boost_amount = min(boost_amount, 1.25)
+                
+                # Further cap if query domain doesn't match result domain
+                if self._is_domain_relevant(result, query):
+                    result.score *= boost_amount
+                else:
+                    result.score *= min(boost_amount, 1.03)  # Stricter cap for domain mismatch
+                    print(f"   ⚠️ Boost capped for {result.doc_id} (domain mismatch)")
+                
                 boosted_count += 1
                 result.metadata['relation_boost_applied'] = boost_amount
                 result.metadata['relation_types_found'] = relation_types
         
         print(f"   📊 Relation scoring: {superseded_count} superseded, {boosted_count} boosted")
+        print(f"   📊 Relation scoring: {superseded_count} superseded, {boosted_count} boosted")
         return results
+
+    def _is_domain_relevant(self, result: RelationResult, query: str) -> bool:
+        """Check if result domain is relevant to query (OPTIMIZED for stricter matching)"""
+        query_lower = query.lower()
+        vertical = result.vertical.lower()
+        
+        # If query is very generic (1-2 words), be permissive
+        if len(query.split()) <= 2:
+            return True
+            
+        # Check explicit vertical match
+        if vertical in query_lower:
+            return True
+            
+        # Check content overlap - require at least 2 matching terms (stricter than before)
+        content_snippet = result.content[:200].lower()  # Increased from 100 for better matching
+        query_terms = set(query_lower.split())
+        content_terms = set(content_snippet.split())
+        
+        overlap = query_terms.intersection(content_terms)
+        if len(overlap) >= 2:  # Require at least 2 matching terms (was 1)
+            return True
+            
+        return False
     
     def _is_superseded(self, result: RelationResult) -> bool:
         """Check if document is superseded by checking reverse relations"""
@@ -593,7 +628,9 @@ class EntityMatcher:
             'departments': r'(education|school education|higher education|finance|revenue)[\s\.]?department',
             'keywords': r'(teacher|transfer|recruitment|amendment|implementation|policy)',  # Key terms
             'dates': r'(\d{1,2}[-/]\d{1,2}[-/]\d{4})',
-            'years': r'(20\d{2})'  # Year patterns
+            'dates': r'(\d{1,2}[-/]\d{1,2}[-/]\d{4})',
+            'years': r'(20\d{2})',  # Year patterns
+            'hr_terms': r'(salary|payscale|recruitment|hiring|contract|private|appointment|vacancy|post|remuneration|staffing|service rules)',
         }
         
         # Compile patterns
