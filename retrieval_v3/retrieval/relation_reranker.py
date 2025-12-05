@@ -357,6 +357,12 @@ class RelationReranker:
             # Extract targets from valid relation types only
             targets_to_fetch = []
             for rel in relations:
+                # OPTIMIZATION: Skip low-confidence relations to reduce noise
+                confidence = rel.get('confidence', 0.0)
+                if confidence < 0.7:
+                    print(f"   ⏭️ Skipping low-confidence relation (conf={confidence:.2f})")
+                    continue
+                
                 rel_type = rel.get('relation_type') or rel.get('type')
                 if rel_type not in valid_rel_types:
                     continue
@@ -471,40 +477,54 @@ class RelationReranker:
                     "match": {"value": identifier}
                 })
             
-            # Strategy 3: Content search as fallback
-            if not filter_conditions:
+            # Execute filter search if conditions exist
+            results = []
+            if filter_conditions:
+                try:
+                    from qdrant_client.http import models as rest_models
+                    results, _ = self._client.scroll(
+                        collection_name="ap_government_orders",
+                        scroll_filter=rest_models.Filter(should=filter_conditions), 
+                        limit=3,
+                        with_payload=True,
+                        with_vectors=False
+                    )
+                except Exception as e:
+                    print(f"   ⚠️ Filter search failed for {identifier}: {e}")
+            
+            # Strategy 3: Content search as fallback (if filter returned nothing)
+            if not results:
                 # Use scroll with text search
-                results, _ = self._client.scroll(
-                    collection_name="ap_government_orders",  # Try GO collection first
+                print(f"   ⚠️ Strict lookup failed for '{identifier}', trying content fallback...")
+                scroll_res, _ = self._client.scroll(
+                    collection_name="ap_government_orders",
                     scroll_filter=None,
-                    limit=3,
+                    limit=2,  # Reduced from 5 - we only need 1-2 matches typically
                     with_payload=True,
                     with_vectors=False
                 )
                 
-                # Filter by content matching
-                matched_results = []
-                for point in results:
-                    if identifier.lower() in point.payload.get('content', '').lower():
-                        matched_results.append(self._point_to_relation_result(point, relation_type))
+                # Filter by content matching (fuzzy)
+                matched_points = []
+                identifier_clean = identifier.lower().replace('.', ' ').replace('-', ' ').strip()
                 
-                return matched_results[:2]  # Max 2 from content search
-            
-            # Execute filter search
-            results, _ = self._client.scroll(
-                collection_name="ap_government_orders",  # Primary collection
-                scroll_filter={"should": filter_conditions},
-                limit=3,
-                with_payload=True,
-                with_vectors=False
-            )
-            
-            relation_results = []
+                for point in scroll_res:
+                    content_lower = point.payload.get('content', '').lower()
+                    # Check if identifier appears in content
+                    if identifier_clean in content_lower:
+                        matched_points.append(point)
+                    # Also check title/metadata
+                    elif identifier_clean in str(point.payload.get('metadata', '')).lower():
+                         matched_points.append(point)
+                         
+                results = matched_points[:3]
+
+            # Convert points to RelationResult objects
+            final_results = []
             for point in results:
-                relation_result = self._point_to_relation_result(point, relation_type)
-                relation_results.append(relation_result)
-            
-            return relation_results
+                final_results.append(self._point_to_relation_result(point, relation_type))
+                
+            return final_results
             
         except Exception as e:
             print(f"   ⚠️ Fetch by identifier failed for {identifier}: {e}")
@@ -692,6 +712,22 @@ class EntityMatcher:
                 
                 enhanced_count += 1
                 print(f"   📈 Entity boost: {result.doc_id} ({original_score:.3f} → {result.score:.3f}, overlap: {overlap_score:.2f})")
+            
+            # OPTIMIZATION: Boost entity-rich documents (quality signal)
+            entity_counts = result.metadata.get('entity_counts', {})
+            if entity_counts:
+                total_entities = sum(entity_counts.values())
+                
+                if total_entities >= 5:
+                    density_boost = 1.1  # 10% boost for very rich entities
+                    result.score *= density_boost
+                    result.metadata['entity_density_boost'] = density_boost
+                    print(f"   🔢 Entity density boost: {result.doc_id} (has {total_entities} entities)")
+                elif total_entities >= 3:
+                    density_boost = 1.05  # 5% boost for moderately rich
+                    result.score *= density_boost
+                    result.metadata['entity_density_boost'] = density_boost
+
             
             # CRITICAL FIX: Apply recency scoring using trusted date_issued_ts
             if wants_recent:
@@ -1237,12 +1273,13 @@ class BidirectionalRelationFinder:
         """
         Find documents that supersede this result
         
-        Looks for documents where relations.target = this doc AND relations.type = 'supersedes'
+        Strategy 1: Strict filter on relations.target + relations.type
+        Strategy 2: Content-based fallback search
         """
         doc_id = result.doc_id
         
         try:
-            # Search for documents that supersede this one - Use query_points for efficiency
+            # Strategy 1: Strict Qdrant filter
             query_filter = models.Filter(
                 must=[
                     models.NestedCondition(
@@ -1266,25 +1303,32 @@ class BidirectionalRelationFinder:
             )
             
             points = []
-            if hasattr(self._client, 'query_points'):
-                response = self._client.query_points(
-                    collection_name="ap_government_orders",
-                    query_filter=query_filter,
-                    limit=5,
-                    with_payload=True,
-                    with_vectors=False
-                )
-                points = response.points
-            else:
-                # Fallback
-                response, _ = self._client.scroll(
-                    collection_name="ap_government_orders",
-                    scroll_filter=query_filter,
-                    limit=5,
-                    with_payload=True,
-                    with_vectors=False
-                )
-                points = response
+            try:
+                if hasattr(self._client, 'query_points'):
+                    response = self._client.query_points(
+                        collection_name="ap_government_orders",
+                        query_filter=query_filter,
+                        limit=5,
+                        with_payload=True,
+                        with_vectors=False
+                    )
+                    points = response.points
+                else:
+                    response, _ = self._client.scroll(
+                        collection_name="ap_government_orders",
+                        scroll_filter=query_filter,
+                        limit=5,
+                        with_payload=True,
+                        with_vectors=False
+                    )
+                    points = response
+            except Exception as filter_error:
+                print(f"   ⚠️ Strict filter failed for {doc_id}: {filter_error}")
+                
+            # Strategy 2: Content-based fallback if strict filter returned nothing
+            if not points:
+                print(f"   ⚠️ No strict matches for superseding docs of {doc_id}, trying content search...")
+                points = self._find_superseding_by_content_fallback(doc_id)
                 
             superseding_results = []
             for point in points:
@@ -1303,9 +1347,9 @@ class BidirectionalRelationFinder:
             print(f"   ⚠️ Supersedes check failed: {e}")
             return []
     
-    def _find_superseding_by_content(self, doc_id: str) -> List[Dict]:
+    def _find_superseding_by_content_fallback(self, doc_id: str) -> List:
         """
-        Find superseding documents by content analysis
+        Find superseding documents by content analysis (returns Qdrant points)
         
         Looks for phrases like "supersedes GO 123", "replaces GO 123"
         """
@@ -1327,12 +1371,12 @@ class BidirectionalRelationFinder:
                 f"hereby cancels.*{go_number}"
             ]
             
-            superseding_docs = []
+            superseding_points = []
             
             for pattern in supersession_patterns:
                 results, _ = self._client.scroll(
                     collection_name="ap_government_orders",
-                    scroll_filter=None,  # Content search, no specific filter
+                    scroll_filter=None,
                     limit=20,
                     with_payload=True,
                     with_vectors=False
@@ -1342,9 +1386,13 @@ class BidirectionalRelationFinder:
                 for point in results:
                     content = point.payload.get('content', '').lower()
                     if re.search(pattern, content):
-                        superseding_docs.append(point.payload)
+                        superseding_points.append(point)
+                        if len(superseding_points) >= 3:
+                            break
+                if len(superseding_points) >= 3:
+                    break
             
-            return superseding_docs[:3]  # Max 3 from content search
+            return superseding_points[:3]
             
         except Exception as e:
             print(f"   ⚠️ Content-based supersession search failed: {e}")
@@ -1353,11 +1401,14 @@ class BidirectionalRelationFinder:
     def _find_amending_docs(self, result: RelationResult) -> List[RelationResult]:
         """
         Find documents that amend this result
+        
+        Strategy 1: Strict filter on relations
+        Strategy 2: Content-based fallback
         """
         doc_id = result.doc_id
         
         try:
-            # Search for documents that amend this one - Use query_points for efficiency
+            # Strategy 1: Strict filter
             query_filter = models.Filter(
                 must=[
                     models.NestedCondition(
@@ -1381,25 +1432,32 @@ class BidirectionalRelationFinder:
             )
             
             points = []
-            if hasattr(self._client, 'query_points'):
-                response = self._client.query_points(
-                    collection_name="ap_government_orders",
-                    query_filter=query_filter,
-                    limit=5,
-                    with_payload=True,
-                    with_vectors=False
-                )
-                points = response.points
-            else:
-                # Fallback
-                response, _ = self._client.scroll(
-                    collection_name="ap_government_orders",
-                    scroll_filter=query_filter,
-                    limit=5,
-                    with_payload=True,
-                    with_vectors=False
-                )
-                points = response
+            try:
+                if hasattr(self._client, 'query_points'):
+                    response = self._client.query_points(
+                        collection_name="ap_government_orders",
+                        query_filter=query_filter,
+                        limit=5,
+                        with_payload=True,
+                        with_vectors=False
+                    )
+                    points = response.points
+                else:
+                    response, _ = self._client.scroll(
+                        collection_name="ap_government_orders",
+                        scroll_filter=query_filter,
+                        limit=5,
+                        with_payload=True,
+                        with_vectors=False
+                    )
+                    points = response
+            except Exception as filter_error:
+                print(f"   ⚠️ Strict amends filter failed for {doc_id}: {filter_error}")
+                
+            # Strategy 2: Content fallback
+            if not points:
+                print(f"   ⚠️ No strict matches for amending docs of {doc_id}, trying content search...")
+                points = self._find_amending_by_content_fallback(doc_id)
                 
             amending_results = []
             for point in points:
@@ -1417,10 +1475,56 @@ class BidirectionalRelationFinder:
         except Exception as e:
             print(f"   ⚠️ Amends check failed: {e}")
             return []
-
+    
+    def _find_amending_by_content_fallback(self, doc_id: str) -> List:
+        """
+        Find amending documents by content analysis (returns Qdrant points)
+        
+        Looks for phrases like "amends GO 123", "modifies GO 123"
+        """
+        try:
+            # Extract GO number from doc_id
+            go_pattern = r'(?:go|ms|rt)[\s_]*(\d+)'
+            match = re.search(go_pattern, doc_id.lower())
+            
+            if not match:
+                return []
+            
+            go_number = match.group(1)
+            
+            # Search for content mentioning amendment of this GO
+            amendment_patterns = [
+                f"amends.*{go_number}",
+                f"modifies.*{go_number}",
+                f"amending.*{go_number}",
+                f"hereby amends.*{go_number}"
+            ]
+            
+            amending_points = []
+            
+            for pattern in amendment_patterns:
+                results, _ = self._client.scroll(
+                    collection_name="ap_government_orders",
+                    scroll_filter=None,
+                    limit=20,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                
+                # Filter by content matching
+                for point in results:
+                    content = point.payload.get('content', '').lower()
+                    if re.search(pattern, content):
+                        amending_points.append(point)
+                        if len(amending_points) >= 3:
+                            break
+                if len(amending_points) >= 3:
+                    break
+            
+            return amending_points[:3]
             
         except Exception as e:
-            print(f"   ⚠️ Find amendments failed for {doc_id}: {e}")
+            print(f"   ⚠️ Content-based amendment search failed: {e}")
             return []
 
 

@@ -51,6 +51,18 @@ class QueryNormalizer:
         'smdc': 'school management and development committee',
         'vmc': 'village monitoring committee',
         'pta': 'parent teacher association',
+        
+        # AP-specific schemes (CRITICAL for retrieval)
+        'ammavadi': 'amma vodi',
+        'amavodi': 'amma vodi',
+        'jagananna': 'jagananna',
+        'vidyakanuka': 'vidya kanuka',
+        'vidya kanuka': 'vidya kanuka',
+        'nadunedu': 'nadu nedu',
+        'naadu nedu': 'nadu nedu',
+        'mana badi': 'mana badi',
+        'manabadi': 'mana badi',
+        'gorumudda': 'gorumudda',
     }
     
     def __init__(self):

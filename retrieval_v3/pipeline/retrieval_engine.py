@@ -579,7 +579,8 @@ class RetrievalEngine:
             trace_steps.append("Searching internet for latest policies...")
             logger.info(f"🌐 Internet search enabled for: {query}")
             try:
-                web_raw_results = self.google_search_client.search(query)
+                # Increased timeout from 3s to 10s - Gemini streaming typically takes 5-8s
+                web_raw_results = self.google_search_client.search(query, timeout=10.0)
                 
                 # Convert to RetrievalResult objects
                 for i, res in enumerate(web_raw_results):
@@ -665,7 +666,12 @@ class RetrievalEngine:
                     self.relation_entity_processor.process_complete,
                     query=normalized_query,
                     results=bm25_boosted,
-                    phases_enabled={'relation_scoring': True, 'entity_matching': True, 'entity_expansion': True}
+                    phases_enabled={
+                        'relation_scoring': True, 
+                        'entity_matching': True, 
+                        'entity_expansion': True,
+                        'bidirectional_search': False  # DISABLED - was taking 38.78s and finding 0 results
+                    }
                 )
                 
                 try:

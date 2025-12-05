@@ -487,11 +487,10 @@ class QueryRewriter:
             
             # Try different model names - API version compatibility varies
             model_names_to_try = [
-                'models/gemini-1.5-flash',  # v1beta format
-                'gemini-1.5-flash',
-                'gemini-flash',
-                'models/gemini-pro',
-                'gemini-pro'
+                'gemini-1.5-flash',         # Primary model (fast & cheap)
+                'gemini-2.0-flash',         # Newer version
+                'gemini-1.5-pro',           # Fallback to pro
+                'models/gemini-1.5-flash',  # v1beta format (AI Studio)
             ]
             
             model = None

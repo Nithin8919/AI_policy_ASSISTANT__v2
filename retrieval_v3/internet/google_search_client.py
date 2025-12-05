@@ -83,8 +83,10 @@ class GoogleSearchClient:
                 self.client = None
 
         # Default model name (starting point); search() will try multiple variants
-        # For Vertex AI and AI Studio, "gemini-1.5-flash" is usually a good first try.
-        self.model = "gemini-1.5-flash"
+        # For AI Studio (vertexai=False), use SHORT model names without "models/" prefix
+        # For Vertex AI, use model names directly (e.g., "gemini-2.0-flash")
+        # The SDK will automatically prepend "models/" for AI Studio
+        self.model = "gemini-2.0-flash"  # Changed from "gemini-1.5-flash" - use newer model
         
         # Initialize query rewriter for search optimization
         try:
@@ -95,14 +97,14 @@ class GoogleSearchClient:
             logger.warning(f"Query rewriter initialization failed: {e}, will use raw queries")
             self.query_rewriter = None
 
-    def search(self, query: str, max_results: int = 5, timeout: float = 3.0) -> List[Dict[str, str]]:
+    def search(self, query: str, max_results: int = 5, timeout: float = 8.0) -> List[Dict[str, str]]:
         """
         Perform an internet search and return structured results.
         
         Args:
             query: Original user query
             max_results: Maximum number of results to return (default: 5, increased from 1)
-            timeout: Timeout in seconds for the search operation (default: 3.0)
+            timeout: Timeout in seconds for the search operation (default: 8.0, increased from 3.0)
             
         Returns:
             List of search results with title, snippet, url, and source
@@ -193,13 +195,12 @@ class GoogleSearchClient:
                     "gemini-2.0-flash",
                 ]
             else:
-                # AI Studio: use common AI Studio model IDs
+                # AI Studio: use SHORT model names (SDK auto-prepends "models/")
+                # Try newer models first as they're more reliable
                 models_to_try = [
-                    self.model,          # default, usually "gemini-1.5-flash"
-                    "gemini-1.5-pro",
-                    "gemini-2.0-flash",
-                    "gemini-1.0-pro",
-                    "gemini-pro",
+                    "gemini-2.0-flash",   # Newest, most reliable
+                    "gemini-1.5-flash",   # Fallback
+                    "gemini-1.5-pro",     # Pro version
                 ]
 
             generate_content_config = types.GenerateContentConfig(**config_kwargs)

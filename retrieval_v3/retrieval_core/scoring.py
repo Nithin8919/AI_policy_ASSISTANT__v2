@@ -82,20 +82,22 @@ def relation_bonus(relation_types: List[str]) -> float:
 
 def section_type_boost(section_type: Optional[str]) -> float:
     """
-    Boost based on section type (orders > annexure > preamble > content)
+    Boost based on section type (orders > content > annexure > preamble)
+    UPDATED: Strengthened to prioritize actual policy content
     
     Args:
         section_type: Type of section (orders, annexure, preamble, content)
         
     Returns:
-        Boost multiplier (1.0-1.3)
+        Boost multiplier (0.85-1.3)
     """
     boosts = {
-        "orders": 1.3,
-        "order": 1.3,
-        "annexure": 1.15,
-        "preamble": 1.05,
-        "content": 1.0,
+        "orders": 1.3,       # STRONGEST boost - actual policy orders
+        "order": 1.3,        # Singular form
+        "content": 1.2,      # General content - increased from 1.0
+        "annexure": 1.0,     # Appendices - neutral
+        "preamble": 0.85,    # Decreased from 1.05 - administrative fluff
+        "table": 0.95,       # Tables - slightly less relevant
     }
     return boosts.get(section_type.lower() if section_type else "", 1.0)
 
