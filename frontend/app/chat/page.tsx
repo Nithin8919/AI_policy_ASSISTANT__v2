@@ -8,16 +8,10 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { ChatBot } from './ChatBot'
 import { PolicyCrafter } from './PolicyCrafter'
 import { modelService } from '@/lib/modelService'
-
-interface ChatHistoryItem {
-  id: string
-  title: string
-  preview: string
-  timestamp: Date
-}
+import { useChatStore } from '@/hooks/useChatStore'
 
 export default function ChatPage() {
-  const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([])
+  const { chats, deleteChat } = useChatStore()
   const [activeChatId, setActiveChatId] = useState<string | undefined>()
   const [selectedModel, setSelectedModel] = useState<string>("")
   const [currentInterface, setCurrentInterface] = useState<'chat' | 'policy-crafter'>('chat')
@@ -29,15 +23,15 @@ export default function ChatPage() {
         console.log('Loading available models for default selection...')
         const allModels = await modelService.refreshModels()
         console.log('Available models:', allModels)
-        
+
         if (allModels.length > 0) {
           // Prefer cloud models first, then Ollama models
           const cloudModels = allModels.filter(m => m.category === 'cloud' && m.isAvailable)
           const ollamaModels = allModels.filter(m => m.category === 'ollama')
-          
-          const defaultModel = cloudModels.length > 0 ? cloudModels[0].id : 
-                              ollamaModels.length > 0 ? ollamaModels[0].id : 
-                              allModels[0].id
+
+          const defaultModel = cloudModels.length > 0 ? cloudModels[0].id :
+            ollamaModels.length > 0 ? ollamaModels[0].id :
+              allModels[0].id
           console.log('Setting default model to:', defaultModel)
           setSelectedModel(defaultModel)
         } else {
@@ -49,42 +43,26 @@ export default function ChatPage() {
         setSelectedModel("gemini-2.5-flash")
       }
     }
-    
+
     loadDefaultModel()
   }, [])
 
   const handleNewChat = () => {
-    // Create a new chat session
-    const newChatId = Date.now().toString()
-    const newChat: ChatHistoryItem = {
-      id: newChatId,
-      title: 'New Chat',
-      preview: 'Start a new conversation...',
-      timestamp: new Date(),
-    }
-    setChatHistory(prev => [newChat, ...prev])
-    setActiveChatId(newChatId)
+    setActiveChatId(undefined)
   }
 
   const handleSelectChat = (chatId: string) => {
     setActiveChatId(chatId)
   }
 
-  const handleDeleteChat = (chatId: string) => {
-    setChatHistory(prev => prev.filter(chat => chat.id !== chatId))
+  const handleDeleteChat = async (chatId: string) => {
+    await deleteChat(chatId)
     if (activeChatId === chatId) {
       setActiveChatId(undefined)
     }
   }
 
-  const handleUpdateChatHistory = (chatId: string, title: string, preview: string) => {
-    const newChat: ChatHistoryItem = {
-      id: chatId,
-      title,
-      preview,
-      timestamp: new Date(),
-    }
-    setChatHistory(prev => [newChat, ...prev])
+  const handleChatCreated = (chatId: string) => {
     setActiveChatId(chatId)
   }
 
@@ -126,23 +104,24 @@ export default function ChatPage() {
 
       <AppSidebar
         variant="inset"
-        chatHistory={chatHistory}
+        chatHistory={chats}
         activeChatId={activeChatId}
         onNewChat={handleNewChat}
         onSelectChat={handleSelectChat}
         onDeleteChat={handleDeleteChat}
       />
       <SidebarInset>
-        <SiteHeader 
+        <SiteHeader
           selectedModel={selectedModel}
           onModelChange={handleModelChange}
           onPolicyCrafterClick={handlePolicyCrafterClick}
         />
-        
+
         <div className="flex-1 flex flex-col min-h-0">
           {selectedModel ? (
             <ChatBot
-              onUpdateChatHistory={handleUpdateChatHistory}
+              activeChatId={activeChatId}
+              onChatCreated={handleChatCreated}
               selectedModel={selectedModel}
             />
           ) : (

@@ -141,26 +141,47 @@ export function ChatMessage({ message }: ChatMessageProps) {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {message.response.citations.map((citation: any, index: number) => (
-                  <div
-                    key={index}
-                    className="group relative p-3 rounded-xl bg-card/50 hover:bg-card border border-border/50 hover:border-primary/20 transition-all duration-200 cursor-pointer"
-                  >
+                {message.response.citations.map((citation: any, index: number) => {
+                  const hasUrl = !!citation.url;
+                  const displayName = citation.filename || citation.source || citation.docId;
+                  const pageInfo = citation.page ? `Page ${citation.page}` : '';
+
+                  const CardContent = () => (
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
                         {index + 1}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-xs font-medium text-foreground truncate pr-2">
-                          {citation.docId}
+                        <div className="text-xs font-medium text-foreground truncate pr-2" title={displayName}>
+                          {displayName}
                         </div>
                         <div className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-relaxed group-hover:text-foreground/80 transition-colors">
+                          {pageInfo && <span className="font-mono mr-1">[{pageInfo}]</span>}
                           {citation.span}
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+
+                  return hasUrl ? (
+                    <a
+                      key={index}
+                      href={citation.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group relative p-3 rounded-xl bg-card/50 hover:bg-card border border-border/50 hover:border-primary/20 transition-all duration-200 cursor-pointer block"
+                    >
+                      <CardContent />
+                    </a>
+                  ) : (
+                    <div
+                      key={index}
+                      className="group relative p-3 rounded-xl bg-card/50 hover:bg-card border border-border/50 hover:border-primary/20 transition-all duration-200 cursor-pointer"
+                    >
+                      <CardContent />
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

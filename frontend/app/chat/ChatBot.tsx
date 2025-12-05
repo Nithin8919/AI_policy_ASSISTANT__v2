@@ -9,30 +9,28 @@ import { modelService } from '@/lib/modelService'
 import { AIModel } from '@/lib/models'
 import { Badge } from '@/components/ui/badge'
 import { Server, Cloud } from 'lucide-react'
-
-interface Message {
-  id: string
-  content: string
-  role: 'user' | 'assistant' | 'system'
-  timestamp: Date
-  response?: QueryResponse
-  queryMode?: QueryMode
-}
+import { useChatMessages, useChatStore, Message } from '@/hooks/useChatStore'
 
 interface ChatBotProps {
   selectedModel: string
-  onUpdateChatHistory?: (chatId: string, title: string, preview: string) => void
+  activeChatId?: string
+  onChatCreated?: (chatId: string) => void
 }
 
 type QueryMode = 'qa' | 'deep_think' | 'brainstorm'
 
-export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+export function ChatBot({ selectedModel, activeChatId, onChatCreated }: ChatBotProps) {
+  const { messages: firestoreMessages, loadingMessages } = useChatMessages(activeChatId)
+  const { createChat, addMessageToChat, updateChatPreview } = useChatStore()
+
+  // Local state for optimistic updates or just rely on Firestore (it's fast enough usually)
+  // But for "Thinking..." state we need local state or a way to show pending message.
+  // Let's use a local "pending" state.
+  const [isSending, setIsSending] = useState(false)
+
   const [queryMode, setQueryMode] = useState<QueryMode>('qa')
   const [internetEnabled, setInternetEnabled] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -40,7 +38,7 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages, isLoading])
+  }, [firestoreMessages, isSending])
 
   const handleQueryModeChange = (mode: QueryMode) => {
     setQueryMode(mode)
@@ -51,6 +49,9 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
   }
 
   const handleSendMessage = async (content: string) => {
+    setIsSending(true)
+
+    // Create user message object
     const userMessage: Message = {
       id: Date.now().toString(),
       content,
@@ -58,11 +59,23 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
       timestamp: new Date(),
     }
 
-    setMessages(prev => [...prev, userMessage])
-    setIsLoading(true)
+    let currentChatId = activeChatId
 
     try {
       console.log(`ChatBot: Using query mode: ${queryMode}, Internet: ${internetEnabled}`)
+
+      // If no active chat, we need to create one, but we usually wait for the response to set the title/preview?
+      // Or we can create it now.
+      // Let's create it now with the user message.
+
+      if (!currentChatId) {
+        const title = content.length > 30 ? content.substring(0, 30) + '...' : content
+        // We'll update preview later with the answer
+        currentChatId = await createChat(userMessage, title, content)
+        onChatCreated?.(currentChatId)
+      } else {
+        await addMessageToChat(currentChatId, userMessage)
+      }
 
       // Use backend API with current query mode and internet setting
       const response = await queryAPI({
@@ -84,15 +97,15 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
         queryMode: queryMode,
       }
 
-      setMessages(prev => [...prev, assistantMessage])
+      if (currentChatId) {
+        await addMessageToChat(currentChatId, assistantMessage)
 
-      // Update chat history with the first user message
-      if (messages.length === 0) {
-        const chatId = Date.now().toString()
+        // Update preview with the assistant's answer
         const title = content.length > 30 ? content.substring(0, 30) + '...' : content
-        const preview = response.answer.length > 50 ? response.answer.substring(0, 50) + '...' : response.answer
-        onUpdateChatHistory?.(chatId, title, preview)
+        const preview = responseContent.length > 50 ? responseContent.substring(0, 50) + '...' : responseContent
+        await updateChatPreview(currentChatId, title, preview)
       }
+
     } catch (error) {
       console.error('Chat error:', error)
       const errorMessage: Message = {
@@ -101,16 +114,22 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
         role: 'system',
         timestamp: new Date(),
       }
-      setMessages(prev => [...prev, errorMessage])
+      // We might want to add this error message to the chat too
+      if (currentChatId) {
+        await addMessageToChat(currentChatId, errorMessage)
+      }
     } finally {
-      setIsLoading(false)
+      setIsSending(false)
     }
   }
+
+  // Combine firestore messages with loading state if needed, but firestoreMessages updates automatically
+  const displayMessages = firestoreMessages
 
   return (
     <div className="flex-1 flex flex-col h-full">
 
-      {messages.length === 0 ? (
+      {!activeChatId && displayMessages.length === 0 ? (
         /* Initial Empty State - Properly Centered */
         <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
           {/* Welcome Message */}
@@ -124,7 +143,7 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
           <div className="w-full max-w-3xl">
             <ChatInput
               onSendMessage={handleSendMessage}
-              isLoading={isLoading}
+              isLoading={isSending}
               placeholder="Ask about education policies or say hi..."
               onThinkingModeChange={handleQueryModeChange}
               onInternetToggle={handleInternetToggle}
@@ -137,10 +156,10 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto premium-scrollbar">
             <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
-              {messages.map((message) => (
+              {displayMessages.map((message) => (
                 <ChatMessage key={message.id} message={message} />
               ))}
-              {isLoading && (
+              {isSending && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <TypingIndicator />
                   <span>using {queryMode} mode</span>
@@ -155,7 +174,7 @@ export function ChatBot({ selectedModel, onUpdateChatHistory }: ChatBotProps) {
             <div className="max-w-4xl mx-auto">
               <ChatInput
                 onSendMessage={handleSendMessage}
-                isLoading={isLoading}
+                isLoading={isSending}
                 placeholder="Ask about education policies or say hi..."
                 onThinkingModeChange={handleQueryModeChange}
                 onInternetToggle={handleInternetToggle}

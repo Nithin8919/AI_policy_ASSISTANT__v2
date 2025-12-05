@@ -147,6 +147,51 @@ class SystemStatusResponse(BaseModel):
     timestamp: str
     engine_stats: Dict
 
+# Helper function for citation display names
+def construct_citation_name(result: Dict, metadata: Dict) -> str:
+    """Construct a user-friendly display name from available metadata"""
+    import re
+    
+    # Priority 1: Check for explicit filename or title (for uploaded files or web results)
+    if metadata.get('filename'):
+        return metadata['filename']
+    if metadata.get('file_name'):
+        return metadata['file_name']
+    if metadata.get('title'):
+        return metadata['title']
+    
+    # Priority 2: Construct from GO metadata (for government orders)
+    go_number = metadata.get('go_number')
+    if go_number:
+        parts = [f"GO {go_number}"]
+        
+        # Add department if available
+        department = metadata.get('department')
+        if department:
+            # Shorten department name if too long
+            dept_short = department[:20] + "..." if len(department) > 20 else department
+            parts.append(dept_short)
+        
+        # Add year if available
+        year = metadata.get('year')
+        if year:
+            parts.append(str(year))
+        
+        return " - ".join(parts)
+    
+    # Priority 3: Use doc_id if it looks meaningful (not a UUID)
+    doc_id = result.get('doc_id', result.get('chunk_id', ''))
+    uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    if doc_id and not re.match(uuid_pattern, str(doc_id).lower()):
+        return doc_id
+    
+    # Priority 4: Fallback to source or generic label
+    source = metadata.get('source', 'Document')
+    if source and source != 'Unknown':
+        return source
+    
+    return f"Document {result.get('doc_id', 'Unknown')[:8]}"
+
 # API Routes
 @app.get("/")
 async def root():
@@ -229,20 +274,24 @@ async def v3_query_endpoint(request: QueryRequest):
         
         answer_time = time.time() - answer_start
         
-        # Format citations for frontend
+        # Format citations with improved display names
         citations = []
         for citation_num in answer_response.get("citations", []):
             try:
                 result_idx = int(citation_num) - 1
                 if 0 <= result_idx < len(results):
                     result = results[result_idx]
-                    v3_result = v3_output.results[result_idx]
+                    metadata = result.get("metadata", {})
+                    
+                    # Construct display name from metadata
+                    display_name = construct_citation_name(result, metadata)
+                    
                     citations.append(Citation(
-                        docId=result.get("chunk_id", f"doc_{citation_num}"),
-                        page=1,
+                        docId=display_name,
+                        page=metadata.get('page_number') or metadata.get('page') or 1,
                         span=result.get("text", "")[:150] + "...",
-                        source=result.get("metadata", {}).get("source", "Policy Document"),
-                        vertical=v3_result.vertical
+                        source=display_name,
+                        vertical=result.get("vertical", "unknown")
                     ))
             except (ValueError, IndexError):
                 continue
@@ -402,30 +451,34 @@ async def v3_query_with_files_endpoint(
         answer_start = time.time()
         
         answer_response = answer_generator.generate(
-            query=query,  # Use original query for answer generation
+            query=query,
             results=results,
             mode=mode,
             max_context_chunks=5 if mode == "qa" else 10,
-            external_context=file_context_text,  # Will be None if no files
+            external_context=file_context_text,
             conversation_history=parsed_history
         )
         
         answer_time = time.time() - answer_start
         
-        # Format citations for frontend
+        # Format citations with improved display names
         citations = []
         for citation_num in answer_response.get("citations", []):
             try:
                 result_idx = int(citation_num) - 1
                 if 0 <= result_idx < len(results):
                     result = results[result_idx]
-                    v3_result = v3_output.results[result_idx]
+                    metadata = result.get("metadata", {})
+                    
+                    # Construct display name from metadata
+                    display_name = construct_citation_name(result, metadata)
+                    
                     citations.append(Citation(
-                        docId=result.get("chunk_id", f"doc_{citation_num}"),
-                        page=1,
+                        docId=display_name,
+                        page=metadata.get('page_number') or metadata.get('page') or 1,
                         span=result.get("text", "")[:150] + "...",
-                        source=result.get("metadata", {}).get("source", "Policy Document"),
-                        vertical=v3_result.vertical
+                        source=display_name,
+                        vertical=result.get("vertical", "unknown")
                     ))
             except (ValueError, IndexError):
                 continue

@@ -355,21 +355,78 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
         citations = []
         
         for i, result in enumerate(results[:10], 1):
+            metadata = result.get('metadata', {})
+            
+            # Construct a user-friendly display name from available metadata
+            display_name = self._construct_display_name(result, metadata)
+            
             citation = {
                 'id': i,
                 'doc_id': result.get('doc_id', result.get('chunk_id', 'unknown')),
+                'filename': display_name,  # User-friendly name
                 'vertical': result.get('vertical', 'unknown'),
-                'source': result.get('metadata', {}).get('source', 'Unknown'),
-                'relevance': result.get('score', 0.0)
+                'source': metadata.get('source', 'Unknown'),
+                'relevance': result.get('score', 0.0),
+                'page': metadata.get('page_number') or metadata.get('page')  # Add page number if available
             }
             
             # Add URL if from internet
             if 'url' in result:
                 citation['url'] = result['url']
+            elif 'url' in metadata:
+                 citation['url'] = metadata['url']
             
             citations.append(citation)
         
         return citations
+    
+    def _construct_display_name(self, result: Dict, metadata: Dict) -> str:
+        """Construct a user-friendly display name from available metadata"""
+        
+        # Priority 1: Check for explicit filename or title (for uploaded files or web results)
+        if metadata.get('filename'):
+            return metadata['filename']
+        if metadata.get('file_name'):
+            return metadata['file_name']
+        if metadata.get('title'):
+            return metadata['title']
+        
+        # Priority 2: Construct from GO metadata (for government orders)
+        go_number = metadata.get('go_number')
+        if go_number:
+            parts = [f"GO {go_number}"]
+            
+            # Add department if available
+            department = metadata.get('department')
+            if department:
+                # Shorten department name if too long
+                dept_short = department[:20] + "..." if len(department) > 20 else department
+                parts.append(dept_short)
+            
+            # Add year if available
+            year = metadata.get('year')
+            if year:
+                parts.append(str(year))
+            
+            return " - ".join(parts)
+        
+        # Priority 3: Use doc_id if it looks meaningful (not a UUID)
+        doc_id = result.get('doc_id', result.get('chunk_id', ''))
+        if doc_id and not self._is_uuid(doc_id):
+            return doc_id
+        
+        # Priority 4: Fallback to source or generic label
+        source = metadata.get('source', 'Document')
+        if source and source != 'Unknown':
+            return source
+        
+        return f"Document {result.get('doc_id', 'Unknown')[:8]}"
+    
+    def _is_uuid(self, text: str) -> bool:
+        """Check if text looks like a UUID"""
+        import re
+        uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        return bool(re.match(uuid_pattern, str(text).lower()))
 
 
 # Convenience function
