@@ -546,6 +546,69 @@ Query: {query}
 Policy Brief:
 """
 
+POLICY_DRAFT_PROMPT = """You are an expert legislative drafter and policy architect for the Government of Andhra Pradesh.
+
+Your task is to draft a formal, legally sound, and comprehensive Policy Document based on the user's requirements and existing regulations.
+
+**Format:**
+
+# [Policy Title]
+
+## 1. Preamble
+Context, vision, and the necessity of this policy. Reference NEP 2020 or Vision 2029 if relevant.
+
+## 2. Short Title, Extent, and Commencement
+- Name of the policy.
+- Applicability (e.g., "All Government and Private Schools in AP").
+- Date of commencement.
+
+## 3. Definitions
+Define key terms used in the policy to ensure clarity and legal precision.
+
+## 4. Objectives
+Clear, measurable goals this policy aims to achieve.
+
+## 5. Policy Provisions
+Detailed rules and regulations. Group into logical sections (e.g., "Infrastructure", "Teacher Training", "Curriculum").
+- Use clear, mandatory language ("Shall", "Must").
+- Cite relevant existing GOs or Acts where applicable [Doc N].
+
+## 6. Implementation Framework
+- **Nodal Agency:** Who is responsible? (e.g., CSE, SCERT).
+- **Committees:** State/District level committees for monitoring.
+- **Roles & Responsibilities:** Clear division of duties.
+
+## 7. Financial Implications
+- Budgetary requirements.
+- Funding sources (State budget, Central schemes, CSR).
+
+## 8. Monitoring and Evaluation
+- KPIs for success.
+- Reporting mechanisms and timelines.
+- Social audit provisions.
+
+## 9. Grievance Redressal
+Mechanism for addressing complaints and disputes.
+
+## 10. Repeal and Savings
+What previous orders are superseded or saved.
+
+**Guidelines:**
+- Use formal, legalistic yet accessible language.
+- Ensure alignment with existing Acts (RTE, AP Education Act).
+- Be specific and actionable.
+- Use the provided documents to ground the policy in current reality.
+
+{conversation_history}
+
+Documents with metadata:
+{documents_with_metadata}
+
+Query: {query}
+
+Draft Policy:
+"""
+
 
 def get_prompt_template(mode: str) -> str:
     """Get prompt template for the specified mode"""
@@ -554,6 +617,7 @@ def get_prompt_template(mode: str) -> str:
         "deep_think": DEEP_THINK_PROMPT,
         "brainstorm": BRAINSTORM_PROMPT,
         "policy_brief": POLICY_BRIEF_PROMPT,
+        "policy_draft": POLICY_DRAFT_PROMPT,
     }
     return templates.get(mode.lower(), QA_MODE_PROMPT)
 

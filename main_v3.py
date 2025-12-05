@@ -29,6 +29,7 @@ from retrieval.retrieval_core.qdrant_client import get_qdrant_client
 from retrieval.embeddings.embedder import get_embedder
 from retrieval_v3.pipeline.retrieval_engine import RetrievalEngine
 from retrieval.answer_generator import get_answer_generator
+from retrieval_v3.answer_generation.answer_builder import AnswerBuilder
 from retrieval_v3.file_processing.file_handler import FileHandler
 
 # Configure logging
@@ -41,11 +42,12 @@ logger = logging.getLogger(__name__)
 # Global instances
 v3_engine = None
 answer_generator = None
+answer_builder = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler"""
-    global v3_engine, answer_generator
+    global v3_engine, answer_generator, answer_builder
     
     try:
         logger.info("🚀 Initializing AP Policy Assistant V3 API...")
@@ -70,6 +72,13 @@ async def lifespan(app: FastAPI):
         # Initialize answer generator
         logger.info("💭 Initializing answer generator...")
         answer_generator = get_answer_generator()
+        
+        # Initialize V3 answer builder (for Policy Crafter)
+        logger.info("💭 Initializing V3 answer builder...")
+        answer_builder = AnswerBuilder(
+            use_llm=True,
+            api_key=os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+        )
         
         logger.info("🎉 V3 API ready! Features:")
         logger.info("  ⚡ Parallel processing with ThreadPoolExecutor")
@@ -108,7 +117,7 @@ app.add_middleware(
 # Request/Response models
 class QueryRequest(BaseModel):
     query: str = Field(..., description="User query")
-    mode: str = Field("qa", description="Query mode: qa, deep_think, or brainstorm")
+    mode: str = Field("qa", description="Query mode: qa, deep_think, brainstorm, policy_brief, or policy_draft")
     top_k: Optional[int] = Field(None, description="Override number of results")
     internet_enabled: Optional[bool] = Field(False, description="Enable internet search")
     conversation_history: Optional[List[Dict[str, str]]] = Field(None, description="Previous conversation turns for context")
@@ -247,54 +256,108 @@ async def v3_query_endpoint(request: QueryRequest):
         retrieval_time = time.time() - retrieval_start
         logger.info(f"📄 V3 Retrieved {v3_output.final_count} results in {retrieval_time:.2f}s")
         
-        # Convert V3 results to old format for answer generator
-        results = []
-        for result in v3_output.results:
-            results.append({
-                "chunk_id": result.chunk_id,
-                "text": result.content,
-                "doc_id": result.doc_id,
-                "score": result.score,
-                "metadata": result.metadata,
-                "vertical": result.vertical,
-                "rewrite_source": result.rewrite_source
-            })
-        
-        # Generate answer with citations
+        # Generate answer
         logger.info("💭 Generating answer...")
         answer_start = time.time()
         
-        answer_response = answer_generator.generate(
-            query=request.query,
-            results=results,
-            mode=request.mode,
-            max_context_chunks=5 if request.mode == "qa" else 10,
-            conversation_history=request.conversation_history
-        )
+        if request.mode == "policy_draft":
+            # Use V3 AnswerBuilder for Policy Crafter
+            logger.info("📝 Using V3 AnswerBuilder for Policy Draft...")
+            
+            # Convert results for builder
+            results_for_builder = []
+            for result in v3_output.results:
+                results_for_builder.append({
+                    "content": result.content,
+                    "chunk_id": result.chunk_id,
+                    "doc_id": result.doc_id,
+                    "score": result.score,
+                    "metadata": result.metadata,
+                    "vertical": result.vertical,
+                    "url": result.metadata.get('url') if 'url' in result.metadata else None
+                })
+            
+            answer_obj = answer_builder.build_answer(
+                query=request.query,
+                results=results_for_builder,
+                mode=request.mode,
+                conversation_history=request.conversation_history
+            )
+            
+            # Build full answer from summary + sections
+            full_answer = answer_obj.summary
+            if answer_obj.sections:
+                for section_name, section_content in answer_obj.sections.items():
+                    full_answer += "\n\n" + section_content
+            
+            answer_text = full_answer
+            citations_list = answer_obj.citations
+            
+        else:
+            # Use old AnswerGenerator for standard queries (better quality for QA)
+            # Convert V3 results to old format
+            results_old_fmt = []
+            for result in v3_output.results:
+                results_old_fmt.append({
+                    "chunk_id": result.chunk_id,
+                    "text": result.content,
+                    "doc_id": result.doc_id,
+                    "score": result.score,
+                    "metadata": result.metadata,
+                    "vertical": result.vertical,
+                    "rewrite_source": result.rewrite_source
+                })
+            
+            answer_response = answer_generator.generate(
+                query=request.query,
+                results=results_old_fmt,
+                mode=request.mode,
+                max_context_chunks=5 if request.mode == "qa" else 10,
+                conversation_history=request.conversation_history
+            )
+            
+            answer_text = answer_response.get("answer", "No answer generated")
+            citations_list = [] # We'll handle citations below based on the source
+            
+            # Extract citations from answer_response for processing below
+            raw_citations = answer_response.get("citations", [])
         
         answer_time = time.time() - answer_start
         
-        # Format citations with improved display names
+        # Format citations
         citations = []
-        for citation_num in answer_response.get("citations", []):
-            try:
-                result_idx = int(citation_num) - 1
-                if 0 <= result_idx < len(results):
-                    result = results[result_idx]
-                    metadata = result.get("metadata", {})
-                    
-                    # Construct display name from metadata
-                    display_name = construct_citation_name(result, metadata)
-                    
-                    citations.append(Citation(
-                        docId=display_name,
-                        page=metadata.get('page_number') or metadata.get('page') or 1,
-                        span=result.get("text", "")[:150] + "...",
-                        source=display_name,
-                        vertical=result.get("vertical", "unknown")
-                    ))
-            except (ValueError, IndexError):
-                continue
+        
+        if request.mode == "policy_draft":
+            # V3 Builder citations format
+            for citation in citations_list:
+                citations.append(Citation(
+                    docId=citation.get('filename') or citation.get('source') or citation.get('doc_id', 'Unknown'),
+                    page=citation.get('page') or 1,
+                    span=citation.get('source', '')[:150],
+                    source=citation.get('filename') or citation.get('source', 'Policy Document'),
+                    vertical=citation.get('vertical', 'unknown')
+                ))
+        else:
+            # Old Generator citations format
+            for citation_num in raw_citations:
+                try:
+                    result_idx = int(citation_num) - 1
+                    if 0 <= result_idx < len(results_old_fmt):
+                        result = results_old_fmt[result_idx]
+                        metadata = result.get("metadata", {})
+                        
+                        # Construct display name from metadata
+                        display_name = construct_citation_name(result, metadata)
+                        
+                        citations.append(Citation(
+                            docId=display_name,
+                            page=metadata.get('page_number') or metadata.get('page') or 1,
+                            span=result.get("text", "")[:150] + "...",
+                            source=display_name,
+                            vertical=result.get("vertical", "unknown")
+                        ))
+                except (ValueError, IndexError):
+                    continue
         
         # Create V3 processing trace
         processing_trace = ProcessingTrace(
@@ -326,7 +389,7 @@ async def v3_query_endpoint(request: QueryRequest):
         }
         
         response = QueryResponse(
-            answer=answer_response.get("answer", "No answer generated"),
+            answer=answer_text,
             citations=citations,
             processing_trace=processing_trace,
             risk_assessment="low",
@@ -433,55 +496,105 @@ async def v3_query_with_files_endpoint(
         retrieval_time = time.time() - retrieval_start
         logger.info(f"📄 V3 Retrieved {v3_output.final_count} results in {retrieval_time:.2f}s")
         
-        # Convert V3 results to old format for answer generator
-        results = []
-        for result in v3_output.results:
-            results.append({
-                "chunk_id": result.chunk_id,
-                "text": result.content,
-                "doc_id": result.doc_id,
-                "score": result.score,
-                "metadata": result.metadata,
-                "vertical": result.vertical,
-                "rewrite_source": result.rewrite_source
-            })
-        
-        # Generate answer with citations AND file context
+        # Generate answer
         logger.info("💭 Generating answer...")
         answer_start = time.time()
         
-        answer_response = answer_generator.generate(
-            query=query,
-            results=results,
-            mode=mode,
-            max_context_chunks=5 if mode == "qa" else 10,
-            external_context=file_context_text,
-            conversation_history=parsed_history
-        )
+        if mode == "policy_draft":
+            # Use V3 AnswerBuilder for Policy Crafter
+            logger.info("📝 Using V3 AnswerBuilder for Policy Draft...")
+            
+            # Convert results for builder
+            results_for_builder = []
+            for result in v3_output.results:
+                results_for_builder.append({
+                    "content": result.content,
+                    "chunk_id": result.chunk_id,
+                    "doc_id": result.doc_id,
+                    "score": result.score,
+                    "metadata": result.metadata,
+                    "vertical": result.vertical,
+                    "url": result.metadata.get('url') if 'url' in result.metadata else None
+                })
+            
+            answer_obj = answer_builder.build_answer(
+                query=query,
+                results=results_for_builder,
+                mode=mode,
+                external_context=file_context_text,
+                conversation_history=parsed_history
+            )
+            
+            # Build full answer from summary + sections
+            full_answer = answer_obj.summary
+            if answer_obj.sections:
+                for section_name, section_content in answer_obj.sections.items():
+                    full_answer += "\n\n" + section_content
+            
+            answer_text = full_answer
+            citations_list = answer_obj.citations
+            
+        else:
+            # Use old AnswerGenerator for standard queries
+            # Convert V3 results to old format
+            results_old_fmt = []
+            for result in v3_output.results:
+                results_old_fmt.append({
+                    "chunk_id": result.chunk_id,
+                    "text": result.content,
+                    "doc_id": result.doc_id,
+                    "score": result.score,
+                    "metadata": result.metadata,
+                    "vertical": result.vertical,
+                    "rewrite_source": result.rewrite_source
+                })
+            
+            answer_response = answer_generator.generate(
+                query=query,
+                results=results_old_fmt,
+                mode=mode,
+                max_context_chunks=5 if mode == "qa" else 10,
+                external_context=file_context_text,
+                conversation_history=parsed_history
+            )
+            
+            answer_text = answer_response.get("answer", "No answer generated")
+            citations_list = []
+            raw_citations = answer_response.get("citations", [])
         
         answer_time = time.time() - answer_start
         
-        # Format citations with improved display names
+        # Format citations
         citations = []
-        for citation_num in answer_response.get("citations", []):
-            try:
-                result_idx = int(citation_num) - 1
-                if 0 <= result_idx < len(results):
-                    result = results[result_idx]
-                    metadata = result.get("metadata", {})
-                    
-                    # Construct display name from metadata
-                    display_name = construct_citation_name(result, metadata)
-                    
-                    citations.append(Citation(
-                        docId=display_name,
-                        page=metadata.get('page_number') or metadata.get('page') or 1,
-                        span=result.get("text", "")[:150] + "...",
-                        source=display_name,
-                        vertical=result.get("vertical", "unknown")
-                    ))
-            except (ValueError, IndexError):
-                continue
+        
+        if mode == "policy_draft":
+            for citation in citations_list:
+                citations.append(Citation(
+                    docId=citation.get('filename') or citation.get('source') or citation.get('doc_id', 'Unknown'),
+                    page=citation.get('page') or 1,
+                    span=citation.get('source', '')[:150],
+                    source=citation.get('filename') or citation.get('source', 'Policy Document'),
+                    vertical=citation.get('vertical', 'unknown')
+                ))
+        else:
+            for citation_num in raw_citations:
+                try:
+                    result_idx = int(citation_num) - 1
+                    if 0 <= result_idx < len(results_old_fmt):
+                        result = results_old_fmt[result_idx]
+                        metadata = result.get("metadata", {})
+                        
+                        display_name = construct_citation_name(result, metadata)
+                        
+                        citations.append(Citation(
+                            docId=display_name,
+                            page=metadata.get('page_number') or metadata.get('page') or 1,
+                            span=result.get("text", "")[:150] + "...",
+                            source=display_name,
+                            vertical=result.get("vertical", "unknown")
+                        ))
+                except (ValueError, IndexError):
+                    continue
         
         # Create V3 processing trace
         processing_trace = ProcessingTrace(
@@ -514,7 +627,7 @@ async def v3_query_with_files_endpoint(
         }
         
         response = QueryResponse(
-            answer=answer_response.get("answer", "No answer generated"),
+            answer=answer_text,
             citations=citations,
             processing_trace=processing_trace,
             risk_assessment="low",
