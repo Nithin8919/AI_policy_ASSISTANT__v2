@@ -89,6 +89,7 @@ class RetrievalOutput:
     final_count: int
     processing_time: float
     metadata: Dict = field(default_factory=dict)
+    trace_steps: List[str] = field(default_factory=list)
 
 
 class RetrievalEngine:
@@ -232,6 +233,8 @@ class RetrievalEngine:
             RetrievalOutput with results and metadata
         """
         start_time = time.time()
+        trace_steps = []
+        trace_steps.append("Understanding your query...")
         
         # STEP 1: QUERY UNDERSTANDING (PARALLEL PROCESSING)
         # ====================================================================
@@ -341,9 +344,11 @@ class RetrievalEngine:
                 
                 self._update_stats(output)
                 return output
-            else:
-                print(f"⚠️ Fast path unsuccessful - found {len(clause_results)} matches, falling back to full pipeline")
+
         
+        # Add trace step for understanding phase
+        trace_steps.append("Expanding and rewriting query...")
+
         # 1.3: Submit parallel tasks for query understanding (Full Pipeline)
         understanding_futures = {}
         
@@ -394,6 +399,7 @@ class RetrievalEngine:
         # STEP 2: ROUTING & PLANNING
         # ====================================================================
         
+        trace_steps.append("Searching verticals...")
         # 2.1: Route to verticals
         if force_verticals:
             verticals = [Vertical(v) for v in force_verticals]
@@ -426,6 +432,7 @@ class RetrievalEngine:
         
         # 3.1: Parallel Hybrid Retrieval
         # We run vector search and BM25 search in parallel for all rewrites
+        trace_steps.append("Running hybrid retrieval (vector + BM25)...")
         
         # Helper for single hybrid search
         def _single_hybrid_search(search_query, hop=1):
@@ -567,7 +574,9 @@ class RetrievalEngine:
                 internet_enabled = custom_plan.get('use_internet')
                 logger.info(f"🌐 Internet {'enabled' if internet_enabled else 'disabled'} via custom_plan (legacy)")
             
+            
         if internet_enabled and self.google_search_client:
+            trace_steps.append("Searching internet for latest policies...")
             logger.info(f"🌐 Internet search enabled for: {query}")
             try:
                 web_raw_results = self.google_search_client.search(query)
@@ -643,6 +652,7 @@ class RetrievalEngine:
         # 5.3: RELATION-ENTITY PROCESSING (NEW!) - Currency detection + Entity awareness
         # ====================================================================
         if self.use_relation_entity and self.relation_entity_processor:
+            trace_steps.append("Checking superseded policies and relations...")
             print(f"🔗 Starting relation-entity processing...")
             
             # Add timeout protection (8s for deep think, 5s for regular)
@@ -672,6 +682,7 @@ class RetrievalEngine:
             
         # 5.4: Cross-Encoder Reranking (High Precision)
         if self.use_cross_encoder and self.cross_encoder:
+            trace_steps.append("Applying rerankers and diversity checks...")
             # Convert to dicts for reranker
             res_dicts = [{'content': r.content, 'score': r.score, 'obj': r} for r in relation_enhanced]
             reranked_dicts = self.cross_encoder.rerank(normalized_query, res_dicts, top_k=plan.rerank_top_k)
@@ -712,6 +723,7 @@ class RetrievalEngine:
         # STEP 6: PACKAGE OUTPUT
         # ====================================================================
         
+        trace_steps.append("Building final results...")
         processing_time = time.time() - start_time
         
         output = RetrievalOutput(
@@ -734,7 +746,8 @@ class RetrievalEngine:
                 'category_coverage_report': self.diversity_reranker.get_category_coverage_report(
                     normalized_query, final_results, predicted_categories
                 ) if final_results else {}
-            }
+            },
+            trace_steps=trace_steps
         )
         
         # Update stats

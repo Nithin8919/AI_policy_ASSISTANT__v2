@@ -14,6 +14,8 @@ interface Message {
   timestamp: Date
   response?: any
   queryMode?: 'qa' | 'deep_think' | 'brainstorm'
+  isThinking?: boolean
+  currentStep?: string
 }
 
 interface ChatMessageProps {
@@ -31,7 +33,12 @@ function formatTime(date: Date): string {
 }
 
 export function ChatMessage({ message }: ChatMessageProps) {
-  const [isThinkingOpen, setIsThinkingOpen] = useState(false)
+  const [isThinkingOpen, setIsThinkingOpen] = useState(message.isThinking || false)
+
+  // Auto-open thinking for thinking messages
+  if (message.isThinking && !isThinkingOpen) {
+    setIsThinkingOpen(true)
+  }
 
   // Extract thinking content from message
   const extractThinkingContent = (content: string) => {
@@ -186,114 +193,153 @@ export function ChatMessage({ message }: ChatMessageProps) {
             </div>
           )}
 
-          {/* Thinking Section for Assistant Messages - Only show for deep thinking modes */}
-          {message.role === 'assistant' && (message.queryMode === 'deep_think') && (message.response?.processing_trace || thinkingContent || cloudThinkingContent) && (
-            <div className="mt-3">
-              <Collapsible open={isThinkingOpen} onOpenChange={setIsThinkingOpen}>
-                <CollapsibleTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                  {isThinkingOpen ? (
-                    <ChevronDown className="h-3 w-3" />
-                  ) : (
-                    <ChevronRight className="h-3 w-3" />
-                  )}
-                  <Brain className="h-3 w-3" />
-                  <span>Thinking process</span>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2">
-                  <div className="bg-muted/50 border border-border/50 rounded-lg p-3 text-xs space-y-2">
-                    {/* Show extracted thinking content or cloud model thinking process */}
-                    {(thinkingContent || cloudThinkingContent) && (
-                      <div>
-                        <span className="font-medium text-foreground">Reasoning:</span>
-                        <div className="ml-2 mt-1 text-xs text-muted-foreground">
-                          <MarkdownRenderer
-                            content={thinkingContent || cloudThinkingContent || ''}
-                            className="text-xs"
-                          />
-                        </div>
-                      </div>
+          {/* Thinking Section for Assistant Messages - Only show for deep thinking modes OR active thinking */}
+          {message.role === 'assistant' && (
+            message.isThinking ||
+            ((message.queryMode === 'deep_think' || message.queryMode === 'qa') && (message.response?.processing_trace || thinkingContent || cloudThinkingContent))
+          ) && (
+              <div className="mt-3">
+                <Collapsible open={isThinkingOpen} onOpenChange={setIsThinkingOpen}>
+                  <CollapsibleTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full">
+                    {isThinkingOpen ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
                     )}
+                    <Brain className={`h-3 w-3 ${message.isThinking ? 'animate-pulse text-orange-500' : ''}`} />
 
-                    {/* Show processing trace data */}
-                    {message.response?.processing_trace && (
-                      <>
-                        {message.response.processing_trace.language && (
-                          <div>
-                            <span className="font-medium text-foreground">Language:</span>
-                            <span className="ml-2 text-muted-foreground">{message.response.processing_trace.language}</span>
+                    {message.isThinking ? (
+                      <span className="font-medium text-orange-600 animate-pulse">
+                        {message.currentStep || "Thinking..."}
+                      </span>
+                    ) : (
+                      <span>Thinking process</span>
+                    )}
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-2">
+                    <div className="bg-muted/50 border border-border/50 rounded-lg p-3 text-xs space-y-2">
+                      {/* Active Thinking State */}
+                      {message.isThinking && (
+                        <div className="space-y-2 mb-3">
+                          <div className="flex items-center gap-2 text-orange-600">
+                            <div className="h-1.5 w-1.5 bg-orange-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <div className="h-1.5 w-1.5 bg-orange-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <div className="h-1.5 w-1.5 bg-orange-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                           </div>
-                        )}
+                        </div>
+                      )}
+                      {/* Show extracted thinking content or cloud model thinking process */}
+                      {(thinkingContent || cloudThinkingContent) && (
+                        <div>
+                          <span className="font-medium text-foreground">Reasoning:</span>
+                          <div className="ml-2 mt-1 text-xs text-muted-foreground">
+                            <MarkdownRenderer
+                              content={thinkingContent || cloudThinkingContent || ''}
+                              className="text-xs"
+                            />
+                          </div>
+                        </div>
+                      )}
 
-                        {message.response.processing_trace.retrieval && (
-                          <div>
-                            <span className="font-medium text-foreground">Retrieval:</span>
-                            <div className="ml-2 mt-1 space-y-1">
-                              {message.response.processing_trace.retrieval.dense && message.response.processing_trace.retrieval.dense.length > 0 && (
-                                <div>
-                                  <span className="text-muted-foreground">Dense:</span>
-                                  <div className="ml-2 text-xs text-muted-foreground">
-                                    {message.response.processing_trace.retrieval.dense.map((item: string, index: number) => (
-                                      <div key={index} className="truncate">• {item}</div>
-                                    ))}
+                      {/* Show processing trace data */}
+                      {message.response?.processing_trace && (
+                        <>
+                          {/* Trace Steps List (ChatGPT Style) */}
+                          {message.response.processing_trace.steps && message.response.processing_trace.steps.length > 0 && (
+                            <div className="mb-3 pb-3 border-b border-border/50">
+                              <span className="font-medium text-foreground block mb-1.5">Processing Steps:</span>
+                              <div className="space-y-1.5">
+                                {message.response.processing_trace.steps.map((step: string, index: number) => (
+                                  <div key={index} className="flex items-start gap-2 text-muted-foreground">
+                                    <div className="mt-0.5 min-w-[14px]">
+                                      <div className="h-3.5 w-3.5 rounded-full bg-green-500/20 flex items-center justify-center">
+                                        <div className="h-1.5 w-2.5 border-l-[1.5px] border-b-[1.5px] border-green-600 -rotate-45 -mt-0.5" />
+                                      </div>
+                                    </div>
+                                    <span>{step}</span>
                                   </div>
-                                </div>
-                              )}
-                              {message.response.processing_trace.retrieval.sparse && message.response.processing_trace.retrieval.sparse.length > 0 && (
-                                <div>
-                                  <span className="text-muted-foreground">Sparse:</span>
-                                  <div className="ml-2 text-xs text-muted-foreground">
-                                    {message.response.processing_trace.retrieval.sparse.map((item: string, index: number) => (
-                                      <div key={index} className="truncate">• {item}</div>
-                                    ))}
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {message.response.processing_trace.language && (
+                            <div>
+                              <span className="font-medium text-foreground">Language:</span>
+                              <span className="ml-2 text-muted-foreground">{message.response.processing_trace.language}</span>
+                            </div>
+                          )}
+
+                          {message.response.processing_trace.retrieval && (
+                            <div>
+                              <span className="font-medium text-foreground">Retrieval:</span>
+                              <div className="ml-2 mt-1 space-y-1">
+                                {message.response.processing_trace.retrieval.dense && message.response.processing_trace.retrieval.dense.length > 0 && (
+                                  <div>
+                                    <span className="text-muted-foreground">Dense:</span>
+                                    <div className="ml-2 text-xs text-muted-foreground">
+                                      {message.response.processing_trace.retrieval.dense.map((item: string, index: number) => (
+                                        <div key={index} className="truncate">• {item}</div>
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
+                                )}
+                                {message.response.processing_trace.retrieval.sparse && message.response.processing_trace.retrieval.sparse.length > 0 && (
+                                  <div>
+                                    <span className="text-muted-foreground">Sparse:</span>
+                                    <div className="ml-2 text-xs text-muted-foreground">
+                                      {message.response.processing_trace.retrieval.sparse.map((item: string, index: number) => (
+                                        <div key={index} className="truncate">• {item}</div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
 
-                        {message.response.processing_trace.kg_traversal && (
-                          <div>
-                            <span className="font-medium text-foreground">Knowledge Graph:</span>
-                            <div className="ml-2 text-xs text-muted-foreground">
-                              {message.response.processing_trace.kg_traversal}
+                          {message.response.processing_trace.kg_traversal && (
+                            <div>
+                              <span className="font-medium text-foreground">Knowledge Graph:</span>
+                              <div className="ml-2 text-xs text-muted-foreground">
+                                {message.response.processing_trace.kg_traversal}
+                              </div>
                             </div>
+                          )}
+
+                          {message.response.processing_trace.controller_iterations && (
+                            <div>
+                              <span className="font-medium text-foreground">Controller Iterations:</span>
+                              <span className="ml-2 text-muted-foreground">{message.response.processing_trace.controller_iterations}</span>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {Array.isArray(message.response?.citations) && message.response.citations.length > 0 && (
+                        <div>
+                          <span className="font-medium text-foreground">Citations:</span>
+                          <div className="ml-2 mt-1 space-y-1 text-muted-foreground">
+                            {message.response.citations.map((c: any, i: number) => (
+                              <div key={i} className="truncate">• Doc {c.docId} p.{c.page} — {c.span}</div>
+                            ))}
                           </div>
-                        )}
+                        </div>
+                      )}
 
-                        {message.response.processing_trace.controller_iterations && (
-                          <div>
-                            <span className="font-medium text-foreground">Controller Iterations:</span>
-                            <span className="ml-2 text-muted-foreground">{message.response.processing_trace.controller_iterations}</span>
+                      {message.response?.risk_assessment && (
+                        <div>
+                          <span className="font-medium text-foreground">Risk assessment:</span>
+                          <div className="ml-2 text-xs text-muted-foreground whitespace-pre-wrap">
+                            {message.response.risk_assessment}
                           </div>
-                        )}
-                      </>
-                    )}
-
-                    {Array.isArray(message.response?.citations) && message.response.citations.length > 0 && (
-                      <div>
-                        <span className="font-medium text-foreground">Citations:</span>
-                        <div className="ml-2 mt-1 space-y-1 text-muted-foreground">
-                          {message.response.citations.map((c: any, i: number) => (
-                            <div key={i} className="truncate">• Doc {c.docId} p.{c.page} — {c.span}</div>
-                          ))}
                         </div>
-                      </div>
-                    )}
-
-                    {message.response?.risk_assessment && (
-                      <div>
-                        <span className="font-medium text-foreground">Risk assessment:</span>
-                        <div className="ml-2 text-xs text-muted-foreground whitespace-pre-wrap">
-                          {message.response.risk_assessment}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            </div>
-          )}
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </div>
+            )}
         </div>
 
         <div className={`text-xs text-muted-foreground mt-2 ${isUser ? 'text-right' : 'text-left'}`}>

@@ -29,6 +29,8 @@ export interface Message {
     timestamp: Date;
     response?: any;
     queryMode?: any;
+    isThinking?: boolean;
+    currentStep?: string;
 }
 
 export function useChatStore() {

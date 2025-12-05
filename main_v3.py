@@ -142,6 +142,7 @@ class ProcessingTrace(BaseModel):
     retrieval: V3RetrievalResult
     kg_traversal: str
     controller_iterations: int
+    steps: List[str] = Field(default_factory=list)
 
 class QueryResponse(BaseModel):
     answer: str
@@ -371,7 +372,8 @@ async def v3_query_endpoint(request: QueryRequest):
                 rewrites_count=len(v3_output.rewrites)
             ),
             kg_traversal="v3_multi_hop_retrieval",
-            controller_iterations=v3_output.metadata.get('num_hops', 1)
+            controller_iterations=v3_output.metadata.get('num_hops', 1),
+            steps=v3_output.trace_steps
         )
         
         total_time = time.time() - start_time
@@ -608,7 +610,8 @@ async def v3_query_with_files_endpoint(
                 rewrites_count=len(v3_output.rewrites)
             ),
             kg_traversal="v3_multi_hop_retrieval_with_files",
-            controller_iterations=v3_output.metadata.get('num_hops', 1)
+            controller_iterations=v3_output.metadata.get('num_hops', 1),
+            steps=v3_output.trace_steps
         )
         
         total_time = time.time() - start_time

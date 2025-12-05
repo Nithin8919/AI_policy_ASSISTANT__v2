@@ -19,6 +19,16 @@ interface ChatBotProps {
 
 type QueryMode = 'qa' | 'deep_think' | 'brainstorm'
 
+const THINKING_STEPS = [
+  "Understanding your query...",
+  "Expanding and rewriting query...",
+  "Searching verticals...",
+  "Running hybrid retrieval (vector + BM25)...",
+  "Checking superseded policies and relations...",
+  "Applying rerankers and diversity checks...",
+  "Building final results..."
+]
+
 export function ChatBot({ selectedModel, activeChatId, onChatCreated }: ChatBotProps) {
   const { messages: firestoreMessages, loadingMessages } = useChatMessages(activeChatId)
   const { createChat, addMessageToChat, updateChatPreview } = useChatStore()
@@ -27,6 +37,7 @@ export function ChatBot({ selectedModel, activeChatId, onChatCreated }: ChatBotP
   // But for "Thinking..." state we need local state or a way to show pending message.
   // Let's use a local "pending" state.
   const [isSending, setIsSending] = useState(false)
+  const [currentThinkingStep, setCurrentThinkingStep] = useState(THINKING_STEPS[0])
 
   const [queryMode, setQueryMode] = useState<QueryMode>('qa')
   const [internetEnabled, setInternetEnabled] = useState(false)
@@ -38,7 +49,24 @@ export function ChatBot({ selectedModel, activeChatId, onChatCreated }: ChatBotP
 
   useEffect(() => {
     scrollToBottom()
-  }, [firestoreMessages, isSending])
+  }, [firestoreMessages, isSending, currentThinkingStep])
+
+  // Simulated Thinking Process Effect
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (isSending) {
+      let stepIndex = 0
+      setCurrentThinkingStep(THINKING_STEPS[0])
+
+      interval = setInterval(() => {
+        stepIndex = (stepIndex + 1) % THINKING_STEPS.length
+        setCurrentThinkingStep(THINKING_STEPS[stepIndex])
+      }, 2500) // Change step every 2.5 seconds
+    } else {
+      setCurrentThinkingStep(THINKING_STEPS[0])
+    }
+    return () => clearInterval(interval)
+  }, [isSending])
 
   const handleQueryModeChange = (mode: QueryMode) => {
     setQueryMode(mode)
@@ -123,8 +151,21 @@ export function ChatBot({ selectedModel, activeChatId, onChatCreated }: ChatBotP
     }
   }
 
-  // Combine firestore messages with loading state if needed, but firestoreMessages updates automatically
-  const displayMessages = firestoreMessages
+  // Combine firestore messages with loading state
+  const displayMessages = [...firestoreMessages]
+
+  // Inject optimistic thinking message
+  if (isSending) {
+    displayMessages.push({
+      id: 'thinking-placeholder',
+      role: 'assistant',
+      content: '', // Empty content, thinking UI handles it
+      timestamp: new Date(),
+      isThinking: true,
+      currentStep: currentThinkingStep,
+      queryMode: queryMode
+    } as Message)
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full">
@@ -159,12 +200,7 @@ export function ChatBot({ selectedModel, activeChatId, onChatCreated }: ChatBotP
               {displayMessages.map((message) => (
                 <ChatMessage key={message.id} message={message} />
               ))}
-              {isSending && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <TypingIndicator />
-                  <span>using {queryMode} mode</span>
-                </div>
-              )}
+              {/* TypingIndicator removed in favor of Thinking Message */}
               <div ref={messagesEndRef} />
             </div>
           </div>
