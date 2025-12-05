@@ -13,10 +13,10 @@ from datetime import datetime
 
 # Import prompt templates
 try:
-    from .prompt_templates import get_prompt_template, format_documents_with_metadata
+    from .prompt_templates import get_prompt_template, format_documents_with_metadata, format_conversation_history
 except ImportError:
     # Fallback if running standalone
-    from prompt_templates import get_prompt_template, format_documents_with_metadata
+    from prompt_templates import get_prompt_template, format_documents_with_metadata, format_conversation_history
 
 
 @dataclass
@@ -50,7 +50,8 @@ class AnswerBuilder:
         query: str,
         results: List[Dict],
         mode: str = "qa",
-        external_context: Optional[str] = None
+        external_context: Optional[str] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Answer:
         """
         Build structured answer from results
@@ -60,12 +61,13 @@ class AnswerBuilder:
             results: Retrieved results
             mode: Query mode (qa, policy, framework, etc.)
             external_context: Additional context (e.g. from uploaded files)
+            conversation_history: Previous conversation turns for context
             
         Returns:
             Structured Answer object
         """
         if self.use_llm and self.api_key:
-            return self._build_with_llm(query, results, mode, external_context)
+            return self._build_with_llm(query, results, mode, external_context, conversation_history)
         else:
             return self._build_template(query, results, mode)
     
@@ -74,7 +76,8 @@ class AnswerBuilder:
         query: str,
         results: List[Dict],
         mode: str,
-        external_context: Optional[str] = None
+        external_context: Optional[str] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Answer:
         """Build answer using Gemini Flash"""
         try:
@@ -99,7 +102,7 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
 """
             
             # Build prompt based on mode
-            prompt = self._build_prompt(query, context, mode)
+            prompt = self._build_prompt(query, context, mode, conversation_history)
             
             # Generate answer
             response = model.generate_content(
@@ -242,7 +245,7 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
                     amendments.append(target)
         return amendments
     
-    def _build_prompt(self, query: str, context: str, mode: str) -> str:
+    def _build_prompt(self, query: str, context: str, mode: str, conversation_history: Optional[List[Dict[str, str]]] = None) -> str:
         """Build LLM prompt based on mode using templates"""
         # Map mode aliases
         mode_map = {
@@ -257,10 +260,14 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
         template_mode = mode_map.get(mode.lower(), 'qa')
         template = get_prompt_template(template_mode)
         
+        # Format conversation history
+        formatted_history = format_conversation_history(conversation_history) if conversation_history else ""
+        
         # Fill in template
         return template.format(
             query=query,
-            documents_with_metadata=context
+            documents_with_metadata=context,
+            conversation_history=formatted_history
         )
     
     def _parse_llm_response(self, text: str) -> tuple[str, Dict[str, str]]:

@@ -111,6 +111,7 @@ class QueryRequest(BaseModel):
     mode: str = Field("qa", description="Query mode: qa, deep_think, or brainstorm")
     top_k: Optional[int] = Field(None, description="Override number of results")
     internet_enabled: Optional[bool] = Field(False, description="Enable internet search")
+    conversation_history: Optional[List[Dict[str, str]]] = Field(None, description="Previous conversation turns for context")
 
 class Citation(BaseModel):
     docId: str
@@ -222,7 +223,8 @@ async def v3_query_endpoint(request: QueryRequest):
             query=request.query,
             results=results,
             mode=request.mode,
-            max_context_chunks=5 if request.mode == "qa" else 10
+            max_context_chunks=5 if request.mode == "qa" else 10,
+            conversation_history=request.conversation_history
         )
         
         answer_time = time.time() - answer_start
@@ -296,12 +298,22 @@ async def v3_query_with_files_endpoint(
     query: str = Form(...),
     mode: str = Form("qa"),
     internet_enabled: bool = Form(False),
-    files: List[UploadFile] = File(...)
+    files: List[UploadFile] = File(...),
+    conversation_history: Optional[str] = Form(None)
 ):
     """V3 query endpoint with file upload support"""
     start_time = time.time()
     
     try:
+        # Parse conversation history if provided (it comes as JSON string from form data)
+        parsed_history = None
+        if conversation_history:
+            import json
+            try:
+                parsed_history = json.loads(conversation_history)
+            except json.JSONDecodeError:
+                logger.warning("Failed to parse conversation_history, ignoring")
+        
         logger.info(f"🔍 V3 Query with files: '{query}' (mode: {mode}, files: {len(files)})")
         
         # Validate number of files
@@ -345,13 +357,16 @@ async def v3_query_with_files_endpoint(
         
         # Augment query with file context
         augmented_query = query
+        file_context_text = None  # Initialize to None
+        
         if file_contexts:
             file_context_text = "\n\n".join([
                 f"--- Content from {fc['filename']} ({fc['word_count']} words) ---\n{fc['text']}"
                 for fc in file_contexts
             ])
-        
-        logger.info(f"📝 File context length: {len(file_context_text)} chars")
+            logger.info(f"📝 File context length: {len(file_context_text)} chars")
+        else:
+            logger.info("📝 No file context (no files uploaded or all failed)")
         
         # V3 Retrieval with ORIGINAL query (don't confuse retriever with file content)
         logger.info("⚡ Starting V3 retrieval...")
@@ -391,7 +406,8 @@ async def v3_query_with_files_endpoint(
             results=results,
             mode=mode,
             max_context_chunks=5 if mode == "qa" else 10,
-            external_context=file_context_text
+            external_context=file_context_text,  # Will be None if no files
+            conversation_history=parsed_history
         )
         
         answer_time = time.time() - answer_start

@@ -1072,9 +1072,9 @@ class RetrievalEngine:
         }
         
         # Collect results as they complete
-        for future in as_completed(future_to_task, timeout=30):  # 30s total timeout
+        for future in as_completed(future_to_task, timeout=60):  # 60s total timeout (increased from 30s)
             try:
-                results = future.result(timeout=5)  # 5s per individual search
+                results = future.result(timeout=10)  # 10s per individual search (increased from 5s)
                 if results:
                     all_results.extend(results)
             except Exception as e:

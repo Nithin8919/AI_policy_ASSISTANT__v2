@@ -4,6 +4,36 @@ Prompt Templates for Answer Generation
 Mode-specific templates with structured formatting instructions.
 """
 
+def format_conversation_history(conversation_history):
+    """Format conversation history for inclusion in prompts"""
+    if not conversation_history or len(conversation_history) == 0:
+        return ""
+    
+    # Limit to last 5 turns (10 messages) to prevent token overflow
+    recent_history = conversation_history[-10:]
+    
+    formatted = []
+    formatted.append("-----------------------------------------------------------")
+    formatted.append("CONVERSATION HISTORY (for context)")
+    formatted.append("-----------------------------------------------------------")
+    formatted.append("")
+    
+    for msg in recent_history:
+        role = msg.get('role', 'unknown')
+        content = msg.get('content', '')
+        
+        if role == 'user':
+            formatted.append(f"User: {content}")
+        elif role == 'assistant':
+            formatted.append(f"Assistant: {content}")
+            formatted.append("")  # Blank line after assistant response
+    
+    formatted.append("-----------------------------------------------------------")
+    formatted.append("")
+    
+    return "\n".join(formatted)
+
+
 QA_MODE_PROMPT = """You are a senior policy assistant for the Andhra Pradesh School Education Department.
 
 Your task is to generate an accurate, authoritative, high-clarity answer that is directly useful for policymakers and administrative officers. Use ONLY the provided internal documents, but if numerical data, dates, budgets, quantities, or statistical references are required and appear outdated or missing, VERIFY them through internet search (web results are allowed ONLY for numerical/recency validation). 
@@ -108,7 +138,7 @@ FORMAT FOR ALL QA ANSWERS
 
 5. **Compliance Requirements** – what must be done, by whom, by when  
 
-6. **Citations** – ALWAYS list [Doc N] for every claim
+6. **Citations** – ALWAYS use superscript numbers (¹²³) for every claim
 
 -----------------------------------------------------------
 
@@ -136,6 +166,8 @@ STRICT RULES
 
 -----------------------------------------------------------
 
+{conversation_history}
+
 Documents with metadata:
 
 {documents_with_metadata}
@@ -161,8 +193,8 @@ STRICT FACT RULES:
 - Never invent GO numbers, dates, sections, Acts, or circulars.
 - If a detail is not present in the provided documents, write:
   “Not available in the provided documents.”
-- Every factual statement MUST be cited as [Doc N].  
-  Web citations must appear as [Doc N - WEB].
+- Every factual statement MUST be cited as superscript numbers (¹²³).  
+  Web citations must appear with a special marker.
 
 LEGAL + CONSTITUTIONAL ALIGNMENT:
 When relevant to the query, evaluate alignment with:
@@ -289,6 +321,8 @@ Identify:
 ## Conclusion
 Summarize key insights and provide practical, high-value recommendations for policymakers.
 
+{conversation_history}
+
 Documents with metadata:
 {documents_with_metadata}
 
@@ -314,12 +348,12 @@ PRINCIPLES FOR BRAINSTORM MODE:
 • Ideas must be bold, future-forward, and globally competitive.
 • Policy suggestions must still be feasible in Indian/State government context.
 
-⭐ **TWEAK 1: International Search First**
+ **TWEAK 1: International Search First**
 Before generating ideas, ALWAYS fetch 3–5 international best-practice references 
 (Finland, Singapore, Estonia, Japan, Ontario, Korea) and 1–2 UNESCO/OECD insights. 
 Reject generic or low-quality search results and retry with authoritative sources only.
 
-⭐ **TWEAK 2: Philosophy Injection (When Relevant)**
+ **TWEAK 2: Philosophy Injection (When Relevant)**
 When relevant, enrich ideas with short references to educational thinkers:
 - Dewey for experiential learning
 - Vygotsky for ZPD (Zone of Proximal Development)
@@ -329,12 +363,12 @@ When relevant, enrich ideas with short references to educational thinkers:
 - Bruner for scaffolding
 Use ONLY if it strengthens the idea. DO NOT over-philosophize; 5–10% philosophical flavour is enough.
 
-⭐ **TWEAK 3: Internal Documents = Feasibility Check Only**
+ **TWEAK 3: Internal Documents = Feasibility Check Only**
 Use AP GOs, Acts, Rules ONLY to check feasibility, responsibilities, 
 administrative alignment, and compliance. Do NOT let them limit creativity.
 Global knowledge expands creativity; internal documents anchor realism.
 
-⭐ **TWEAK 4: Quality Self-Check**
+ **TWEAK 4: Quality Self-Check**
 Before finalizing the answer, review your own output and ensure:
 1. At least 3 global models are referenced (Finland, Singapore, Estonia, etc.)
 2. Ideas are original, bold, and not generic
@@ -450,6 +484,8 @@ STYLE GUIDELINES:
 • Answers must feel fresh, original, and visionary.  
 • Always anchor feasibility in internal documents and state mechanisms.  
 
+{conversation_history}
+
 Documents with metadata:
 {documents_with_metadata}
 
@@ -497,8 +533,10 @@ How to measure progress (KPIs).
 - Maximum 2 pages worth of content
 - Use tables and bullets for scannability
 - Include GO numbers with dates
-- Cite all claims [Doc N]
+- Cite all claims with superscript numbers (¹²³)
 - Focus on actionability
+
+{conversation_history}
 
 Documents with metadata:
 {documents_with_metadata}

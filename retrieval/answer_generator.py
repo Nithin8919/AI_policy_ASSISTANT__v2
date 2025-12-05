@@ -38,7 +38,8 @@ class AnswerGenerator:
         results: List[Dict],
         mode: str = "qa",
         max_context_chunks: int = 5,
-        external_context: Optional[str] = None
+        external_context: Optional[str] = None,
+        conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict:
         """
         Generate answer with proper citations.
@@ -49,6 +50,7 @@ class AnswerGenerator:
             mode: Query mode
             max_context_chunks: Max chunks to include
             external_context: Additional context (e.g. from uploaded files)
+            conversation_history: Previous conversation turns for context
             
         Returns:
             Dict with answer, citations, bibliography
@@ -68,7 +70,7 @@ class AnswerGenerator:
         context_text = self._format_context(context_results)
         
         # Build prompt based on mode
-        prompt = self._build_prompt(query, context_text, mode, external_context)
+        prompt = self._build_prompt(query, context_text, mode, external_context, conversation_history)
         
         # Generate answer
         try:
@@ -157,7 +159,7 @@ Content: {text[:800]}{"..." if len(text) > 800 else ""}
         
         return "\n".join(context_parts)
     
-    def _build_prompt(self, query: str, context: str, mode: str, external_context: Optional[str] = None) -> str:
+    def _build_prompt(self, query: str, context: str, mode: str, external_context: Optional[str] = None, conversation_history: Optional[List[Dict[str, str]]] = None) -> str:
         """
         Build prompt with EXPLICIT citation instructions.
         
@@ -173,18 +175,43 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
 {external_context}
 ---
 """
+        
+        # Format conversation history if provided
+        history_text = ""
+        if conversation_history and len(conversation_history) > 0:
+            # Limit to last 5 turns (10 messages)
+            recent_history = conversation_history[-10:]
+            history_parts = []
+            history_parts.append("-----------------------------------------------------------")
+            history_parts.append("CONVERSATION HISTORY (for context)")
+            history_parts.append("-----------------------------------------------------------")
+            history_parts.append("")
+            
+            for msg in recent_history:
+                role = msg.get('role', 'unknown')
+                content = msg.get('content', '')
+                
+                if role == 'user':
+                    history_parts.append(f"User: {content}")
+                elif role == 'assistant':
+                    history_parts.append(f"Assistant: {content}")
+                    history_parts.append("")  # Blank line after assistant response
+            
+            history_parts.append("-----------------------------------------------------------")
+            history_parts.append("")
+            history_text = "\n".join(history_parts)
 
         if mode == "qa":
             return f"""You are a policy assistant providing precise answers from official documents.
 
 CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
 
-1. You MUST cite EVERY factual claim using [Doc X] format
+1. You MUST cite EVERY factual claim using bracketed numbers
 2. Place citations IMMEDIATELY after each relevant sentence
-3. Use square brackets: [Doc 1], [Doc 2], [Doc 3]
-4. If info comes from multiple sources, cite all: [Doc 1][Doc 2]
+3. Use bracketed format: [1] [2] [3] [4] [5] [6] [7] [8] [9] [10]
+4. If info comes from multiple sources, cite all: [1][2][3]
 5. NEVER make claims without citations
-6. The Doc numbers correspond to "Doc #:" in the context below
+6. The numbers correspond to "Doc #:" in the context below
 
 SPECIAL INSTRUCTION FOR GOVERNMENT ORDERS:
 7. When mentioning Government Orders, ALWAYS include the specific GO number from the document header
@@ -192,17 +219,19 @@ SPECIAL INSTRUCTION FOR GOVERNMENT ORDERS:
 9. Include the year when available
 
 GOOD EXAMPLE:
-"Recent Government Orders include G.O.MS.No.190 (2022) regarding teacher transfers [Doc 1] and G.O.MS.No.155 (2022) on educational policies [Doc 2]."
+"Recent Government Orders include G.O.MS.No.190 (2022) regarding teacher transfers [1] and G.O.MS.No.155 (2022) on educational policies [2]."
 
 BAD EXAMPLE (DO NOT DO THIS):
 "Recent government orders include various policies on education."
+
+{history_text}
 
 Context Documents:
 {context}
 
 Question: {query}
 
-Provide a concise, accurate answer with mandatory citations and specific GO numbers:
+Provide a concise, accurate answer with mandatory bracketed citations and specific GO numbers:
 """
         
         elif mode == "deep_think":
@@ -210,26 +239,28 @@ Provide a concise, accurate answer with mandatory citations and specific GO numb
 
 CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
 
-1. You MUST cite EVERY factual claim, legal provision, and policy reference using [Doc X] format
+1. You MUST cite EVERY factual claim, legal provision, and policy reference using bracketed numbers
 2. Place citations IMMEDIATELY after each sentence or claim
-3. Use square brackets: [Doc 1], [Doc 2], [Doc 3]
-4. If analyzing multiple sources, cite all relevant ones
+3. Use bracketed format: [1] [2] [3] [4] [5] [6] [7] [8] [9] [10]
+4. If analyzing multiple sources, cite all relevant ones: [1][2][3]
 5. NEVER make claims without citations
-6. The Doc numbers correspond to "Doc #:" in the context below
+6. The numbers correspond to "Doc #:" in the context below
 
 Structure your analysis:
-- Overview (with citations)
-- Key provisions (with citations for each)
-- Legal framework (with citations)
-- Implications (with citations)
-- Related policies (with citations)
+- Overview (with bracketed citations)
+- Key provisions (with bracketed citations for each)
+- Legal framework (with bracketed citations)
+- Implications (with bracketed citations)
+- Related policies (with bracketed citations)
+
+{history_text}
 
 Context Documents:
 {context}
 
 Question: {query}
 
-Provide comprehensive policy analysis with mandatory citations:
+Provide comprehensive policy analysis with mandatory bracketed citations:
 """
         
         else:  # brainstorm
@@ -237,37 +268,39 @@ Provide comprehensive policy analysis with mandatory citations:
 
 CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
 
-1. When referencing existing policies or examples, cite using [Doc X] format
+1. When referencing existing policies or examples, cite using bracketed numbers
 2. Place citations after each reference to existing policy/practice
 3. Clearly distinguish between:
-   - Existing approaches (MUST be cited)
+   - Existing approaches (MUST be cited with bracketed numbers)
    - Your new suggestions (no citation needed)
-4. Use square brackets: [Doc 1], [Doc 2]
+4. Use bracketed format: [1] [2] [3] [4] [5] [6] [7] [8] [9] [10]
 
 Example:
-"Current policy focuses on infrastructure. [Doc 1] However, we could also consider:
+"Current policy focuses on infrastructure [1]. However, we could also consider:
 - Teacher training programs
 - Community engagement initiatives"
+
+{history_text}
 
 Context Documents (existing approaches):
 {context}
 
 Question: {query}
 
-Suggest innovative approaches, citing existing policies where relevant:
+Suggest innovative approaches, citing existing policies with bracketed numbers where relevant:
 """
     
     def _extract_citations(self, text: str) -> List[str]:
         """
-        Extract citation numbers from text.
+        Extract citation numbers from text (bracketed format).
         
         Returns:
             List of cited doc numbers (e.g., ["1", "2", "3"])
         """
         import re
         
-        # Pattern: [Doc X] or [Doc X][Doc Y]
-        pattern = r'\[Doc\s+(\d+)\]'
+        # Pattern: [1] [2] [3] etc.
+        pattern = r'\[(\d+)\]'
         matches = re.findall(pattern, text)
         
         return sorted(set(matches), key=lambda x: int(x))

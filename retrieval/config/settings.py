@@ -17,7 +17,7 @@ class QdrantConfig:
     """Qdrant connection settings"""
     url: str = os.getenv("QDRANT_URL", "http://localhost:6333")
     api_key: Optional[str] = os.getenv("QDRANT_API_KEY")
-    timeout: int = 30
+    timeout: int = 60  # Increased from 30 to prevent timeout errors
     prefer_grpc: bool = False
 
 
