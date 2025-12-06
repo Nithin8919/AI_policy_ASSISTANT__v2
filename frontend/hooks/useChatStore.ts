@@ -31,6 +31,7 @@ export interface Message {
     queryMode?: any;
     isThinking?: boolean;
     currentStep?: string;
+    attachedFiles?: { name: string; size: number; type: string }[];
 }
 
 export function useChatStore() {
@@ -56,6 +57,17 @@ export function useChatStore() {
         return () => unsubscribe();
     }, []);
 
+    // Helper to remove undefined fields recursively
+    const sanitizeMessage = (msg: any) => {
+        const clean: any = {};
+        Object.keys(msg).forEach(key => {
+            if (msg[key] !== undefined) {
+                clean[key] = msg[key];
+            }
+        });
+        return clean;
+    };
+
     const createChat = async (initialMessage: Message, title: string, preview: string) => {
         try {
             const chatRef = await addDoc(collection(db, 'chats'), {
@@ -66,7 +78,7 @@ export function useChatStore() {
 
             const messagesRef = collection(db, 'chats', chatRef.id, 'messages');
             await addDoc(messagesRef, {
-                ...initialMessage,
+                ...sanitizeMessage(initialMessage),
                 timestamp: serverTimestamp(),
             });
 
@@ -117,7 +129,7 @@ export function useChatStore() {
         try {
             const messagesRef = collection(db, 'chats', chatId, 'messages');
             await addDoc(messagesRef, {
-                ...message,
+                ...sanitizeMessage(message),
                 timestamp: serverTimestamp(),
             });
         } catch (error) {

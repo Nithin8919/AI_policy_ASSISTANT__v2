@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { ChatMessage } from '@/components/ChatMessage'
 import { ChatInput } from '@/components/ChatInput'
 import { TypingIndicator } from '@/components/TypingIndicator'
-import { queryAPI, queryModelDirect, type QueryResponse } from '@/lib/api'
+import { queryAPI, queryWithFiles, type QueryResponse, queryModelDirect } from '@/lib/api'
 import { modelService } from '@/lib/modelService'
 import { AIModel } from '@/lib/models'
 import { Badge } from '@/components/ui/badge'
@@ -56,17 +56,27 @@ export function ChatBot({ selectedModel, activeChatId, onChatCreated }: ChatBotP
     let interval: NodeJS.Timeout
     if (isSending) {
       let stepIndex = 0
-      setCurrentThinkingStep(THINKING_STEPS[0])
+      // If we are just starting, set to initial step
+      // If files are present, the first step might be "Analyzing uploaded file..." set by handleSendMessage
+      // So only reset if not already set to that.
+      if (currentThinkingStep !== "Analyzing uploaded file...") {
+        setCurrentThinkingStep(THINKING_STEPS[0])
+      }
 
       interval = setInterval(() => {
-        stepIndex = (stepIndex + 1) % THINKING_STEPS.length
-        setCurrentThinkingStep(THINKING_STEPS[stepIndex])
+        // If we are at the "Analyzing..." step, move to "Understanding..."
+        if (currentThinkingStep === "Analyzing uploaded file...") {
+          setCurrentThinkingStep(THINKING_STEPS[0])
+        } else {
+          // Standard cycle
+          const currentIndex = THINKING_STEPS.indexOf(currentThinkingStep)
+          const nextIndex = (currentIndex + 1) % THINKING_STEPS.length
+          setCurrentThinkingStep(THINKING_STEPS[nextIndex])
+        }
       }, 2500) // Change step every 2.5 seconds
-    } else {
-      setCurrentThinkingStep(THINKING_STEPS[0])
     }
     return () => clearInterval(interval)
-  }, [isSending])
+  }, [isSending, currentThinkingStep])
 
   const handleQueryModeChange = (mode: QueryMode) => {
     setQueryMode(mode)
@@ -76,7 +86,7 @@ export function ChatBot({ selectedModel, activeChatId, onChatCreated }: ChatBotP
     setInternetEnabled(enabled)
   }
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, files?: File[]) => {
     setIsSending(true)
 
     // Create user message object
@@ -87,15 +97,26 @@ export function ChatBot({ selectedModel, activeChatId, onChatCreated }: ChatBotP
       timestamp: new Date(),
     }
 
+    // Only attach files if they exist and are not empty
+    if (files && files.length > 0) {
+      userMessage.attachedFiles = files.map(f => ({
+        name: f.name,
+        size: f.size,
+        type: f.type
+      }))
+    }
+
     let currentChatId = activeChatId
 
     try {
-      console.log(`ChatBot: Using query mode: ${queryMode}, Internet: ${internetEnabled}`)
+      console.log(`ChatBot: Using query mode: ${queryMode}, Internet: ${internetEnabled}, Files attached: ${files?.length || 0}`)
 
-      // If no active chat, we need to create one, but we usually wait for the response to set the title/preview?
-      // Or we can create it now.
-      // Let's create it now with the user message.
+      // If files are present, set initial thinking step
+      if (files && files.length > 0) {
+        setCurrentThinkingStep("Analyzing uploaded file...")
+      }
 
+      // If no active chat, we need to create one
       if (!currentChatId) {
         const title = content.length > 30 ? content.substring(0, 30) + '...' : content
         // We'll update preview later with the answer
@@ -105,13 +126,36 @@ export function ChatBot({ selectedModel, activeChatId, onChatCreated }: ChatBotP
         await addMessageToChat(currentChatId, userMessage)
       }
 
-      // Use backend API with current query mode and internet setting
-      const response = await queryAPI({
-        query: content,
-        simulate_failure: false,
-        mode: queryMode,
-        internet_enabled: internetEnabled
-      })
+      let response: QueryResponse;
+
+      // Build conversation history from previous messages (last 10 messages)
+      const conversationHistory = firestoreMessages
+        .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+        .slice(-10) // Last 10 messages
+        .map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
+
+      if (files && files.length > 0) {
+        // Use file upload endpoint with conversation history
+        response = await queryWithFiles(
+          content,
+          files,
+          queryMode,
+          internetEnabled,
+          conversationHistory
+        )
+      } else {
+        // Use standard endpoint with conversation history
+        response = await queryAPI({
+          query: content,
+          simulate_failure: false,
+          mode: queryMode,
+          internet_enabled: internetEnabled,
+          conversation_history: conversationHistory
+        })
+      }
 
       // Fallback if response.answer is empty or undefined
       const responseContent = response.answer || `I received your message "${content}" but couldn't generate a proper response. This might be due to API configuration issues.`

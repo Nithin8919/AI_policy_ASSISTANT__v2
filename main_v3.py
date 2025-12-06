@@ -121,6 +121,7 @@ class QueryRequest(BaseModel):
     top_k: Optional[int] = Field(None, description="Override number of results")
     internet_enabled: Optional[bool] = Field(False, description="Enable internet search")
     conversation_history: Optional[List[Dict[str, str]]] = Field(None, description="Previous conversation turns for context")
+    external_context: Optional[str] = Field(None, description="Context from uploaded files (text content)")
 
 class Citation(BaseModel):
     docId: str
@@ -251,7 +252,8 @@ async def v3_query_endpoint(request: QueryRequest):
         v3_output = v3_engine.retrieve(
             query=request.query,
             top_k=request.top_k,
-            custom_plan=custom_plan
+            custom_plan=custom_plan,
+            external_context=request.external_context
         )
         
         retrieval_time = time.time() - retrieval_start
@@ -282,6 +284,7 @@ async def v3_query_endpoint(request: QueryRequest):
                 query=request.query,
                 results=results_for_builder,
                 mode=request.mode,
+                external_context=request.external_context,
                 conversation_history=request.conversation_history
             )
             
@@ -314,6 +317,7 @@ async def v3_query_endpoint(request: QueryRequest):
                 results=results_old_fmt,
                 mode=request.mode,
                 max_context_chunks=5 if request.mode == "qa" else 10,
+                external_context=request.external_context,
                 conversation_history=request.conversation_history
             )
             
@@ -478,12 +482,14 @@ async def v3_query_with_files_endpoint(
                 f"--- Content from {fc['filename']} ({fc['word_count']} words) ---\n{fc['text']}"
                 for fc in file_contexts
             ])
-            logger.info(f"📝 File context length: {len(file_context_text)} chars")
+            logger.info(f"📝 File context constructed. Length: {len(file_context_text)} chars")
+            logger.info(f"📝 File context preview: {file_context_text[:200].replace('\n', ' ')}...")
         else:
             logger.info("📝 No file context (no files uploaded or all failed)")
+            file_context_text = None # Explicitly set to None
         
         # V3 Retrieval with ORIGINAL query (don't confuse retriever with file content)
-        logger.info("⚡ Starting V3 retrieval...")
+        logger.info(f"⚡ Starting V3 retrieval with external_context length: {len(file_context_text) if file_context_text else 0}")
         retrieval_start = time.time()
         
         # Build custom plan with internet setting
@@ -492,7 +498,8 @@ async def v3_query_with_files_endpoint(
         v3_output = v3_engine.retrieve(
             query=query,
             top_k=10,
-            custom_plan=custom_plan
+            custom_plan=custom_plan,
+            external_context=file_context_text
         )
         
         retrieval_time = time.time() - retrieval_start

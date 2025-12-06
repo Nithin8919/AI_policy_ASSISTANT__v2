@@ -163,19 +163,8 @@ Content: {text[:800]}{"..." if len(text) > 800 else ""}
         """
         Build prompt with EXPLICIT citation instructions.
         
-        This is the CRITICAL FIX - makes citations non-negotiable.
+        CRITICAL FIX: Uploaded files are now PRIMARY SOURCE, database results are supporting.
         """
-        # Append external context if provided
-        if external_context:
-            context = f"""
-{context}
-
----
-ADDITIONAL CONTEXT FROM UPLOADED FILES:
-{external_context}
----
-"""
-        
         # Format conversation history if provided
         history_text = ""
         if conversation_history and len(conversation_history) > 0:
@@ -201,8 +190,49 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
             history_parts.append("")
             history_text = "\n".join(history_parts)
 
+        # Build context section with uploaded files FIRST (as primary source)
+        if external_context:
+            full_context = f"""
+═══════════════════════════════════════════════════════════════
+🔵 PRIMARY SOURCE - UPLOADED FILES
+═══════════════════════════════════════════════════════════════
+
+IMPORTANT: These are files uploaded by the user. Use this content as your PRIMARY source 
+for answering questions. The user's question is most likely about THIS content.
+
+{external_context}
+
+═══════════════════════════════════════════════════════════════
+📚 SUPPORTING DOCUMENTS FROM DATABASE
+═══════════════════════════════════════════════════════════════
+
+These are additional relevant documents from the database. Use these to:
+- Find related information mentioned in the uploaded files
+- Provide supporting context
+- Answer questions about connections and relationships
+
+{context}
+"""
+        else:
+            # No uploaded files - use database results as primary source
+            full_context = f"""
+Context Documents:
+{context}
+"""
+
         if mode == "qa":
             return f"""You are a policy assistant providing precise answers from official documents.
+
+CRITICAL INSTRUCTIONS FOR ANSWERING:
+
+1. **IF USER UPLOADED FILES**: 
+   - Use UPLOADED FILES to understand the context and specific details of the user's document.
+   - **CRITICAL**: If the user asks about "related" documents, laws, or GOs, you MUST cross-reference the entities found in the uploaded file with the **SUPPORTING DOCUMENTS**.
+   - If a referenced document (e.g., G.O., Act) appears in SUPPORTING DOCUMENTS, you MUST summarize it and explain the connection.
+   - **SYNTHESIZE**: Do not limit your answer to just the uploaded file. Combine insights from both the upload and the database results to provide a complete picture.
+   - Extract all relevant information from uploaded files first, then expand with database context.
+   
+2. **IF NO UPLOADED FILES**: Answer using the context documents from the database
 
 CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
 
@@ -213,29 +243,52 @@ CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
 5. NEVER make claims without citations
 6. The numbers correspond to "Doc #:" in the context below
 
-SPECIAL INSTRUCTION FOR GOVERNMENT ORDERS:
-7. When mentioning Government Orders, ALWAYS include the specific GO number from the document header
-8. Format as: "G.O.MS.No.XXX" or the exact format shown in the document
-9. Include the year when available
+SPECIAL INSTRUCTIONS FOR GOVERNMENT ORDERS AND UPLOADED FILES:
+
+7. When analyzing uploaded GO files, extract:
+   - GO numbers (e.g., G.O.MS.No.XXX)
+   - Departments mentioned
+   - Dates and years
+   - Key subjects and topics
+   - References to other GOs or policies
+   
+8. When asked about "related GOs" or similar questions:
+   - Look for GO numbers, departments, or topics in the uploaded file
+   - Find matching information in the supporting documents
+   - Explain the relationships clearly
+
+10. **SPECIAL INSTRUCTIONS FOR SERVICE RULES AND ACTS**:
+    - If the user asks about a specific **Service Rule**, **Act**, or **Section**, you MUST:
+      - Cite the **EXACT RULE NUMBER** or **SECTION** (e.g., "Rule 10(a)", "Section 12(1)(c)").
+      - Quote or closely paraphrase the **official text** of the rule.
+      - Explain the **REASONING** or "Why" behind the rule based on the document text.
+      - **DO NOT** give a vague summary. Be legally precise.
+
+9. Format GO numbers as shown in the source: "G.O.MS.No.XXX" or exact format from document
 
 GOOD EXAMPLE:
-"Recent Government Orders include G.O.MS.No.190 (2022) regarding teacher transfers [1] and G.O.MS.No.155 (2022) on educational policies [2]."
-
-BAD EXAMPLE (DO NOT DO THIS):
-"Recent government orders include various policies on education."
+"According to **Rule 15 of the AP State Service Rules** [1], transfers are prohibited during the academic year to ensure continuity of instruction [2]. The specific provision states that 'no teacher shall be transferred...' [1]."
+"The uploaded file is G.O.MS.No.190 (2022) from the Education Department regarding teacher transfers [UPLOADED]. Related orders include G.O.MS.No.155 (2022) on educational policies [1] and G.O.MS.No.203 (2023) on the same topic [2]."
 
 {history_text}
 
-Context Documents:
-{context}
+{full_context}
 
 Question: {query}
 
-Provide a concise, accurate answer with mandatory bracketed citations and specific GO numbers:
+Provide a concise, accurate answer focusing on uploaded content (if present) with mandatory citations:
 """
         
         elif mode == "deep_think":
             return f"""You are a policy analyst providing comprehensive analysis with legal citations.
+
+CRITICAL INSTRUCTIONS FOR ANSWERING:
+
+1. **IF USER UPLOADED FILES**: Analyze the UPLOADED FILES as your PRIMARY source
+   - Extract key information, entities, and relationships from uploaded content
+   - Use supporting documents to provide broader context
+   
+2. **IF NO UPLOADED FILES**: Analyze using the context documents from the database
 
 CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
 
@@ -248,15 +301,14 @@ CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
 
 Structure your analysis:
 - Overview (with bracketed citations)
-- Key provisions (with bracketed citations for each)
+- Key provisions from uploaded files (if present)
 - Legal framework (with bracketed citations)
 - Implications (with bracketed citations)
-- Related policies (with bracketed citations)
+- Related policies and connections (with bracketed citations)
 
 {history_text}
 
-Context Documents:
-{context}
+{full_context}
 
 Question: {query}
 
@@ -265,6 +317,11 @@ Provide comprehensive policy analysis with mandatory bracketed citations:
         
         else:  # brainstorm
             return f"""You are a creative policy advisor suggesting innovative approaches.
+
+CRITICAL INSTRUCTIONS FOR ANSWERING:
+
+1. **IF USER UPLOADED FILES**: Use uploaded content to understand current approaches/policies
+2. **IF NO UPLOADED FILES**: Use context documents to understand existing approaches
 
 CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
 
@@ -282,8 +339,7 @@ Example:
 
 {history_text}
 
-Context Documents (existing approaches):
-{context}
+{full_context}
 
 Question: {query}
 

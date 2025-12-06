@@ -3,7 +3,7 @@ export interface QueryRequest {
   simulate_failure?: boolean
   mode?: string
   internet_enabled?: boolean
-
+  conversation_history?: Array<{ role: string; content: string }>
 }
 
 export interface Citation {
@@ -38,7 +38,7 @@ export async function queryAPI(request: QueryRequest): Promise<QueryResponse> {
     console.log('🔵 QueryAPI called with:', request)
     console.log('🔵 API_BASE_URL:', API_BASE_URL)
     console.log('🔵 Full URL:', `${API_BASE_URL}/v1/query`)
-    
+
     const response = await fetch(`${API_BASE_URL}/v1/query`, {
       method: 'POST',
       headers: {
@@ -72,7 +72,7 @@ export async function queryAPI(request: QueryRequest): Promise<QueryResponse> {
 export async function getSystemStatus(): Promise<any> {
   try {
     const response = await fetch(`${API_BASE_URL}/v1/status`)
-    
+
     if (!response.ok) {
       throw new Error(`Status check failed: ${response.status} ${response.statusText}`)
     }
@@ -112,7 +112,7 @@ export async function scrapeUrl(url: string, method: string = 'auto'): Promise<a
 export async function getDocument(documentId: string): Promise<any> {
   try {
     const response = await fetch(`${API_BASE_URL}/v1/document/${documentId}`)
-    
+
     if (!response.ok) {
       throw new Error(`Document retrieval failed: ${response.status} ${response.statusText}`)
     }
@@ -164,20 +164,26 @@ export async function queryWithFiles(
   query: string,
   files: File[],
   mode: string = 'qa',
-  internet_enabled: boolean = false
+  internet_enabled: boolean = false,
+  conversation_history?: Array<{ role: string; content: string }>
 ): Promise<QueryResponse> {
   try {
     console.log('🔵 QueryWithFiles called with:', { query, fileCount: files.length, mode, internet_enabled })
-    
+
     const formData = new FormData()
     formData.append('query', query)
     formData.append('mode', mode)
     formData.append('internet_enabled', internet_enabled.toString())
-    
+
+    // Add conversation history if provided
+    if (conversation_history && conversation_history.length > 0) {
+      formData.append('conversation_history', JSON.stringify(conversation_history))
+    }
+
     files.forEach((file) => {
       formData.append('files', file)
     })
-    
+
     const response = await fetch(`${API_BASE_URL}/v3/query_with_files`, {
       method: 'POST',
       body: formData,

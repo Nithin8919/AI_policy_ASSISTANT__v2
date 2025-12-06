@@ -194,8 +194,12 @@ class RetrievalEngine:
         # Initialize query cache (10 minute TTL)
         self.query_cache = QueryCache(ttl_seconds=600)
         
-        # Initialize Diagnostic Runner
-        from diagnostics.diagnostic_runner import DiagnosticRunner
+        if self.use_relation_entity:
+            self.relation_entity_processor = RelationEntityProcessor(qdrant_client)
+        
+        # Initialize query cache (10 minute TTL)
+        self.query_cache = QueryCache(ttl_seconds=600)
+        
         # Initialize Diagnostic Runner
         from diagnostics.diagnostic_runner import DiagnosticRunner
         self.diagnostic_runner = DiagnosticRunner(api_key=self.gemini_api_key)
@@ -210,6 +214,25 @@ class RetrievalEngine:
             'cache_hits': 0,
             'validation_scores': [],
         }
+
+    def _extract_entities_from_text(self, text: str) -> List[str]:
+        """Extract explicit entities like GOs, Acts, Sections from text"""
+        if not text:
+            return []
+            
+        import re
+        entities = []
+        
+        # GO patterns: GO Ms No 123, G.O.Rt.No. 456, G.O.Ms.No. 789
+        go_pattern = r'G\.?O\.?\s*(?:Ms\.?|Rt\.?|P\.?)\s*No\.?\s*\d+'
+        entities.extend(re.findall(go_pattern, text, re.IGNORECASE))
+        
+        # Act patterns: X Act, 2020 (simple heuristic)
+        act_pattern = r'(?:The\s+)?([A-Z][a-zA-Z\s]+Act(?:,?\s+\d{4})?)'
+        matches = re.findall(act_pattern, text)
+        entities.extend([m for m in matches if len(m) > 10 and len(m) < 50])
+        
+        return list(set(entities))
     
     def retrieve(
         self,
@@ -352,6 +375,16 @@ class RetrievalEngine:
         # 1.3: Submit parallel tasks for query understanding (Full Pipeline)
         understanding_futures = {}
         
+        # START FILE CONTEXT ANALYSIS
+        context_entities = []
+        if external_context:
+             trace_steps.append("Analyzing uploaded file content...")
+             context_entities = self._extract_entities_from_text(external_context)
+             if context_entities:
+                 logger.info(f"📄 Extracted entities from file: {context_entities}")
+                 trace_steps.append(f"Found relevant entities in file: {', '.join(context_entities[:3])}...")
+        # END FILE CONTEXT ANALYSIS
+        
         # Interpretation task
         understanding_futures['interpretation'] = self.executor.submit(
             self.interpreter.interpret_query, normalized_query
@@ -371,9 +404,10 @@ class RetrievalEngine:
         
         # Wait for parallel tasks to complete
         try:
-            interpretation = understanding_futures['interpretation'].result(timeout=2)
-            rewrites_obj = understanding_futures['rewrites'].result(timeout=5)
-            rewrites = [normalized_query] + [r.text for r in rewrites_obj]
+            interpretation = understanding_futures['interpretation'].result(timeout=5)
+            rewrites_obj = understanding_futures['rewrites'].result(timeout=10)
+            # Add context entities to rewrites to ensure they are searched
+            rewrites = [normalized_query] + [r.text for r in rewrites_obj] + context_entities
         except Exception as e:
             print(f"Parallel query understanding failed: {e}")
             # Fallback to sequential
@@ -475,9 +509,9 @@ class RetrievalEngine:
                 future_bm25 = executor.submit(run_bm25_search)
                 
                 try:
-                    # 5s timeout for vector, 2s for BM25
-                    vector_res = future_vector.result(timeout=5.0)
-                    bm25_res = future_bm25.result(timeout=2.0)
+                    # 25s timeout for vector, 10s for BM25 (increased to prevent timeouts)
+                    vector_res = future_vector.result(timeout=25.0)
+                    bm25_res = future_bm25.result(timeout=10.0)
                 except concurrent.futures.TimeoutError:
                     logger.warning("Search timeout - using partial results")
                     if future_vector.done():

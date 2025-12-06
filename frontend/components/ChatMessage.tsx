@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { User, Bot, AlertCircle, ChevronDown, ChevronRight, Brain } from 'lucide-react'
+import { User, Bot, AlertCircle, ChevronDown, ChevronRight, Brain, FileText, CheckCircle2 } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -16,6 +16,7 @@ interface Message {
   queryMode?: 'qa' | 'deep_think' | 'brainstorm'
   isThinking?: boolean
   currentStep?: string
+  attachedFiles?: { name: string; size: number; type: string }[]
 }
 
 interface ChatMessageProps {
@@ -128,6 +129,27 @@ export function ChatMessage({ message }: ChatMessageProps) {
               className="text-sm"
             />
           </div>
+
+          {/* Attached Files Display (User Message) - Fixed styling */}
+          {message.role === 'user' && message.attachedFiles && message.attachedFiles.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <div className="text-[10px] font-medium opacity-70 uppercase tracking-wider mb-1">Attached Context</div>
+              {message.attachedFiles.map((file, idx) => (
+                <div key={idx} className="flex items-center gap-2 bg-white/10 p-2 rounded-lg text-xs backdrop-blur-sm border border-white/10">
+                  <div className="p-1.5 bg-white/20 rounded-md">
+                    <FileText className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate max-w-[200px]">{file.name}</div>
+                    <div className="opacity-70 text-[10px]">Processed</div>
+                  </div>
+                  <div className="text-green-300">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Show placeholder warning for assistant messages */}
           {message.role === 'assistant' && message.content.includes('N/A') && (
