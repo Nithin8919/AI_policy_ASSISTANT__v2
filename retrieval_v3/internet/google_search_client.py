@@ -97,14 +97,14 @@ class GoogleSearchClient:
             logger.warning(f"Query rewriter initialization failed: {e}, will use raw queries")
             self.query_rewriter = None
 
-    def search(self, query: str, max_results: int = 5, timeout: float = 8.0) -> List[Dict[str, str]]:
+    def search(self, query: str, max_results: int = 5, timeout: float = 15.0) -> List[Dict[str, str]]:
         """
         Perform an internet search and return structured results.
         
         Args:
             query: Original user query
             max_results: Maximum number of results to return (default: 5, increased from 1)
-            timeout: Timeout in seconds for the search operation (default: 8.0, increased from 3.0)
+            timeout: Timeout in seconds for the search operation (default: 15.0, increased from 8.0 to prevent timeouts)
             
         Returns:
             List of search results with title, snippet, url, and source

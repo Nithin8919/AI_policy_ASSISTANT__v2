@@ -94,12 +94,33 @@ class AnswerGenerator:
         if results:
             max_score = max(r.get('score', 0) for r in results)
         
-        # Weak retrieval threshold (0.5 chosen as safe cutoff to allow mixed mode for semi-relevant docs)
-        # If score is lower, we allow general knowledge fallback
-        is_weak_retrieval = max_score < 0.5
+        # Query intent detection: Check if query asks for policy design, strategy, or global models
+        policy_design_keywords = [
+            'recommend', 'suggest', 'strategy', 'strategic', 'plan', 'planning',
+            'singapore', 'finland', 'estonia', 'international', 'global', 'world-class',
+            'how to improve', 'fastest', 'effective intervention',
+            'policy design', 'intervention', 'approach', 'framework',
+            'best practice', 'innovation', 'creative solution'
+        ]
+        
+        query_lower = normalized_query.lower()
+        is_policy_design_query = any(keyword in query_lower for keyword in policy_design_keywords)
+        
+        # Weak retrieval threshold (0.7 chosen as safe cutoff - only use strict mode for highly relevant docs)
+        # If score is lower OR if it's a policy design query, we allow general knowledge fallback
+        is_weak_retrieval = max_score < 0.7 or is_policy_design_query
+        
+        if is_policy_design_query:
+            logger.info(f"🌍 Policy design query detected, activating mixed mode (max_score={max_score:.2f})")
+        elif is_weak_retrieval:
+            logger.info(f"📉 Weak retrieval detected (max_score={max_score:.2f} < 0.7), activating mixed mode")
+        
+        
+        # Detect if internet results are present
+        has_internet_results = any(r.get('vertical') == 'internet' for r in results)
         
         # Build prompt based on mode (use normalized query for better context)
-        prompt = self._build_prompt(normalized_query, context_text, mode, external_context, conversation_history, is_weak_retrieval=is_weak_retrieval)
+        prompt = self._build_prompt(normalized_query, context_text, mode, external_context, conversation_history, is_weak_retrieval=is_weak_retrieval, has_internet_results=has_internet_results)
         
         # Generate answer
         try:
@@ -188,7 +209,7 @@ Content: {text[:800]}{"..." if len(text) > 800 else ""}
         
         return "\n".join(context_parts)
     
-    def _build_prompt(self, query: str, context: str, mode: str, external_context: Optional[str] = None, conversation_history: Optional[List[Dict[str, str]]] = None, is_weak_retrieval: bool = False) -> str:
+    def _build_prompt(self, query: str, context: str, mode: str, external_context: Optional[str] = None, conversation_history: Optional[List[Dict[str, str]]] = None, is_weak_retrieval: bool = False, has_internet_results: bool = False) -> str:
         """
         Build prompt with EXPLICIT citation instructions.
         
@@ -265,7 +286,9 @@ Context Documents:
                 if is_weak_retrieval:
                      instructions = """1. **SOURCE: MIXED (DOCUMENTS + GENERAL KNOWLEDGE)**:
    - **Use provided documents when relevant, but if they lack the needed details, rely on global research and best practices.**
-   - **Do not reply that the documents don’t contain the information.**
+   - **Do not reply that the documents don't contain the information.**
+   - **When the question explicitly asks for global inspiration or international models** (e.g., Singapore, Finland, Estonia), **prioritize global best practices** and use the documents only to contextualize Andhra Pradesh's starting point.
+   - **Do not restrict answers to the documents when the user asks for global policy design.**
    - **STRICT ANTI-FILE-BEGGING**: NEVER ask for files."""
                 else:
                     instructions = """1. **SOURCE: DATABASE & INTERNET**: 
@@ -283,37 +306,49 @@ CRITICAL INSTRUCTIONS FOR ANSWERING:
 {instructions}
 
 
-CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
 
-1. You MUST cite EVERY factual claim using bracketed numbers
-2. Place citations IMMEDIATELY after each relevant sentence
-3. Use bracketed format: [1] [2] [3] [4] [5] [6] [7] [8] [9] [10]
-4. If info comes from multiple sources, cite all: [1][2][3]
-5. NEVER make claims without citations
-6. The numbers correspond to "Doc #:" in the context below
+CITATION RULES:
+
+1. **When to cite**: If a sentence directly uses information from the retrieved documents, cite it with [1], [2], etc.
+2. **When NOT to cite**: If the sentence is based on general global knowledge or educational best practices, do NOT cite anything.
+3. **Never fabricate citations**: Only cite when the fact truly came from a retrieved document. NEVER attach a citation unless the information came from the documents below.
+4. **Prioritize relevance**: If using general knowledge, ensure recommendations are logically related to Andhra Pradesh, Indian education systems, or similar high-performing models (Singapore, Finland, Estonia, etc.).
+5. Place citations IMMEDIATELY after each relevant sentence that uses document information
+6. Use bracketed format: [1] [2] [3] [4] [5] [6] [7] [8] [9] [10]
+7. If info comes from multiple documents, cite all: [1][2][3]
+8. The numbers correspond to "Doc #:" in the context below
+
+**FALLBACK FOR WEAK RETRIEVAL:**
+If the retrieved documents do not contain enough information to answer the question fully, expand the answer using general educational best practices and global policy knowledge. State the general knowledge plainly without requiring citations. Never say that the documents don't contain the information.
 
 SPECIAL INSTRUCTIONS FOR GOVERNMENT ORDERS AND UPLOADED FILES:
 
-7. When analyzing uploaded GO files, extract:
+9. When analyzing uploaded GO files, extract:
    - GO numbers (e.g., G.O.MS.No.XXX)
    - Departments mentioned
    - Dates and years
    - Key subjects and topics
    - References to other GOs or policies
    
-8. When asked about "related GOs" or similar questions:
+10. When asked about "related GOs" or similar questions:
    - Look for GO numbers, departments, or topics in the uploaded file
    - Find matching information in the supporting documents
-   - Explain the relationships clearly
+   - Explain the nature of the relationship (e.g., "amends", "cites", "supersedes", "clarifies").
+   - **MANDATORY**: When mentioning a related GO, **ALWAYS briefly summarize its subject or purpose** (e.g., "G.O.Ms.No. 1, which deals with Service Rules..."). Do not just list the number.
+   - **CRITICAL: EXPLAIN THE CHANGE**: If a GO amends or supersedes another, clearly state:
+     * What was the old provision/rule?
+     * What is the new provision/rule?
+     * Why was the change made?
+   - "G.O.Ms.No. 123 amends G.O.Ms.No. 1 by changing [X] to [Y]..."
 
-10. **SPECIAL INSTRUCTIONS FOR SERVICE RULES AND ACTS**:
+11. **SPECIAL INSTRUCTIONS FOR SERVICE RULES AND ACTS**:
     - If the user asks about a specific **Service Rule**, **Act**, or **Section**, you MUST:
       - Cite the **EXACT RULE NUMBER** or **SECTION** (e.g., "Rule 10(a)", "Section 12(1)(c)").
       - Quote or closely paraphrase the **official text** of the rule.
       - Explain the **REASONING** or "Why" behind the rule based on the document text.
       - **DO NOT** give a vague summary. Be legally precise.
 
-11. **CRITICAL: HANDLING TABLES, STATISTICS, AND NUMERICAL DATA**:
+12. **CRITICAL: HANDLING TABLES, STATISTICS, AND NUMERICAL DATA**:
     - **TABLES ARE VALID SOURCES**: If you see tables with numbers, treat them as authoritative data.
     - **INTERPRETATION REQUIRED**: When you see table data:
       * Look at column headers and row labels to understand what the numbers represent
@@ -327,6 +362,7 @@ SPECIAL INSTRUCTIONS FOR GOVERNMENT ORDERS AND UPLOADED FILES:
     - **Example**: If you see a table with rows like "Total Teachers | 45,231" under a UDISE header, 
       you should answer: "According to UDISE+ 2024-25 data, there are 45,231 teachers [1]."
     - **BE CONFIDENT**: Don't say "I cannot find the information" if tables contain the data - interpret them!
+
 
 9. Format GO numbers as shown in the source: "G.O.MS.No.XXX" or exact format from document
 
@@ -344,8 +380,14 @@ Provide a concise, accurate answer focusing on uploaded content (if present) wit
 """
         
         elif mode == "deep_think":
-            # Select instructions for Deep Think based on file presence
-            if external_context:
+            # Select instructions for Deep Think based on file presence and internet results
+            if has_internet_results:
+                 instructions = """1. **SOURCE: DATABASE + INTERNET**:
+   - **INTEGRATED ANALYSIS**: Synthesize information from BOTH internal database documents and the provided Internet search results.
+   - **GLOBAL CONTEXT**: Use the Internet results as the PRIMARY source for international examples (e.g., Singapore, Finland), global best practices, and external data.
+   - **LOCAL CONTEXT**: Use the internal database documents to describe the current Andhra Pradesh/India context.
+   - **COMPARATIVE APPROACH**: actively compare local policies (from database) with global models (from internet)."""
+            elif external_context:
                 instructions = """1. **PRIMARY SOURCE: UPLOADED FILES**: 
    - Analyze the UPLOADED FILES as your **PRIMARY** source for the deep dive.
    - Extract key provisions, entities, and policy logic from these files.
@@ -365,20 +407,25 @@ CRITICAL INSTRUCTIONS FOR ANSWERING:
 
 {instructions}
 
-CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
-1. You MUST cite EVERY factual claim, legal provision, and policy reference using bracketed numbers
-2. Place citations IMMEDIATELY after each sentence or claim
-3. Use bracketed format: [1] [2] [3] [4] [5] [6] [7] [8] [9] [10]
-4. If analyzing multiple sources, cite all relevant ones: [1][2][3]
-5. NEVER make claims without citations
-6. The numbers correspond to "Doc #:" in the context below
+CITATION RULES:
+1. **When to cite**: If a sentence directly uses information from the retrieved documents, cite it with [1], [2], etc.
+2. **When NOT to cite**: If the sentence is based on general global knowledge or educational best practices, do NOT cite anything.
+3. **Never fabricate citations**: Only cite when the fact truly came from a retrieved document. NEVER attach a citation unless the information came from the documents below.
+4. **Prioritize relevance**: If using general knowledge, ensure recommendations are logically related to Andhra Pradesh, Indian education systems, or similar high-performing models (Singapore, Finland, Estonia, etc.).
+5. Place citations IMMEDIATELY after each sentence that uses document information
+6. Use bracketed format: [1] [2] [3] [4] [5] [6] [7] [8] [9] [10]
+7. If analyzing multiple sources, cite all relevant ones: [1][2][3]
+8. The numbers correspond to "Doc #:" in the context below
+
+**FALLBACK FOR WEAK RETRIEVAL:**
+If the retrieved documents do not contain enough information to answer the question fully, expand the answer using general educational best practices and global policy knowledge. State the general knowledge plainly without requiring citations. Never say that the documents don't contain the information.
 
 Structure your analysis:
-- Overview (with bracketed citations)
+- Overview (cite document-backed claims with bracketed numbers, state general knowledge plainly)
 - Key provisions from uploaded files (if present)
-- Legal framework (with bracketed citations)
-- Implications (with bracketed citations)
-- Related policies and connections (with bracketed citations)
+- Legal framework (cite document-backed claims with bracketed numbers)
+- Implications (cite document-backed claims with bracketed numbers, enhance with general knowledge where needed)
+- Related policies and connections (cite document-backed claims with bracketed numbers; **ALWAYS summarize the subject/purpose of each related GO mentioned**)
 
 **CRITICAL: INTERPRETING TABLES AND STATISTICAL DATA**:
 - Tables with numbers are PRIMARY sources for statistical questions
@@ -416,19 +463,24 @@ CRITICAL INSTRUCTIONS FOR ANSWERING:
 
 {instructions}
 
-CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
+CITATION RULES FOR BRAINSTORM MODE:
 
-1. When referencing existing policies or examples, cite using bracketed numbers
-2. Place citations after each reference to existing policy/practice
-3. Clearly distinguish between:
-   - Existing approaches (MUST be cited with bracketed numbers)
-   - Your new suggestions (no citation needed)
-4. Use bracketed format: [1] [2] [3] [4] [5] [6] [7] [8] [9] [10]
+1. **When to cite**: When referencing existing policies, examples, or approaches from the retrieved documents, cite using bracketed numbers
+2. **When NOT to cite**: New suggestions, innovations, and general educational best practices do NOT need citations
+3. **Never fabricate citations**: Only cite when the reference truly came from a retrieved document
+4. **Prioritize relevance**: Ensure all suggestions (cited or not) are logically related to Andhra Pradesh, Indian education systems, or similar high-performing models (Singapore, Finland, Estonia, etc.)
+5. Place citations after each reference to existing policy/practice
+6. Use bracketed format: [1] [2] [3] [4] [5] [6] [7] [8] [9] [10]
+7. Clearly distinguish between existing approaches (cite with bracketed numbers) and your new suggestions (no citation needed)
+
+**FALLBACK FOR WEAK RETRIEVAL:**
+If the retrieved documents do not contain sufficient policy context, freely draw from global educational best practices, innovation frameworks, and world-class education systems to generate suggestions. No citations needed for general knowledge.
 
 Example:
 "Current policy focuses on infrastructure [1]. However, we could also consider:
-- Teacher training programs
-- Community engagement initiatives"
+- Teacher training programs using peer observation models (inspired by lesson study in Japan)
+- Community engagement initiatives similar to Finland's parent participation framework"
+
 
 {history_text}
 

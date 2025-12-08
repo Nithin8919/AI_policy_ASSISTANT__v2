@@ -223,8 +223,8 @@ class RetrievalEngine:
         import re
         entities = []
         
-        # GO patterns: GO Ms No 123, G.O.Rt.No. 456, G.O.Ms.No. 789
-        go_pattern = r'G\.?O\.?\s*(?:Ms\.?|Rt\.?|P\.?)\s*No\.?\s*\d+'
+        # GO patterns: GO Ms No 123, G.O.Rt.No. 456, G.O.Ms.No. 789, GO Number 123
+        go_pattern = r'G\.?O\.?\s*(?:Ms\.?|Rt\.?|P\.?)?[\s\.]?(?:No\.?|Number)?\s*\d+'
         entities.extend(re.findall(go_pattern, text, re.IGNORECASE))
         
         # Act patterns: X Act, 2020 (simple heuristic)
@@ -613,8 +613,8 @@ class RetrievalEngine:
             trace_steps.append("Searching internet for latest policies...")
             logger.info(f"🌐 Internet search enabled for: {query}")
             try:
-                # Increased timeout from 3s to 10s - Gemini streaming typically takes 5-8s
-                web_raw_results = self.google_search_client.search(query, timeout=10.0)
+                # Increased timeout from 10s to 20s to safely accommodate Gemini generation
+                web_raw_results = self.google_search_client.search(query, timeout=20.0)
                 
                 # Convert to RetrievalResult objects
                 for i, res in enumerate(web_raw_results):

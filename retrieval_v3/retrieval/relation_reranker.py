@@ -476,6 +476,12 @@ class RelationReranker:
                     "key": "entities.go_refs",
                     "match": {"value": identifier}
                 })
+            elif identifier.isdigit():
+                # Strategy 2.5: Raw number lookup (assumed GO number)
+                filter_conditions.append({
+                    "key": "entities.go_numbers",
+                    "match": {"value": identifier}
+                })
             
             # Execute filter search if conditions exist
             results = []
@@ -638,7 +644,7 @@ class EntityMatcher:
         """Initialize entity matcher"""
         # Enhanced entity patterns for GO documents
         self.entity_patterns = {
-            'go_numbers': r'(?:go|government order|govt order)[\s\.]?(?:ms|rt)[\s\.]?no[\s\.]?(\d+)',
+            'go_numbers': r'(?:go|government order|govt order)[\s\.]?(?:ms|rt|p)?[\s\.]?(?:no\.?|number)?\s*(\d+)',
             'go_refs': r'(?:ms|rt)[\s\.]?(?:no[\s\.]?)?(\d+)',  # More flexible GO references
             'sections': r'section[\s\.]?(\d+(?:\(\d+\))?(?:\([a-z]\))?)',
             'rules': r'rule[\s\.]?(\d+(?:\(\d+\))?(?:\([a-z]\))?)',  # Rule references

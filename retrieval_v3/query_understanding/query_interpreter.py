@@ -174,6 +174,18 @@ class QueryInterpreter:
         r'\bupdated\b',
         r'\btoday\b',
         r'\bnow\b',
+        # International comparison keywords
+        r'\bsingapore\b',
+        r'\bfinland\b',
+        r'\bestonia\b',
+        r'\bsouth\s+korea\b',
+        r'\bjapan\b',
+        r'\binternational\b',
+        r'\bglobal\b',
+        r'\bworld-class\b',
+        r'\bworld\s+leading\b',
+        r'\bglobally\b',
+        r'\bworld.*systems?\b',
     ]
     
     # Entity patterns

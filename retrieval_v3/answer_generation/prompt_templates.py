@@ -138,7 +138,21 @@ FORMAT FOR ALL QA ANSWERS
 
 5. **Compliance Requirements** – what must be done, by whom, by when  
 
-6. **Citations** – ALWAYS use superscript numbers (¹²³) for every claim
+6. **Citations** – Use superscript numbers (¹²³) for document-backed claims only
+
+-----------------------------------------------------------
+
+CITATION RULES
+
+-----------------------------------------------------------
+
+- **When to cite**: If a sentence directly uses information from the retrieved documents, cite it with superscript numbers (¹²³).
+- **When NOT to cite**: If the sentence is based on general global knowledge or educational best practices, do NOT cite anything.
+- **Never fabricate citations**: Only cite when the fact truly came from a retrieved document.
+- **Prioritize relevance**: If using general knowledge, ensure recommendations are logically related to Andhra Pradesh or similar high-performing systems.
+
+**FALLBACK FOR WEAK RETRIEVAL:**
+If the retrieved documents do not contain enough information to answer the question fully, expand the answer using general educational best practices and global policy knowledge. State the general knowledge plainly without requiring citations. Never say that the documents don't contain the information.
 
 -----------------------------------------------------------
 
