@@ -32,6 +32,23 @@ class AnswerGenerator:
         
         logger.info("✅ Answer generator initialized")
     
+    def _normalize_year_query(self, query: str) -> str:
+        """Normalize year queries to match academic year format (e.g., 2025 -> 2024-25)"""
+        import re
+        # Match standalone years like "2025", "2024"
+        year_pattern = r'\b(20\d{2})\b'
+        matches = re.findall(year_pattern, query)
+        
+        if matches:
+            for year_str in matches:
+                year = int(year_str)
+                # Convert to academic year format
+                academic_year = f"{year-1}-{str(year)[2:]}"
+                # Add both formats to improve matching
+                query = query + f" {academic_year}"
+        
+        return query
+    
     def generate(
         self,
         query: str,
@@ -63,14 +80,26 @@ class AnswerGenerator:
                 "confidence": 0.0
             }
         
+        # Normalize year query for better matching with academic year data
+        normalized_query = self._normalize_year_query(query)
+        
         # Limit context
         context_results = results[:max_context_chunks]
         
         # Format context with doc numbers
         context_text = self._format_context(context_results)
         
-        # Build prompt based on mode
-        prompt = self._build_prompt(query, context_text, mode, external_context, conversation_history)
+        # Calculate max score to detect weak retrieval
+        max_score = 0.0
+        if results:
+            max_score = max(r.get('score', 0) for r in results)
+        
+        # Weak retrieval threshold (0.5 chosen as safe cutoff to allow mixed mode for semi-relevant docs)
+        # If score is lower, we allow general knowledge fallback
+        is_weak_retrieval = max_score < 0.5
+        
+        # Build prompt based on mode (use normalized query for better context)
+        prompt = self._build_prompt(normalized_query, context_text, mode, external_context, conversation_history, is_weak_retrieval=is_weak_retrieval)
         
         # Generate answer
         try:
@@ -159,7 +188,7 @@ Content: {text[:800]}{"..." if len(text) > 800 else ""}
         
         return "\n".join(context_parts)
     
-    def _build_prompt(self, query: str, context: str, mode: str, external_context: Optional[str] = None, conversation_history: Optional[List[Dict[str, str]]] = None) -> str:
+    def _build_prompt(self, query: str, context: str, mode: str, external_context: Optional[str] = None, conversation_history: Optional[List[Dict[str, str]]] = None, is_weak_retrieval: bool = False) -> str:
         """
         Build prompt with EXPLICIT citation instructions.
         
@@ -221,18 +250,38 @@ Context Documents:
 """
 
         if mode == "qa":
+            # Select instructions based on whether a file is uploaded
+            if external_context:
+                # ---------------- FILE UPLOADED MODE ----------------
+                instructions = """1. **PRIMARY SOURCE: UPLOADED FILES**: 
+   - You have been provided with one or more uploaded files. Use these as your **PRIMARY** source.
+   - Answer the question specifically based on the content of these files.
+   - **CROSS-REFERENCING**: If the user asks about related documents or circulars, search for them in the **SUPPORTING DOCUMENTS** from the database to provide a complete answer.
+   - **SYNTHESIS**: Combine insights from the uploaded file and supporting database documents.
+   - **CITATION**: Cite the uploaded file as [UPLOADED] or by its name."""
+            else:
+                # ---------------- NO FILE MODE ----------------
+                # Check for weak retrieval fallback
+                if is_weak_retrieval:
+                     instructions = """1. **SOURCE: MIXED (DOCUMENTS + GENERAL KNOWLEDGE)**:
+   - **Use provided documents when relevant, but if they lack the needed details, rely on global research and best practices.**
+   - **Do not reply that the documents don’t contain the information.**
+   - **STRICT ANTI-FILE-BEGGING**: NEVER ask for files."""
+                else:
+                    instructions = """1. **SOURCE: DATABASE & INTERNET**: 
+   - Answer using the text from the **SUPPORTING DOCUMENTS** provided below.
+   - **STRICT ANTI-FILE-BEGGING RULE**: 
+     - **NEVER** ask the user to upload a file.
+     - **NEVER** say "I need access to your file" or "Please upload the document".
+     - If the user uses words like "our", "my", "current", or "this" (e.g., "our learning outcomes"), **ASSUME** they are referring to the general state of affairs described in the internal documents or general knowledge.
+     - **DEFAULT TO DATABASE**: Always answer based on the information you have. If specific data is missing, state what *is* available in the documents."""
+
             return f"""You are a policy assistant providing precise answers from official documents.
 
 CRITICAL INSTRUCTIONS FOR ANSWERING:
 
-1. **IF USER UPLOADED FILES**: 
-   - Use UPLOADED FILES to understand the context and specific details of the user's document.
-   - **CRITICAL**: If the user asks about "related" documents, laws, or GOs, you MUST cross-reference the entities found in the uploaded file with the **SUPPORTING DOCUMENTS**.
-   - If a referenced document (e.g., G.O., Act) appears in SUPPORTING DOCUMENTS, you MUST summarize it and explain the connection.
-   - **SYNTHESIZE**: Do not limit your answer to just the uploaded file. Combine insights from both the upload and the database results to provide a complete picture.
-   - Extract all relevant information from uploaded files first, then expand with database context.
-   
-2. **IF NO UPLOADED FILES**: Answer using the context documents from the database
+{instructions}
+
 
 CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
 
@@ -264,6 +313,21 @@ SPECIAL INSTRUCTIONS FOR GOVERNMENT ORDERS AND UPLOADED FILES:
       - Explain the **REASONING** or "Why" behind the rule based on the document text.
       - **DO NOT** give a vague summary. Be legally precise.
 
+11. **CRITICAL: HANDLING TABLES, STATISTICS, AND NUMERICAL DATA**:
+    - **TABLES ARE VALID SOURCES**: If you see tables with numbers, treat them as authoritative data.
+    - **INTERPRETATION REQUIRED**: When you see table data:
+      * Look at column headers and row labels to understand what the numbers represent
+      * Check surrounding text for context (e.g., "UDISE 2024-25", "Teacher Statistics")
+      * Extract the specific numbers that answer the question
+      * Explain what the numbers mean in plain language
+    - **UDISE/Statistical Reports**: 
+      * Academic year "2024-25" should match queries for "2025" or "2024"
+      * Tables showing teacher counts, enrollment, infrastructure are PRIMARY sources
+      * Even if table lacks descriptive text, infer meaning from structure
+    - **Example**: If you see a table with rows like "Total Teachers | 45,231" under a UDISE header, 
+      you should answer: "According to UDISE+ 2024-25 data, there are 45,231 teachers [1]."
+    - **BE CONFIDENT**: Don't say "I cannot find the information" if tables contain the data - interpret them!
+
 9. Format GO numbers as shown in the source: "G.O.MS.No.XXX" or exact format from document
 
 GOOD EXAMPLE:
@@ -280,18 +344,28 @@ Provide a concise, accurate answer focusing on uploaded content (if present) wit
 """
         
         elif mode == "deep_think":
+            # Select instructions for Deep Think based on file presence
+            if external_context:
+                instructions = """1. **PRIMARY SOURCE: UPLOADED FILES**: 
+   - Analyze the UPLOADED FILES as your **PRIMARY** source for the deep dive.
+   - Extract key provisions, entities, and policy logic from these files.
+   - **CONTEXTUALIZATION**: Use supporting documents from the database to validate or expand on findings from the uploaded file.
+   - **CITATION**: Cite findings from the uploaded file clearly."""
+            else:
+                instructions = """1. **SOURCE: DATABASE**: 
+   - Analyze using the context documents from the database.
+   - **STRICT ANTI-FILE-BEGGING**: 
+     - **NEVER** ask the user to upload a file.
+     - If the user implies "our" or "my" context regarding data/outcomes, **ASSUME** they mean the general system state described in the database documents.
+     - Provide a comprehensive analysis based ONLY on available documents."""
+
             return f"""You are a policy analyst providing comprehensive analysis with legal citations.
 
 CRITICAL INSTRUCTIONS FOR ANSWERING:
 
-1. **IF USER UPLOADED FILES**: Analyze the UPLOADED FILES as your PRIMARY source
-   - Extract key information, entities, and relationships from uploaded content
-   - Use supporting documents to provide broader context
-   
-2. **IF NO UPLOADED FILES**: Analyze using the context documents from the database
+{instructions}
 
 CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
-
 1. You MUST cite EVERY factual claim, legal provision, and policy reference using bracketed numbers
 2. Place citations IMMEDIATELY after each sentence or claim
 3. Use bracketed format: [1] [2] [3] [4] [5] [6] [7] [8] [9] [10]
@@ -306,6 +380,14 @@ Structure your analysis:
 - Implications (with bracketed citations)
 - Related policies and connections (with bracketed citations)
 
+**CRITICAL: INTERPRETING TABLES AND STATISTICAL DATA**:
+- Tables with numbers are PRIMARY sources for statistical questions
+- Extract exact figures from tables and cite them
+- Infer context from table headers, surrounding text, and document metadata
+- Academic year formats (e.g., "2024-25") match queries for individual years (e.g., "2025", "2024")
+- Be confident in interpreting structured data - don't claim information is missing if tables contain it
+
+
 {history_text}
 
 {full_context}
@@ -316,12 +398,23 @@ Provide comprehensive policy analysis with mandatory bracketed citations:
 """
         
         else:  # brainstorm
+            # Select instructions for Brainstorm based on file presence
+            if external_context:
+                instructions = """1. **BASE: UPLOADED FILES**: 
+   - Use the uploaded content to understand the specific context/problem.
+   - Suggest innovations that directly address issues found in the uploaded file."""
+            else:
+                instructions = """1. **BASE: DATABASE CONTEXT**: 
+   - Use context documents to understand the existing landscape.
+   - **STRICT ANTI-FILE-BEGGING**: 
+     - **NEVER** ask for filenames or uploads.
+     - Generate ideas based on the general context provided in the database."""
+
             return f"""You are a creative policy advisor suggesting innovative approaches.
 
 CRITICAL INSTRUCTIONS FOR ANSWERING:
 
-1. **IF USER UPLOADED FILES**: Use uploaded content to understand current approaches/policies
-2. **IF NO UPLOADED FILES**: Use context documents to understand existing approaches
+{instructions}
 
 CRITICAL INSTRUCTIONS FOR CITATIONS (NON-NEGOTIABLE):
 

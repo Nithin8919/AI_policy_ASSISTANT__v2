@@ -387,7 +387,7 @@ class RetrievalEngine:
         
         # Interpretation task
         understanding_futures['interpretation'] = self.executor.submit(
-            self.interpreter.interpret_query, normalized_query
+            self.interpreter.interpret_query, normalized_query, query
         )
         
         # Rewrites task
@@ -411,7 +411,7 @@ class RetrievalEngine:
         except Exception as e:
             print(f"Parallel query understanding failed: {e}")
             # Fallback to sequential
-            interpretation = self.interpreter.interpret_query(normalized_query)
+            interpretation = self.interpreter.interpret_query(normalized_query, query)
             rewrites = [normalized_query]
         
         # 1.4: Expand with domain keywords (parallel)

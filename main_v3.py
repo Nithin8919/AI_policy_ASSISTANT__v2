@@ -233,7 +233,7 @@ async def v3_query_endpoint(request: QueryRequest):
         logger.info(f"🔍 V3 Query: '{request.query}' (mode: {request.mode}, internet: {request.internet_enabled})")
         
         # Validate mode
-        valid_modes = ["qa", "deep_think", "brainstorm"]
+        valid_modes = ["qa", "deep_think", "brainstorm", "policy_draft", "policy_brief"]
         if request.mode not in valid_modes:
             raise HTTPException(
                 status_code=400, 

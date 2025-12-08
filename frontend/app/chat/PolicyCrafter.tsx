@@ -7,12 +7,11 @@ import { modelService } from '@/lib/modelService'
 import { AIModel } from '@/lib/models'
 import { queryModelDirect } from '@/lib/api'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { ArrowLeft, Sparkles, Loader2, FileText, Zap, Shield, Users, MessageSquare, Maximize2, Minimize2, ChevronLeft, ChevronRight, ArrowLeftRight, ZoomIn, ZoomOut, RotateCcw, Download, Printer, Maximize, File, Book, GraduationCap, Plus, Minus, Trash2, Bot, Edit3, AtSign, Globe, Image as ImageIcon, CornerUpRight } from 'lucide-react'
+import { ArrowLeft, Sparkles, Loader2, FileText, Zap, Shield, Users, MessageSquare, Maximize2, Minimize2, ChevronLeft, ChevronRight, ArrowLeftRight, ZoomIn, ZoomOut, Check, RotateCcw, Download, Printer, Maximize, File, Book, GraduationCap, Plus, Minus, Trash2, Bot, Edit3, AtSign, Globe, Image as ImageIcon, CornerUpRight } from 'lucide-react'
 
 interface PolicyCrafterProps {
   onReturnToChat: () => void
 }
-
 type LayoutState = 'default' | 'focus' | 'deep-assist' | 'full-agent'
 type PolicyTemplate = 'none' | 'indian-education' | 'gitam-education'
 
@@ -33,6 +32,28 @@ interface Page {
       content: string
     }>
   }
+}
+
+type ChatAction = {
+  op: 'add' | 'update' | 'delete'
+  target: 'section' | 'page'
+  pageId?: string
+  sectionId?: string
+  title?: string
+  content?: string
+  index?: number
+}
+
+type ChatEntry = {
+  id: string
+  role: 'user' | 'assistant'
+  question?: string
+  understood?: string
+  actions?: ChatAction[]
+  applied?: string[]
+  status?: 'pending' | 'accepted' | 'rejected'
+  raw?: string
+  timestamp: number
 }
 
 export function PolicyCrafter({ onReturnToChat }: PolicyCrafterProps) {
@@ -108,7 +129,7 @@ export function PolicyCrafter({ onReturnToChat }: PolicyCrafterProps) {
   // Helper function to initialize editable fields for templates
   const initializeEditableFields = (template: PolicyTemplate) => {
     const templateContent = getPageTemplateContent(template)
-    
+
     if (template === 'none') {
       return {
         title: 'Policy Document',
@@ -117,7 +138,7 @@ export function PolicyCrafter({ onReturnToChat }: PolicyCrafterProps) {
         sections: []
       }
     }
-    
+
     return {
       title: templateContent.title,
       subtitle: templateContent.subtitle,
@@ -138,10 +159,10 @@ export function PolicyCrafter({ onReturnToChat }: PolicyCrafterProps) {
   const [currentTemplate, setCurrentTemplate] = useState<PolicyTemplate>('none')
   const [showTemplatePopup, setShowTemplatePopup] = useState(false)
   const [pages, setPages] = useState<Page[]>([
-    { 
-      id: '1', 
-      title: 'Page 1', 
-      content: '', 
+    {
+      id: '1',
+      title: 'Page 1',
+      content: '',
       template: 'none',
       editableFields: initializeEditableFields('none')
     }
@@ -157,7 +178,8 @@ export function PolicyCrafter({ onReturnToChat }: PolicyCrafterProps) {
   const [selectedModelId, setSelectedModelId] = useState<string>('')
   const chatInputRef = useRef<HTMLTextAreaElement>(null)
   const [usagePercent, setUsagePercent] = useState<number>(0)
-  const MAX_CHARS_PER_PAGE = 1200
+  const MAX_CHARS_PER_PAGE = 800 // Reduced from 1200 to prevent overflow
+  const [messages, setMessages] = useState<ChatEntry[]>([])
 
   const optimizeMarkdown = (input: string): string => {
     if (!input) return ''
@@ -169,28 +191,153 @@ export function PolicyCrafter({ onReturnToChat }: PolicyCrafterProps) {
 
   const splitIntoPageChunks = (text: string, max: number): string[] => {
     if (text.length <= max) return [text]
+
+    // Split by logical breaks (paragraphs, then sentences)
     const paragraphs = text.split(/\n\n+/)
     const chunks: string[] = []
-    let current = ''
+    let currentChunk = ''
+
     for (const para of paragraphs) {
-      const candidate = current ? current + '\n\n' + para : para
-      if (candidate.length > max && current) {
-        chunks.push(current)
-        current = para
-      } else if (candidate.length > max) {
-        // paragraph itself too big – hard split
-        let remaining = para
-        while (remaining.length > max) {
-          chunks.push(remaining.slice(0, max))
-          remaining = remaining.slice(max)
-        }
-        current = remaining
+      if ((currentChunk.length + para.length + 2) <= max) {
+        currentChunk += (currentChunk ? '\n\n' : '') + para
       } else {
-        current = candidate
+        // Push current chunk if it exists
+        if (currentChunk) {
+          chunks.push(currentChunk)
+          currentChunk = ''
+        }
+
+        // If paragraph itself is huge, split it hard
+        if (para.length > max) {
+          let remaining = para
+          while (remaining.length > max) {
+            // Try to split at a period or space near the max limit
+            let splitIndex = remaining.lastIndexOf('.', max)
+            if (splitIndex === -1 || splitIndex < max * 0.7) {
+              splitIndex = remaining.lastIndexOf(' ', max)
+            }
+            if (splitIndex === -1) splitIndex = max // Forced split
+
+            chunks.push(remaining.slice(0, splitIndex + 1))
+            remaining = remaining.slice(splitIndex + 1).trim()
+          }
+          currentChunk = remaining
+        } else {
+          currentChunk = para
+        }
       }
     }
-    if (current) chunks.push(current)
+    if (currentChunk) chunks.push(currentChunk)
+
     return chunks
+  }
+
+  /* Helper function to apply CRUD actions */
+
+
+  const applyCrudActions = (actions: ChatAction[]): string[] => {
+    const executed: string[] = []
+
+    // Sort actions to handle page creation first if needed (basic logic)
+    const sorted = [...actions].sort((a, b) => {
+      if (a.target === 'page' && b.target !== 'page') return -1
+      return 0
+    })
+
+    sorted.forEach(action => {
+      try {
+        if (action.target === 'page') {
+          if (action.op === 'add') {
+            const newPageId = `page-${Date.now()}-${Math.random()}`
+            const newPage: Page = {
+              id: newPageId,
+              title: action.title || 'New Policy Page',
+              content: '',
+              template: 'none',
+              editableFields: {
+                title: action.title || 'New Policy Page',
+                sections: []
+              }
+            }
+            setPages(prev => [...prev, newPage])
+            executed.push(`Created new page: "${newPage.title}"`)
+          } else if (action.op === 'delete' && action.pageId) {
+            setPages(prev => prev.filter(p => p.id !== action.pageId))
+            executed.push(`Deleted page ID: ${action.pageId}`)
+          }
+        } else if (action.target === 'section') {
+          if (action.op === 'add') {
+            // Add to current page if no pageId provided
+            const targetPageId = action.pageId || pages[currentPageIndex].id
+            const newSectionId = `sec-${Date.now()}-${Math.random()}`
+            setPages(prev => prev.map(p => {
+              if (p.id === targetPageId) {
+                const currentSections = p.editableFields?.sections || []
+                return {
+                  ...p,
+                  isEdited: true,
+                  editableFields: {
+                    ...p.editableFields,
+                    sections: [
+                      ...currentSections,
+                      {
+                        id: newSectionId,
+                        sectionTitle: action.title || 'New Section',
+                        content: optimizeMarkdown(action.content || '')
+                      }
+                    ]
+                  }
+                }
+              }
+              return p
+            }))
+            executed.push(`Added section: "${action.title || 'New Section'}"`)
+            // Trigger pagination check after minimal delay
+            setTimeout(() => paginateSectionContent(targetPageId, newSectionId), 100)
+
+          } else if (action.op === 'update' && action.pageId && action.sectionId && action.content) {
+            updateSectionContent(action.pageId, action.sectionId, action.content)
+            executed.push(`Updated section: "${action.title || 'Section'}"`)
+            setTimeout(() => paginateSectionContent(action.pageId!, action.sectionId!), 100)
+
+          } else if (action.op === 'delete' && action.pageId && action.sectionId) {
+            setPages(prev => prev.map(p => {
+              if (p.id === action.pageId) {
+                return {
+                  ...p,
+                  isEdited: true,
+                  editableFields: {
+                    ...p.editableFields,
+                    sections: (p.editableFields?.sections || []).filter(s => s.id !== action.sectionId)
+                  }
+                }
+              }
+              return p
+            }))
+            executed.push(`Deleted section from page ${action.pageId}`)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to execute action:', action, err)
+      }
+    })
+    return executed
+  }
+
+  const handleSend = () => {
+    const input = chatInputRef.current
+    if (input && input.value.trim() && pages.length > 0) {
+      const questionText = input.value.trim()
+      const userEntry: ChatEntry = {
+        id: `m-${Date.now()}`,
+        role: 'user',
+        question: questionText,
+        timestamp: Date.now()
+      }
+      setMessages(prev => [...prev, userEntry])
+      input.value = ''
+      runUnderstandingAndApply(questionText)
+    }
   }
 
   const paginateSectionContent = (pageId: string, sectionId: string) => {
@@ -202,43 +349,36 @@ export function PolicyCrafter({ onReturnToChat }: PolicyCrafterProps) {
       if (!page.editableFields?.sections) return prev
       const section = page.editableFields.sections.find(s => s.id === sectionId)
       if (!section) return prev
+
       const optimized = optimizeMarkdown(section.content || '')
-      // Measure using DOM: if content exceeds visible area, fallback to chunking
-      const a4Node = document.querySelector(`[data-page-id="${pageId}"]`) as HTMLElement | null
-      if (a4Node) {
-        // temp inject content to measure
-        const sandbox = document.createElement('div')
-        sandbox.style.position = 'absolute'
-        sandbox.style.visibility = 'hidden'
-        sandbox.style.pointerEvents = 'none'
-        sandbox.style.width = getComputedStyle(a4Node).width
-        sandbox.style.padding = getComputedStyle(a4Node).padding
-        sandbox.style.fontSize = '14px'
-        sandbox.innerText = optimized
-        a4Node.appendChild(sandbox)
-        const exceeds = sandbox.scrollHeight > a4Node.clientHeight
-        a4Node.removeChild(sandbox)
-        if (!exceeds && optimized.length <= MAX_CHARS_PER_PAGE) {
-          section.content = optimized
-          return pagesCopy
-        }
-      }
+
+      // Fallback logic mostly relies on character count now for stability
       const chunks = splitIntoPageChunks(optimized, MAX_CHARS_PER_PAGE)
+
+      // Update current section with first chunk
       section.content = chunks[0] || ''
+
+      // Create new pages for subsequent chunks
+      if (chunks.length > 1) {
+        // Remove ANY existing continuation pages for this section first to avoid duplicates if re-running
+        // Note: This logic is simple; sophisticated approach would track related pages. 
+        // For now, we just insert new pages.
+      }
+
       for (let i = 1; i < chunks.length; i++) {
         const newPage: Page = {
-          id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2,6)}`,
-          title: (page.editableFields?.title || page.title) + ` (cont. ${i})`,
+          id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+          title: (page.editableFields?.title || page.title), // Keep original title
           content: '',
           template: page.template || 'none',
           editableFields: {
-            title: (page.editableFields?.title || page.title) + ` (cont. ${i})`,
+            title: (page.editableFields?.title || page.title),
             subtitle: page.editableFields?.subtitle,
             version: page.editableFields?.version,
             sections: [
               {
                 id: `section-${Date.now()}-${i}`,
-                sectionTitle: (section.sectionTitle || 'Section') + ` (cont. ${i})`,
+                sectionTitle: (section.sectionTitle || 'Section') + ` (cont.)`,
                 content: chunks[i]
               }
             ]
@@ -259,6 +399,7 @@ export function PolicyCrafter({ onReturnToChat }: PolicyCrafterProps) {
       return prev
     })
   }
+  /* New Typings for Review Workflow */
   type ChatAction = {
     op: 'add' | 'update' | 'delete'
     target: 'section' | 'page'
@@ -268,6 +409,7 @@ export function PolicyCrafter({ onReturnToChat }: PolicyCrafterProps) {
     content?: string
     index?: number
   }
+
   type ChatEntry = {
     id: string
     role: 'user' | 'assistant'
@@ -275,127 +417,74 @@ export function PolicyCrafter({ onReturnToChat }: PolicyCrafterProps) {
     understood?: string
     actions?: ChatAction[]
     applied?: string[]
+    status?: 'pending' | 'accepted' | 'rejected' // Added status
     raw?: string
     timestamp: number
   }
-  const [messages, setMessages] = useState<ChatEntry[]>([])
 
-  useEffect(() => {
-    // Load available models from local and cloud providers
-    modelService.getAllModels().then(models => {
-      setAvailableModels(models)
-      if (models.length > 0) {
-        setSelectedModelId(models[0].id)
-      }
-    }).catch(err => {
-      console.error('Failed to load models:', err)
-    })
-  }, [])
-
-  const sendPromptWithModel = async (prompt: string, pageId: string, sectionId?: string) => {
-    if (!selectedModelId) return
-    setIsAIGenerating(true)
-    setUsagePercent(23)
-    try {
-      const { answer } = await queryModelDirect(prompt, selectedModelId, [
-        { role: 'user', content: prompt }
-      ])
-      if (sectionId) {
-        updateSectionContent(pageId, sectionId, answer)
-      } else {
-        const sectionNewId = `section-${Date.now()}`
-        setPages(prev => prev.map(p => {
-          if (p.id === pageId) {
-            const updated = { ...p, isEdited: true }
-            if (!updated.editableFields) updated.editableFields = { sections: [] }
-            if (!updated.editableFields.sections) updated.editableFields.sections = []
-            updated.editableFields.sections.push({ id: sectionNewId, sectionTitle: 'New Section', content: optimizeMarkdown(answer) })
-            return updated
-          }
-          return p
-        }))
-        setTimeout(() => paginateSectionContent(pageId, sectionNewId), 0)
-      }
-    } catch (e) {
-      console.error('Model generation failed:', e)
-    } finally {
-      setIsAIGenerating(false)
-      setUsagePercent(0)
-    }
+  const handleApplyActions = (messageId: string, actions: ChatAction[]) => {
+    const appliedSummaries = applyCrudActions(actions)
+    setMessages(prev => prev.map(msg =>
+      msg.id === messageId
+        ? { ...msg, status: 'accepted', applied: appliedSummaries }
+        : msg
+    ))
   }
 
-  const handleSend = () => {
-    const input = chatInputRef.current
-    if (input && input.value.trim() && pages.length > 0) {
-      const questionText = input.value.trim()
-      const userEntry: ChatEntry = {
-        id: `m-${Date.now()}`,
-        role: 'user',
-        question: questionText,
-        timestamp: Date.now()
-      }
-      setMessages(prev => [...prev, userEntry])
-      input.value = ''
-      runUnderstandingAndApply(questionText)
-    }
+  const handleDiscardActions = (messageId: string) => {
+    setMessages(prev => prev.map(msg =>
+      msg.id === messageId
+        ? { ...msg, status: 'rejected' }
+        : msg
+    ))
   }
 
   const runUnderstandingAndApply = async (prompt: string) => {
     setIsAIGenerating(true)
     try {
-      const systemInstruction = `You are a policy editing assistant.
-Return a strict JSON object with keys:\n{
-  "understanding": string, // a concise interpretation of the user's request
-  "actions": [ // minimal CRUD operations for the policy document
-    {
-      "op": "add|update|delete",
-      "target": "section|page",
-      "pageId": string, // required for section ops; for page add can be omitted
-      "sectionId": string, // for section ops
-      "title": string, // optional new title for page or section title
-      "content": string, // optional content for section
-      "index": number // optional index for insert
-    }
-  ]
-}
-Only output JSON with no prose. If nothing to change, use actions: [].`
+      // NOTE: We do NOT send the system instruction here anymore.
+      // The backend handles the prompt template for 'policy_draft' mode.
 
-      const { answer } = await queryModelDirect(
-        `${systemInstruction}\n\nUser: ${prompt}`,
-        selectedModelId,
-        [{ role: 'user', content: `${systemInstruction}\n\nUser: ${prompt}` }]
-      )
+      console.log('🔵 PolicyCrafter: Sending query to API...')
+      const { answer } = await queryModelDirect({
+        query: prompt, // Send ONLY the user prompt
+        mode: 'policy_draft'
+      })
+      console.log('✅ PolicyCrafter: Got response from API')
 
       const parsed = safeParseJSON(answer)
-      const understanding: string = parsed?.understanding || 'No structured understanding returned.'
+      const understanding: string = parsed?.understanding || 'I have processed your request.'
       const actions: ChatAction[] = Array.isArray(parsed?.actions) ? parsed.actions : []
-      let appliedSummaries: string[] = []
-      if (actions.length > 0) {
-        appliedSummaries = applyCrudActions(actions)
-      } else {
-        const currentPage = pages[currentPageIndex]
-        if (currentPage) {
-          if (currentPage.editableFields?.sections && currentPage.editableFields.sections.length > 0) {
-            await sendPromptWithModel(prompt, currentPage.id, currentPage.editableFields.sections[0].id)
-            appliedSummaries = ["Generated content for the current page's first section"]
-          } else {
-            await sendPromptWithModel(prompt, currentPage.id)
-            appliedSummaries = ["Created a new section and generated content"]
-          }
-          focusPageById(currentPage.id)
+
+      // If no valid actions returned, maybe it was a general question or failed generation
+      if (actions.length === 0) {
+        const assistantEntry: ChatEntry = {
+          id: `a-${Date.now()}`,
+          role: 'assistant',
+          understood: understanding,
+          actions: [],
+          applied: [],
+          status: 'accepted', // No actions to review
+          raw: answer,
+          timestamp: Date.now()
         }
+        setMessages(prev => [...prev, assistantEntry])
+        return
       }
 
+      // Create a PENDING entry for user review
       const assistantEntry: ChatEntry = {
         id: `a-${Date.now()}`,
         role: 'assistant',
         understood: understanding,
         actions,
-        applied: appliedSummaries,
+        applied: [],
+        status: 'pending', // Wait for user approval
         raw: answer,
         timestamp: Date.now()
       }
       setMessages(prev => [...prev, assistantEntry])
+
     } catch (e) {
       console.error('Understanding/apply failed:', e)
       const assistantEntry: ChatEntry = {
@@ -403,6 +492,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
         role: 'assistant',
         understood: 'Failed to process your request.',
         applied: [],
+        status: 'rejected',
         raw: String(e),
         timestamp: Date.now()
       }
@@ -415,105 +505,25 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
   const safeParseJSON = (text: string): any => {
     try {
       return JSON.parse(text)
-    } catch {}
+    } catch { }
     try {
       const m = text.match(/```json[\s\S]*?```/i)
       if (m) {
         const inner = m[0].replace(/```json|```/g, '')
         return JSON.parse(inner)
       }
-    } catch {}
+    } catch { }
     try {
       const start = text.indexOf('{')
       const end = text.lastIndexOf('}')
       if (start >= 0 && end > start) {
         return JSON.parse(text.slice(start, end + 1))
       }
-    } catch {}
+    } catch { }
     return null
   }
 
-  const applyCrudActions = (actions: ChatAction[]): string[] => {
-    if (!actions || actions.length === 0) return []
-    const summaries: string[] = []
-    let lastAffectedPageId: string | undefined
-    setPages(prev => {
-      let newPages = [...prev]
-      for (const action of actions) {
-        if (action.target === 'page') {
-          if (action.op === 'add') {
-            const newPage: Page = {
-              id: Date.now().toString() + Math.random().toString(36).slice(2, 7),
-              title: action.title || `Page ${newPages.length + 1}`,
-              content: '',
-              template: 'none',
-              editableFields: initializeEditableFields('none')
-            }
-            if (typeof action.index === 'number' && action.index >= 0 && action.index <= newPages.length) {
-              newPages = [...newPages.slice(0, action.index), newPage, ...newPages.slice(action.index)]
-            } else {
-              newPages = [...newPages, newPage]
-            }
-            summaries.push(`Added page "${newPage.title}"`)
-            lastAffectedPageId = newPage.id
-          } else if (action.op === 'update' && action.pageId) {
-            newPages = newPages.map(p => p.id === action.pageId ? {
-              ...p,
-              title: action.title || p.title,
-              isEdited: true
-            } : p)
-            summaries.push(`Updated page ${action.pageId}`)
-            lastAffectedPageId = action.pageId
-          } else if (action.op === 'delete' && action.pageId) {
-            newPages = newPages.filter(p => p.id !== action.pageId)
-            summaries.push(`Deleted page ${action.pageId}`)
-            lastAffectedPageId = undefined
-          }
-        }
-        if (action.target === 'section') {
-          const effectivePageId = action.pageId || (newPages[currentPageIndex]?.id || '')
-          if (!effectivePageId) { continue }
-          newPages = newPages.map(p => {
-            if (p.id !== effectivePageId) return p
-            const updated = { ...p, isEdited: true }
-            if (!updated.editableFields) updated.editableFields = { sections: [] }
-            if (!updated.editableFields.sections) updated.editableFields.sections = []
-            if (action.op === 'add') {
-              const newId = `section-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`
-              const section = { id: newId, sectionTitle: action.title || 'New Section', content: action.content || '' }
-              const idx = typeof action.index === 'number' ? Math.max(0, Math.min(action.index, updated.editableFields.sections.length)) : updated.editableFields.sections.length
-              updated.editableFields.sections = [
-                ...updated.editableFields.sections.slice(0, idx),
-                section,
-                ...updated.editableFields.sections.slice(idx)
-              ]
-              summaries.push(`Added section "${section.sectionTitle}" to page ${p.id}`)
-              lastAffectedPageId = p.id
-            } else if (action.op === 'update' && action.sectionId) {
-              updated.editableFields.sections = updated.editableFields.sections.map(s => s.id === action.sectionId ? {
-                ...s,
-                sectionTitle: action.title || s.sectionTitle,
-                content: action.content !== undefined ? optimizeMarkdown(action.content) : s.content
-              } : s)
-              summaries.push(`Updated section ${action.sectionId}`)
-              lastAffectedPageId = p.id
-              } else if (action.op === 'delete' && action.sectionId) {
-              updated.editableFields.sections = updated.editableFields.sections.filter(s => s.id !== action.sectionId)
-              summaries.push(`Deleted section ${action.sectionId}`)
-              lastAffectedPageId = p.id
-            }
-            return updated
-          })
-        }
-      }
-      if (lastAffectedPageId) {
-        const idx = newPages.findIndex(p => p.id === lastAffectedPageId)
-        if (idx >= 0) setCurrentPageIndex(idx)
-      }
-      return newPages
-    })
-    return summaries
-  }
+
 
   useEffect(() => {
     // Simulate loading time
@@ -548,7 +558,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
         setZoomTextColor(textColor)
         setPageTextColor(textColor)
       }
-      
+
       // Update mica background based on theme
       const adaptiveBackground = getAdaptiveMicaBackground()
       setMicaBackground(adaptiveBackground)
@@ -657,14 +667,14 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
       const r = parseInt(rgbMatch[1])
       const g = parseInt(rgbMatch[2])
       const b = parseInt(rgbMatch[3])
-      
+
       // Calculate brightness using luminance formula
       const brightness = (r * 299 + g * 587 + b * 114) / 1000
-      
+
       // Return appropriate text color based on brightness
       return brightness > 128 ? 'text-gray-900' : 'text-white'
     }
-    
+
     // Fallback for other color formats
     return 'text-white'
   }
@@ -672,9 +682,9 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
   // Get adaptive mica background based on theme
   const getAdaptiveMicaBackground = (): string => {
     // Check if dark theme is active
-    const isDarkTheme = document.documentElement.classList.contains('dark') || 
-                       window.matchMedia('(prefers-color-scheme: dark)').matches
-    
+    const isDarkTheme = document.documentElement.classList.contains('dark') ||
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+
     if (isDarkTheme) {
       return 'bg-gradient-to-br from-gray-900/20 via-gray-800/10 to-gray-900/5'
     } else {
@@ -692,8 +702,8 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
   const handleTemplateLoad = (template: PolicyTemplate) => {
     setCurrentTemplate(template)
     // Apply template to all pages with editable fields
-    setPages(prev => prev.map(page => ({ 
-      ...page, 
+    setPages(prev => prev.map(page => ({
+      ...page,
       template,
       editableFields: initializeEditableFields(template)
     })))
@@ -727,9 +737,9 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
 
   const removePage = (pageIndex: number) => {
     if (pages.length <= 1) return // Don't remove the last page
-    
+
     setPages(prev => prev.filter((_, index) => index !== pageIndex))
-    
+
     // Adjust current page index if needed
     if (currentPageIndex >= pageIndex) {
       setCurrentPageIndex(Math.max(0, currentPageIndex - 1))
@@ -740,13 +750,13 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
   const updatePageField = (pageId: string, fieldType: 'title' | 'subtitle' | 'version', newValue: string) => {
     setPages(prev => prev.map(page => {
       if (page.id !== pageId) return page
-      
+
       const updatedPage = { ...page, isEdited: true }
-      
+
       if (!updatedPage.editableFields) {
         updatedPage.editableFields = {}
       }
-      
+
       switch (fieldType) {
         case 'title':
           updatedPage.editableFields.title = newValue
@@ -758,7 +768,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
           updatedPage.editableFields.version = newValue
           break
       }
-      
+
       return updatedPage
     }))
   }
@@ -766,19 +776,19 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
   const updateSectionContent = (pageId: string, sectionId: string, newContent: string) => {
     setPages(prev => prev.map(page => {
       if (page.id !== pageId) return page
-      
+
       const updatedPage = { ...page, isEdited: true }
-      
+
       if (!updatedPage.editableFields) {
         updatedPage.editableFields = { sections: [] }
       }
-      
+
       if (updatedPage.editableFields.sections) {
         updatedPage.editableFields.sections = updatedPage.editableFields.sections.map(section =>
           section.id === sectionId ? { ...section, content: optimizeMarkdown(newContent) } : section
         )
       }
-      
+
       return updatedPage
     }))
     // paginate after state commit
@@ -790,7 +800,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
     try {
       // Simulate AI generation - replace with actual API call
       await new Promise(resolve => setTimeout(resolve, 2000))
-      
+
       let aiGeneratedContent = ''
       switch (fieldType) {
         case 'title':
@@ -806,16 +816,16 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
           aiGeneratedContent = `AI Generated Section Content:\n\n${prompt}\n\nThis section has been enhanced with AI-generated content based on your requirements. The content includes relevant policy guidelines, implementation strategies, and compliance considerations.`
           break
       }
-      
+
       setPages(prev => prev.map(page => {
         if (page.id !== pageId) return page
-        
+
         const updatedPage = { ...page, isEdited: true }
-        
+
         if (!updatedPage.editableFields) {
           updatedPage.editableFields = {}
         }
-        
+
         switch (fieldType) {
           case 'title':
             updatedPage.editableFields.title = aiGeneratedContent
@@ -834,7 +844,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
             }
             break
         }
-        
+
         return updatedPage
       }))
     } catch (error) {
@@ -847,7 +857,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
   // Calculate zoom overlay position based on layout state
   const getZoomPosition = () => {
     const layoutClasses = getLayoutClasses()
-    
+
     // Extract width percentages from layout classes
     const getWidthPercentage = (widthClass: string) => {
       switch (widthClass) {
@@ -861,9 +871,9 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
         default: return 25
       }
     }
-    
+
     const leftWidth = getWidthPercentage(layoutClasses.left)
-    
+
     if (isSwapped) {
       // When swapped, A4 is on the left
       return `calc(100% - ${leftWidth}% + 1.5rem)`
@@ -877,12 +887,12 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
     const templateContent = getPageTemplateContent(page.template || 'none')
 
     return (
-      <div 
+      <div
         key={page.id}
-        className="bg-white shadow-lg rounded-lg border transition-transform duration-200 ease-in-out relative group" 
-        style={{ 
-          width: '210mm', 
-          height: '297mm', 
+        className="bg-white shadow-lg rounded-lg border transition-transform duration-200 ease-in-out relative group"
+        style={{
+          width: '210mm',
+          height: '297mm',
           maxWidth: '100%',
           aspectRatio: '210/297',
           padding: '20mm',
@@ -909,7 +919,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
             {/* Editable Title */}
             <div className="text-center border-b pb-4 mb-6">
               <div className="group cursor-pointer hover:bg-blue-50/50 rounded-lg p-2 -m-2 transition-colors">
-                <h1 
+                <h1
                   className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors outline-none focus:outline-none focus:ring-0"
                   contentEditable
                   suppressContentEditableWarning={true}
@@ -929,10 +939,10 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                   {page.editableFields?.title || templateContent.title}
                 </h1>
               </div>
-              
+
               {/* Editable Subtitle */}
               <div className="group cursor-pointer hover:bg-blue-50/50 rounded-lg p-2 -m-2 transition-colors">
-                <p 
+                <p
                   className="text-xs text-gray-600 mt-1 group-hover:text-blue-600 transition-colors outline-none focus:outline-none focus:ring-0"
                   contentEditable
                   suppressContentEditableWarning={true}
@@ -952,10 +962,10 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                   {page.editableFields?.subtitle || templateContent.subtitle}
                 </p>
               </div>
-              
+
               {/* Editable Version */}
               <div className="group cursor-pointer hover:bg-blue-50/50 rounded-lg p-2 -m-2 transition-colors">
-                <p 
+                <p
                   className="text-xs text-gray-500 mt-1 group-hover:text-blue-600 transition-colors outline-none focus:outline-none focus:ring-0"
                   contentEditable
                   suppressContentEditableWarning={true}
@@ -976,7 +986,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                 </p>
               </div>
             </div>
-            
+
             {/* Editable Content Sections */}
             <div className="space-y-4">
               {page.editableFields?.sections && page.editableFields.sections.length > 0 ? (
@@ -985,10 +995,10 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                     <h3 className="font-semibold text-gray-900 text-base border-b border-gray-200 pb-1">
                       {section.sectionTitle}
                     </h3>
-                    <div 
+                    <div
                       className="group rounded-lg p-3 -m-3"
                     >
-                      <div 
+                      <div
                         className="text-gray-700 whitespace-pre-line outline-none focus:outline-none focus:ring-0"
                         contentEditable
                         suppressContentEditableWarning={true}
@@ -1046,7 +1056,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                 // Placeholder content for blank template with hover overlay
                 <div className="relative group">
                   {/* Hover overlay for skeleton content */}
-                  <div 
+                  <div
                     className="absolute inset-0 bg-blue-50/80 opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-lg flex items-center justify-center cursor-pointer z-10"
                     onClick={() => {
                       // Create a new section for blank templates
@@ -1076,51 +1086,51 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                       Start Editing
                     </div>
                   </div>
-                  
+
                   {/* Skeleton content */}
                   <div className="space-y-4">
-                <div className="h-3 bg-gray-200 rounded w-3/4"></div>
-                <div className="h-3 bg-gray-200 rounded w-full"></div>
-                <div className="h-3 bg-gray-200 rounded w-5/6"></div>
-                <div className="h-3 bg-gray-200 rounded w-2/3"></div>
-                
-                <div className="mt-6 space-y-2">
-                  <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-                  <div className="h-3 bg-gray-200 rounded w-full"></div>
-                  <div className="h-3 bg-gray-200 rounded w-4/5"></div>
-                  <div className="h-3 bg-gray-200 rounded w-3/4"></div>
-                </div>
-                
-                <div className="mt-6 space-y-2">
-                  <div className="h-3 bg-gray-200 rounded w-2/3"></div>
-                  <div className="h-3 bg-gray-200 rounded w-full"></div>
-                  <div className="h-3 bg-gray-200 rounded w-5/6"></div>
-                </div>
-                
-                <div className="mt-6 space-y-2">
-                  <div className="h-3 bg-gray-200 rounded w-1/3"></div>
-                  <div className="h-3 bg-gray-200 rounded w-full"></div>
-                  <div className="h-3 bg-gray-200 rounded w-4/5"></div>
-                  <div className="h-3 bg-gray-200 rounded w-2/3"></div>
-                </div>
+                    <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+                    <div className="h-3 bg-gray-200 rounded w-full"></div>
+                    <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+                    <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+
+                    <div className="mt-6 space-y-2">
+                      <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                      <div className="h-3 bg-gray-200 rounded w-full"></div>
+                      <div className="h-3 bg-gray-200 rounded w-4/5"></div>
+                      <div className="h-3 bg-gray-200 rounded w-3/4"></div>
+                    </div>
+
+                    <div className="mt-6 space-y-2">
+                      <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                      <div className="h-3 bg-gray-200 rounded w-full"></div>
+                      <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+                    </div>
+
+                    <div className="mt-6 space-y-2">
+                      <div className="h-3 bg-gray-200 rounded w-1/3"></div>
+                      <div className="h-3 bg-gray-200 rounded w-full"></div>
+                      <div className="h-3 bg-gray-200 rounded w-4/5"></div>
+                      <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                    </div>
                   </div>
                 </div>
-            ) : (
+              ) : (
                 // Fallback to template content if editableFields is not properly initialized
-              templateContent.content.map((section, index) => (
-                <div key={index} className="space-y-2">
-                  <h3 className="font-semibold text-gray-900 text-base border-b border-gray-200 pb-1">
-                    {section.section}
-                  </h3>
-                  <div className="text-gray-700 whitespace-pre-line">
-                    {section.text}
+                templateContent.content.map((section, index) => (
+                  <div key={index} className="space-y-2">
+                    <h3 className="font-semibold text-gray-900 text-base border-b border-gray-200 pb-1">
+                      {section.section}
+                    </h3>
+                    <div className="text-gray-700 whitespace-pre-line">
+                      {section.text}
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
             </div>
           </div>
-          
+
           {/* Document Footer */}
           <div className="mt-6 pt-4 border-t text-xs text-gray-500 text-center">
             <p>Page {pageIndex + 1} of {pages.length} | Document ID: POL-2024-001</p>
@@ -1209,7 +1219,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                   </div>
                 </div>
               </div>
-              
+
               {/* Chat Messages */}
               <div className="flex-1 overflow-y-auto premium-scrollbar p-3 space-y-4">
                 {messages.length === 0 ? (
@@ -1226,27 +1236,90 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                           <div className="whitespace-pre-wrap">{msg.question}</div>
                         </div>
                       )}
+
                       {msg.role === 'assistant' && (
-                        <div className="bg-background rounded-lg p-3 text-sm border">
-                          <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Understood</div>
-                          <div className="mb-2 whitespace-pre-wrap">{msg.understood}</div>
-                          {msg.applied && msg.applied.length > 0 && (
+                        <div className="bg-background rounded-lg p-3 text-sm border space-y-3">
+
+                          {/* Understanding Status */}
+                          <div>
+                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Understood</div>
+                            <div className="whitespace-pre-wrap text-foreground/90">{msg.understood}</div>
+                          </div>
+
+                          {/* Pending Review State */}
+                          {msg.status === 'pending' && msg.actions && msg.actions.length > 0 && (
+                            <div className="bg-muted/30 rounded-md p-3 border border-dashed border-primary/20">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                                </span>
+                                <span className="text-xs font-semibold text-primary">Proposed Changes</span>
+                              </div>
+
+                              <ul className="list-disc pl-4 text-xs space-y-1 mb-3 text-muted-foreground">
+                                {msg.actions.map((action, idx) => (
+                                  <li key={idx}>
+                                    {action.op === 'add' && <span className="text-green-600 font-medium">Add </span>}
+                                    {action.op === 'update' && <span className="text-orange-600 font-medium">Update </span>}
+                                    {action.op === 'delete' && <span className="text-red-600 font-medium">Delete </span>}
+                                    {action.target}
+                                    {action.title ? ` "${action.title}"` : ''}
+                                  </li>
+                                ))}
+                              </ul>
+
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={() => handleApplyActions(msg.id, msg.actions!)}
+                                >
+                                  <Check className="w-3 h-3 mr-1" />
+                                  Apply Changes
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs hover:bg-destructive/10 hover:text-destructive"
+                                  onClick={() => handleDiscardActions(msg.id)}
+                                >
+                                  Discard
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Applied State */}
+                          {msg.status === 'accepted' && msg.applied && msg.applied.length > 0 && (
                             <div className="mt-2">
-                              <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Applied changes</div>
-                              <ul className="list-disc pl-5 text-xs space-y-1">
+                              <div className="text-[11px] uppercase tracking-wide text-green-600 mb-1 flex items-center gap-1">
+                                <Check className="w-3 h-3" />
+                                Applied changes
+                              </div>
+                              <ul className="list-disc pl-5 text-xs space-y-1 text-muted-foreground">
                                 {msg.applied.map((a, i) => (
                                   <li key={i}>{a}</li>
                                 ))}
                               </ul>
                             </div>
                           )}
+
+                          {/* Rejected State */}
+                          {msg.status === 'rejected' && (
+                            <div className="mt-2 text-xs text-muted-foreground italic">
+                              <span className="text-destructive inline-block mr-1">✕</span>
+                              Changes discarded by user.
+                            </div>
+                          )}
+
                         </div>
                       )}
                     </div>
                   ))
                 )}
               </div>
-              
+
               {/* Chat Input */}
               <div className="border-t bg-background/80 backdrop-blur-sm p-3">
                 <div className="rounded-xl border bg-background">
@@ -1360,9 +1433,9 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                   <ArrowLeft className="w-3 h-3" />
                   <span>Return to Chat</span>
                 </Button>
-                
+
                 <div className="w-px h-4 bg-border" />
-                
+
                 <div className="flex items-center gap-2">
                   <div className="bg-primary text-primary-foreground text-xs font-semibold px-2 py-1 rounded-full">
                     Alpha
@@ -1432,7 +1505,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                   >
                     <RotateCcw className="w-3 h-3" />
                   </Button>
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1442,7 +1515,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                   >
                     <Download className="w-3 h-3" />
                   </Button>
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1495,7 +1568,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                     <Maximize2 className="w-3 h-3" />
                   </Button>
                 </div>
-                
+
                 <Button
                   variant={isSwapped ? 'default' : 'ghost'}
                   size="sm"
@@ -1508,7 +1581,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
               </div>
             </div>
           </div>
-          
+
           <div className="h-full overflow-y-auto premium-scrollbar p-6 relative">
             <div className="flex flex-col items-center space-y-8">
               {/* Render all pages */}
@@ -1527,57 +1600,57 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
             </div>
 
             {/* Zoom Controls Overlay - Fixed A4 Bottom Right */}
-            <div className="fixed bottom-6 z-10" style={{ 
+            <div className="fixed bottom-6 z-10" style={{
               right: `calc(${getZoomPosition()})`
             }}>
               <div className={`${micaBackground} backdrop-blur-md border border-border/50 rounded-lg shadow-lg p-3 relative overflow-hidden`}>
                 {/* Mica effect overlay */}
                 <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent rounded-lg"></div>
                 <div className="relative z-10">
-                <div className="flex flex-col items-center gap-3">
-                  {/* Zoom Label */}
-                  <div className={`text-xs font-medium ${zoomTextColor} tracking-wide`}>Zoom</div>
-                  
-                  {/* Vertical Controls */}
-                  <div className="flex flex-col items-center gap-1.5 bg-background/50 backdrop-blur-sm border border-border/30 rounded-md p-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleZoomIn}
-                      disabled={zoomLevel >= 300}
-                      className="h-7 w-7 p-0 rounded-md hover:bg-accent/50"
-                      title="Zoom In"
-                    >
-                      <ZoomIn className="w-3.5 h-3.5" />
-                    </Button>
-                    
-                    <div className={`px-2 py-1 text-xs font-semibold min-w-[3rem] text-center ${zoomTextColor} rounded-sm bg-muted/30 border border-border/20`}>
-                      {zoomLevel}%
+                  <div className="flex flex-col items-center gap-3">
+                    {/* Zoom Label */}
+                    <div className={`text-xs font-medium ${zoomTextColor} tracking-wide`}>Zoom</div>
+
+                    {/* Vertical Controls */}
+                    <div className="flex flex-col items-center gap-1.5 bg-background/50 backdrop-blur-sm border border-border/30 rounded-md p-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleZoomIn}
+                        disabled={zoomLevel >= 300}
+                        className="h-7 w-7 p-0 rounded-md hover:bg-accent/50"
+                        title="Zoom In"
+                      >
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </Button>
+
+                      <div className={`px-2 py-1 text-xs font-semibold min-w-[3rem] text-center ${zoomTextColor} rounded-sm bg-muted/30 border border-border/20`}>
+                        {zoomLevel}%
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleZoomOut}
+                        disabled={zoomLevel <= 50}
+                        className="h-7 w-7 p-0 rounded-md hover:bg-accent/50"
+                        title="Zoom Out"
+                      >
+                        <ZoomOut className="w-3.5 h-3.5" />
+                      </Button>
                     </div>
-                    
+
+                    {/* Reset Button */}
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      onClick={handleZoomOut}
-                      disabled={zoomLevel <= 50}
-                      className="h-7 w-7 p-0 rounded-md hover:bg-accent/50"
-                      title="Zoom Out"
+                      onClick={handleZoomReset}
+                      className="h-7 px-3 text-xs rounded-md border-border/40 bg-background/30 hover:bg-accent/20"
+                      title="Reset Zoom"
                     >
-                      <ZoomOut className="w-3.5 h-3.5" />
+                      Reset
                     </Button>
                   </div>
-                  
-                  {/* Reset Button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleZoomReset}
-                    className="h-7 px-3 text-xs rounded-md border-border/40 bg-background/30 hover:bg-accent/20"
-                    title="Reset Zoom"
-                  >
-                    Reset
-                  </Button>
-                </div>
                 </div>
               </div>
             </div>
@@ -1594,13 +1667,13 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
               <p className="text-sm text-muted-foreground">Choose how to apply the template</p>
               {getCurrentTemplateFromPages() !== 'none' && (
                 <div className="mt-2 px-3 py-1 bg-muted rounded-full text-xs">
-                  Current: {getCurrentTemplateFromPages() === 'mixed' ? 'Mixed templates' : 
+                  Current: {getCurrentTemplateFromPages() === 'mixed' ? 'Mixed templates' :
                     getCurrentTemplateFromPages() === 'indian-education' ? 'NEP 2020' :
-                    getCurrentTemplateFromPages() === 'gitam-education' ? 'GITAM Policy' : 'Blank'}
+                      getCurrentTemplateFromPages() === 'gitam-education' ? 'GITAM Policy' : 'Blank'}
                 </div>
               )}
             </div>
-            
+
             <div className="space-y-4">
               {/* Template Options */}
               <div className="space-y-3">
@@ -1616,7 +1689,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                     <div className="text-xs text-muted-foreground">Apply to all pages</div>
                   </div>
                 </Button>
-                
+
                 <Button
                   variant="outline"
                   size="lg"
@@ -1629,7 +1702,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                     <div className="text-xs text-muted-foreground">Apply to all pages</div>
                   </div>
                 </Button>
-                
+
                 <Button
                   variant="outline"
                   size="lg"
@@ -1647,7 +1720,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
               {/* Divider */}
               <div className="border-t pt-4">
                 <p className="text-xs text-muted-foreground text-center mb-3">Or add as new page</p>
-                
+
                 <div className="grid grid-cols-3 gap-2">
                   <Button
                     variant="ghost"
@@ -1658,7 +1731,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                     <Book className="w-4 h-4" />
                     <span className="text-xs">NEP</span>
                   </Button>
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1668,7 +1741,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                     <GraduationCap className="w-4 h-4" />
                     <span className="text-xs">GITAM</span>
                   </Button>
-                  
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1681,7 +1754,7 @@ Only output JSON with no prose. If nothing to change, use actions: [].`
                 </div>
               </div>
             </div>
-            
+
             <div className="mt-6 pt-4 border-t">
               <Button
                 variant="ghost"

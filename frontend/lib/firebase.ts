@@ -3,14 +3,19 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAhKEHnEQ6G_k681Mb3d10iH9fV7TzIEJY",
-  authDomain: "ai-policy-assistant-659f1.firebaseapp.com",
-  projectId: "ai-policy-assistant-659f1",
-  storageBucket: "ai-policy-assistant-659f1.firebasestorage.app",
-  messagingSenderId: "721723592938",
-  appId: "1:721723592938:web:4441ab1e29cc387ce1c793",
-  measurementId: "G-Z2B4W80N8W"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
+
+// Validate that all required Firebase config values are present
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  throw new Error('Missing required Firebase configuration. Please check your .env.local file.');
+}
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();

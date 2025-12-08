@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, FileText, Download, Copy, Check } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { queryAPI } from "@/lib/api"
 
 export default function PolicyCrafterPage() {
     const [topic, setTopic] = useState("")
@@ -24,27 +25,16 @@ export default function PolicyCrafterPage() {
         setGeneratedPolicy("")
 
         try {
-            const response = await fetch("http://localhost:8000/v3/query", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    query: topic,
-                    mode: "policy_draft",
-                    internet_enabled: true
-                }),
+            const response = await queryAPI({
+                query: topic,
+                mode: "policy_draft",
+                internet_enabled: true
             })
 
-            if (!response.ok) {
-                throw new Error("Failed to generate policy")
-            }
-
-            const data = await response.json()
-            setGeneratedPolicy(data.answer)
+            setGeneratedPolicy(response.answer)
         } catch (error) {
             console.error("Error generating policy:", error)
-            // You might want to show a toast notification here
+            setGeneratedPolicy("⚠️ Failed to generate policy. Please ensure the backend server is running.")
         } finally {
             setIsGenerating(false)
         }

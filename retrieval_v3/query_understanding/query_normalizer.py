@@ -158,7 +158,7 @@ class QueryNormalizer:
         
         for pattern_type, patterns in preserved.items():
             for pattern in patterns:
-                placeholder = f"__PRESERVED_{counter}__"
+                placeholder = f"__preserved_{counter}__"
                 text = text.replace(pattern, placeholder)
                 placeholder_map[placeholder] = pattern
                 counter += 1

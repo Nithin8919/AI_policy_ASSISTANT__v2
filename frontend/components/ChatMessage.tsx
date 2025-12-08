@@ -123,12 +123,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
             ? 'bg-destructive/10 text-destructive border border-destructive/20'
             : 'bg-transparent text-foreground p-0' // Transparent for assistant (NotebookLM style)
           }`}>
-          <div className="break-words">
-            <MarkdownRenderer
-              content={cleanContent || message.content || 'No content available'}
-              className="text-sm"
-            />
-          </div>
+          {!message.isThinking && (
+            <div className="break-words">
+              <MarkdownRenderer
+                content={cleanContent || message.content || 'Processing your query...'}
+                className="text-sm"
+              />
+            </div>
+          )}
 
           {/* Attached Files Display (User Message) - Fixed styling */}
           {message.role === 'user' && message.attachedFiles && message.attachedFiles.length > 0 && (

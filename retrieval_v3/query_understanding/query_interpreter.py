@@ -181,7 +181,7 @@ class QueryInterpreter:
         'go_refs': r'GO\.?\s*(?:Ms\.?|Rt\.?)?\s*No\.?\s*(\d+)',
         'sections': r'Section\s+(\d+(?:\([a-z0-9]+\))?)',
         'acts': r'(RTE|Right\s+to\s+Education|SSA|RMSA|MDM)\s+Act',
-        'years': r'\b(19|20)\d{2}\b',
+        'years': r'\b(?:19|20)\d{2}\b',
         'schemes': r'(Nadu-Nedu|Samagra\s+Shiksha|Mid\s+Day\s+Meal|Amma\s+Vodi)',
         'hr_terms': r'(salary|payscale|recruitment|hiring|contract|private|appointment|vacancy|post)',
     }
@@ -218,36 +218,40 @@ class QueryInterpreter:
             for k, v in self.ENTITY_PATTERNS.items()
         }
     
-    def interpret_query(self, query: str) -> QueryInterpretation:
+    def interpret_query(self, query: str, original_query: Optional[str] = None) -> QueryInterpretation:
         """
         Main interpretation function
         
         Args:
             query: Normalized user query
+            original_query: Original (un-normalized) user query
             
         Returns:
             QueryInterpretation object
         """
-        # Detect query type
+        # If original query invalid/missing, fallback to normalized
+        raw_query = original_query if original_query else query
+        
+        # Detect query type (use normalized as patterns are built for it)
         query_type, type_confidence = self._detect_query_type(query)
         
         # Detect scope
         scope = self._detect_scope(query)
         
-        # Check if internet needed
-        needs_internet = self._needs_internet(query)
+        # Check if internet needed (use raw query to catch years like 2025)
+        needs_internet = self._needs_internet(raw_query)
         
         # Determine if deep mode needed
         needs_deep_mode = self._needs_deep_mode(query_type, scope)
         
-        # Extract entities
-        entities = self._extract_entities(query)
+        # Extract entities (use raw query to catch specific IDs/Names)
+        entities = self._extract_entities(raw_query)
         
         # Extract keywords
         keywords = self._extract_keywords(query)
         
-        # Detect temporal references
-        temporal_refs = self._detect_temporal_references(query)
+        # Detect temporal references (use raw query to catch years)
+        temporal_refs = self._detect_temporal_references(raw_query)
         
         # Generate reasoning
         reasoning = self._generate_reasoning(
@@ -447,10 +451,10 @@ class QueryInterpreter:
 
 
 # Convenience function
-def interpret_query(query: str) -> QueryInterpretation:
+def interpret_query(query: str, original_query: Optional[str] = None) -> QueryInterpretation:
     """Quick interpretation function"""
     interpreter = QueryInterpreter()
-    return interpreter.interpret_query(query)
+    return interpreter.interpret_query(query, original_query)
 
 
 # Example usage and tests

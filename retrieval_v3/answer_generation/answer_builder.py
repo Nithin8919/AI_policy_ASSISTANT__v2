@@ -84,8 +84,8 @@ class AnswerBuilder:
             import google.generativeai as genai
             
             genai.configure(api_key=self.api_key)
-            # Use standard Gemini Flash model (v1beta-compatible)
-            model = genai.GenerativeModel('gemini-1.5-flash-latest')
+            # Use Gemini 2.0 Flash (same as AnswerGenerator)
+            model = genai.GenerativeModel('gemini-2.0-flash')
             
             # Prepare context from results
             context = self._prepare_context(results)
@@ -115,9 +115,19 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
             
             # Parse response
             answer_text = response.text
+            print(f"DEBUG: Policy Draft Raw Response:\n{answer_text}\n-------------------")
             
-            # Extract summary and sections
-            summary, sections = self._parse_llm_response(answer_text)
+            if mode == "policy_draft":
+                # START: Simplified Logic
+                # Pass raw text to frontend; frontend's safeParseJSON handles markdown/extraction.
+                summary = answer_text
+                sections = {}
+                confidence = 0.95
+                # END: Simplified Logic
+            else:
+                # Extract summary and sections for standard modes
+                summary, sections = self._parse_llm_response(answer_text)
+                confidence = 0.85
             
             # Build citations
             citations = self._build_citations(results)
@@ -127,12 +137,29 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
                 summary=summary,
                 sections=sections,
                 citations=citations,
-                confidence=0.85,  # LLM-generated
+                confidence=confidence,
                 metadata={'generated_by': 'gemini', 'mode': mode}
             )
             
         except Exception as e:
             print(f"LLM answer generation failed: {e}, using template")
+            
+            if mode == "policy_draft":
+                # Return failure JSON for Policy Crafter
+                import json
+                error_response = {
+                    "understanding": f"I encountered an error while generating the policy: {str(e)}",
+                    "actions": []
+                }
+                return Answer(
+                    query=query,
+                    summary=json.dumps(error_response),
+                    sections={},
+                    citations=[],
+                    confidence=0.0,
+                    metadata={'generated_by': 'error_fallback', 'mode': mode}
+                )
+            
             return self._build_template(query, results, mode)
     
     def _build_template(
@@ -255,6 +282,7 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
             'deep_think': 'deep_think',
             'brainstorm': 'brainstorm',
             'policy_brief': 'policy_brief',
+            'policy_draft': 'policy_draft',
         }
         
         template_mode = mode_map.get(mode.lower(), 'qa')
@@ -422,6 +450,28 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
         
         return f"Document {result.get('doc_id', 'Unknown')[:8]}"
     
+    def _extract_json_from_text(self, text: str) -> str:
+        """Extract valid JSON object from text, handling markdown"""
+        text = text.strip()
+        
+        # Remove markdown code blocks
+        if "```" in text:
+            # Extract everything between first ``` and last ```
+            import re
+            # Match ```json or ``` followed by content until the closing ```
+            match = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.DOTALL)
+            if match:
+                text = match.group(1).strip()
+                
+        # Try to find first { and last }
+        start = text.find('{')
+        end = text.rfind('}')
+        
+        if start != -1 and end != -1:
+            return text[start:end+1]
+            
+        return text  # Return original if all else fails
+
     def _is_uuid(self, text: str) -> bool:
         """Check if text looks like a UUID"""
         import re
