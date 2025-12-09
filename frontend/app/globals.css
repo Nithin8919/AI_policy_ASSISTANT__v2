@@ -139,6 +139,37 @@
     background: hsl(var(--muted-foreground) / 0.7);
   }
   
+  /* Draft Panel Scrollbar - More Visible */
+  .draft-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.6) hsl(var(--muted) / 0.2);
+  }
+  
+  .draft-scrollbar::-webkit-scrollbar {
+    width: 10px;
+  }
+  
+  .draft-scrollbar::-webkit-scrollbar-track {
+    background: hsl(var(--muted) / 0.2);
+    border-radius: 5px;
+    margin: 4px;
+  }
+  
+  .draft-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.6);
+    border-radius: 5px;
+    border: 2px solid hsl(var(--muted) / 0.2);
+    transition: all 0.2s ease;
+  }
+  
+  .draft-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.8);
+  }
+  
+  .draft-scrollbar::-webkit-scrollbar-thumb:active {
+    background: hsl(var(--muted-foreground));
+  }
+  
   /* Sidebar specific scrollbar */
   .sidebar-scrollbar {
     scrollbar-width: thin;

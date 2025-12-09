@@ -8,7 +8,6 @@ import {
   SettingsIcon,
   Trash2,
   BookOpenIcon,
-  FileText,
 } from "lucide-react"
 
 import { NavSecondary } from "@/components/nav-secondary"
@@ -30,11 +29,6 @@ import {
 } from "@/components/ui/sidebar"
 
 const navSecondaryData = [
-  {
-    title: "Policy Crafter",
-    url: "/policy-crafter",
-    icon: FileText,
-  },
   {
     title: "Documentation",
     url: "/documentation",

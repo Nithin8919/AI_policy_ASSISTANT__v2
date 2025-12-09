@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 # Load environment variables
 load_dotenv()
 
-# Add V3 modules to path
+# Add V3 modules to path (retrieval_v3 is already a package, no need to add backend/src)
 sys.path.insert(0, 'retrieval_v3')
 sys.path.insert(0, 'retrieval')
 
@@ -31,6 +31,10 @@ from retrieval_v3.pipeline.retrieval_engine import RetrievalEngine
 from retrieval.answer_generator import get_answer_generator
 from retrieval_v3.answer_generation.answer_builder import AnswerBuilder
 from retrieval_v3.file_processing.file_handler import FileHandler
+
+# Import PDF Viewer API routes (from retrieval_v3 package)
+from retrieval_v3.api.pdf_url import router as pdf_url_router
+from retrieval_v3.api.locate_snippet import router as locate_router
 
 # Configure logging
 logging.basicConfig(
@@ -113,6 +117,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register PDF Viewer API routes
+app.include_router(pdf_url_router, prefix="/api", tags=["PDF Viewer"])
+app.include_router(locate_router, prefix="/api", tags=["PDF Viewer"])
 
 # Request/Response models
 class QueryRequest(BaseModel):
@@ -354,11 +362,25 @@ async def v3_query_endpoint(request: QueryRequest):
                         # Construct display name from metadata
                         display_name = construct_citation_name(result, metadata)
                         
+                        # Try to get actual GCS file path from metadata
+                        # Priority: filename > file_name > source > doc_id
+                        gcs_path = (
+                            metadata.get('filename') or 
+                            metadata.get('file_name') or 
+                            metadata.get('source') or 
+                            result.get("doc_id", "Unknown")
+                        )
+                        
+                        # Debug logging to see metadata
+                        logger.info(f"📋 Citation metadata keys: {list(metadata.keys())}")
+                        logger.info(f"📍 Using gcs_path: {gcs_path}")
+
+                        
                         citations.append(Citation(
-                            docId=display_name,
+                            docId=gcs_path,  # Use actual GCS path for backend
                             page=metadata.get('page_number') or metadata.get('page') or 1,
                             span=result.get("text", "")[:150] + "...",
-                            source=display_name,
+                            source=display_name,  # Use display name for frontend
                             vertical=result.get("vertical", "unknown")
                         ))
                 except (ValueError, IndexError):
@@ -483,7 +505,8 @@ async def v3_query_with_files_endpoint(
                 for fc in file_contexts
             ])
             logger.info(f"📝 File context constructed. Length: {len(file_context_text)} chars")
-            logger.info(f"📝 File context preview: {file_context_text[:200].replace('\n', ' ')}...")
+            preview_text = file_context_text[:200].replace('\n', ' ')
+            logger.info(f"📝 File context preview: {preview_text}...")
         else:
             logger.info("📝 No file context (no files uploaded or all failed)")
             file_context_text = None # Explicitly set to None

@@ -5,7 +5,7 @@
 Utilities - Text utils, embeddings, timing, logging
 """
 
-from .text_utils import clean_text, extract_keywords
+# from .text_utils import clean_text, extract_keywords
 from .embedding_utils import (
     cosine_similarity,
     euclidean_distance,
@@ -15,11 +15,10 @@ from .embedding_utils import (
     weighted_average_vectors,
     is_valid_embedding
 )
-from .timing import Timer
 
 __all__ = [
-    'clean_text',
-    'extract_keywords',
+    # 'clean_text',
+    # 'extract_keywords',
     'cosine_similarity',
     'euclidean_distance',
     'normalize_vector',
@@ -27,19 +26,4 @@ __all__ = [
     'average_vectors',
     'weighted_average_vectors',
     'is_valid_embedding',
-    'Timer',
 ]
-
-
-
-
-
-
-
-
-
-
-
-
-
-

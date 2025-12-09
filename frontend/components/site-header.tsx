@@ -19,10 +19,9 @@ import { SettingsDialog } from "@/components/SettingsDialog"
 interface SiteHeaderProps {
   selectedModel?: string
   onModelChange?: (model: string) => void
-  onPolicyCrafterClick?: () => void
 }
 
-export function SiteHeader({ selectedModel = "gemini-2.5-flash", onModelChange, onPolicyCrafterClick }: SiteHeaderProps) {
+export function SiteHeader({ selectedModel = "gemini-2.5-flash", onModelChange }: SiteHeaderProps) {
   const [models, setModels] = useState<AIModel[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isOllamaConnected, setIsOllamaConnected] = useState(false)
@@ -74,7 +73,7 @@ export function SiteHeader({ selectedModel = "gemini-2.5-flash", onModelChange, 
     models[0]
 
   return (
-    <header className="site-header group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 flex h-12 shrink-0 items-center gap-2 transition-[width,height] ease-linear relative z-30">
+    <header className="site-header group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 flex h-12 shrink-0 items-center gap-2 transition-[width,height] ease-linear sticky top-0 z-30 bg-background border-b border-border">
       <div className="flex w-full items-center justify-between gap-1 px-4 lg:gap-2 lg:px-6">
         {/* Left side - Sidebar trigger and model selector */}
         <div className="flex items-center gap-2">
@@ -194,25 +193,8 @@ export function SiteHeader({ selectedModel = "gemini-2.5-flash", onModelChange, 
           </DropdownMenu>
         </div>
 
-        {/* Right side - Policy Crafter pill, Theme toggle, and 3-dot menu */}
+        {/* Right side - Theme toggle, and 3-dot menu */}
         <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-8 px-3 gap-2 hover:bg-primary/10 transition-colors"
-            onClick={onPolicyCrafterClick}
-          >
-            <div className="bg-primary text-primary-foreground text-xs font-semibold px-2 py-0.5 rounded-full">
-              Alpha
-            </div>
-            <span className="text-xs font-medium text-muted-foreground">
-              Policy Crafter
-            </span>
-          </Button>
-          <Separator
-            orientation="vertical"
-            className="mx-2 data-[orientation=vertical]:h-4"
-          />
           <ThemeToggle />
           <Separator
             orientation="vertical"

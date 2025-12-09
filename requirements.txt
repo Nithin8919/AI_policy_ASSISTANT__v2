@@ -34,6 +34,9 @@ pytest-cov>=4.1.0
 # Vertex AI (GCP Native)
 google-cloud-aiplatform>=1.38.0
 
+# Google Cloud Storage (for PDF viewer backend)
+google-cloud-storage>=2.10.0
+
 # Content extraction (same as before)
 trafilatura>=1.6.0
 requests>=2.31.0
@@ -44,3 +47,14 @@ requests>=2.31.0
 # python-dotenv
 # qdrant-client
 # sentence-transformers
+
+# Google Cloud Storage for signed URLs and PDF access
+google-cloud-storage>=2.10.0
+
+# PDF text extraction (already in main requirements.txt)
+# pdfplumber>=0.9.0
+
+# Testing dependencies (optional)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+httpx>=0.24.0  # For testing FastAPI endpoints

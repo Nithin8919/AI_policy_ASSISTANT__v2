@@ -1,0 +1,22 @@
+[
+    {
+        "origin": [
+            "http://localhost:3000",
+            "http://localhost:8000"
+        ],
+        "method": [
+            "GET",
+            "HEAD",
+            "OPTIONS"
+        ],
+        "responseHeader": [
+            "Content-Type",
+            "Content-Length",
+            "Content-Range",
+            "Accept-Ranges",
+            "Cache-Control",
+            "ETag"
+        ],
+        "maxAgeSeconds": 3600
+    }
+]

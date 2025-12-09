@@ -6,7 +6,6 @@ import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { ChatBot } from './ChatBot'
-import { PolicyCrafter } from './PolicyCrafter'
 import { modelService } from '@/lib/modelService'
 import { useChatStore } from '@/hooks/useChatStore'
 
@@ -14,7 +13,7 @@ export default function ChatPage() {
   const { chats, deleteChat } = useChatStore()
   const [activeChatId, setActiveChatId] = useState<string | undefined>()
   const [selectedModel, setSelectedModel] = useState<string>("")
-  const [currentInterface, setCurrentInterface] = useState<'chat' | 'policy-crafter'>('chat')
+  const [isDraftPanelOpen, setIsDraftPanelOpen] = useState(false)
 
   // Load available models and set default
   useEffect(() => {
@@ -71,20 +70,7 @@ export default function ChatPage() {
     setSelectedModel(modelId)
   }
 
-  const handlePolicyCrafterClick = () => {
-    setCurrentInterface('policy-crafter')
-  }
-
-  const handleReturnToChat = () => {
-    setCurrentInterface('chat')
-  }
-
-  // If Policy Crafter is active, render it as full-screen without any other UI
-  if (currentInterface === 'policy-crafter') {
-    return <PolicyCrafter onReturnToChat={handleReturnToChat} />
-  }
-
-  // Otherwise render the normal chat interface with sidebar and header
+  // Render the normal chat interface with sidebar and header
   return (
     <SidebarProvider>
       {/* Logo in bottom right corner */}
@@ -102,27 +88,29 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <AppSidebar
-        variant="inset"
-        chatHistory={chats}
-        activeChatId={activeChatId}
-        onNewChat={handleNewChat}
-        onSelectChat={handleSelectChat}
-        onDeleteChat={handleDeleteChat}
-      />
-      <SidebarInset>
+      {!isDraftPanelOpen && (
+        <AppSidebar
+          variant="inset"
+          chatHistory={chats}
+          activeChatId={activeChatId}
+          onNewChat={handleNewChat}
+          onSelectChat={handleSelectChat}
+          onDeleteChat={handleDeleteChat}
+        />
+      )}
+      <SidebarInset className={isDraftPanelOpen ? 'w-full' : ''}>
         <SiteHeader
           selectedModel={selectedModel}
           onModelChange={handleModelChange}
-          onPolicyCrafterClick={handlePolicyCrafterClick}
         />
 
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 relative">
           {selectedModel ? (
             <ChatBot
               activeChatId={activeChatId}
               onChatCreated={handleChatCreated}
               selectedModel={selectedModel}
+              onPanelStateChange={setIsDraftPanelOpen}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center">

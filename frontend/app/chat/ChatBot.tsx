@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from 'react'
 import { ChatMessage } from '@/components/ChatMessage'
 import { ChatInput } from '@/components/ChatInput'
 import { TypingIndicator } from '@/components/TypingIndicator'
+import { DraftPanel } from '@/components/DraftPanel'
+import { FloatingActionButton } from '@/components/FloatingActionButton'
 import { queryAPI, queryWithFiles, type QueryResponse, queryModelDirect } from '@/lib/api'
 import { modelService } from '@/lib/modelService'
 import { AIModel } from '@/lib/models'
@@ -15,6 +17,7 @@ interface ChatBotProps {
   selectedModel: string
   activeChatId?: string
   onChatCreated?: (chatId: string) => void
+  onPanelStateChange?: (isOpen: boolean) => void
 }
 
 type QueryMode = 'qa' | 'deep_think' | 'brainstorm'
@@ -29,7 +32,7 @@ const THINKING_STEPS = [
   "Building final results..."
 ]
 
-export function ChatBot({ selectedModel, activeChatId, onChatCreated }: ChatBotProps) {
+export function ChatBot({ selectedModel, activeChatId, onChatCreated, onPanelStateChange }: ChatBotProps) {
   const { messages: firestoreMessages, loadingMessages } = useChatMessages(activeChatId)
   const { createChat, addMessageToChat, updateChatPreview } = useChatStore()
 
@@ -42,6 +45,51 @@ export function ChatBot({ selectedModel, activeChatId, onChatCreated }: ChatBotP
   const [queryMode, setQueryMode] = useState<QueryMode>('qa')
   const [internetEnabled, setInternetEnabled] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Draft panel state
+  const [draftContent, setDraftContent] = useState('')
+  const [isPanelOpen, setIsPanelOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Check if mobile on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // Restore draft content from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('chatbot-draft-content')
+    if (saved) {
+      setDraftContent(saved)
+    }
+  }, [])
+
+  const handleCopyToDraft = (content: string) => {
+    const separator = draftContent ? '\n\n---\n\n' : ''
+    const newContent = `${draftContent}${separator}${content}`
+    setDraftContent(newContent)
+
+    // Open panel if closed
+    if (!isPanelOpen) {
+      setIsPanelOpen(true)
+    }
+  }
+
+  const togglePanel = () => {
+    const newState = !isPanelOpen
+    setIsPanelOpen(newState)
+    onPanelStateChange?.(newState)
+  }
+
+  // Notify parent when panel state changes
+  useEffect(() => {
+    onPanelStateChange?.(isPanelOpen)
+  }, [isPanelOpen, onPanelStateChange])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -211,57 +259,123 @@ export function ChatBot({ selectedModel, activeChatId, onChatCreated }: ChatBotP
     } as Message)
   }
 
+  // Determine layout classes based on screen size and panel state
+  const getLayoutClasses = () => {
+    if (!isPanelOpen) {
+      return {
+        chat: 'w-full',
+        panel: 'hidden'
+      }
+    }
+
+    if (isMobile) {
+      return {
+        chat: 'w-full',
+        panel: 'w-full'
+      }
+    }
+
+    // Desktop: 60% chat, 40% panel (ChatGPT style)
+    return {
+      chat: 'w-[60%]',
+      panel: 'w-[40%]'
+    }
+  }
+
+  const layoutClasses = getLayoutClasses()
+
   return (
-    <div className="flex-1 flex flex-col h-full">
+    <div className="flex-1 flex flex-col h-full relative">
+      {/* Main Content Area - Split Layout with Independent Scrolling */}
+      <div className="flex flex-row h-[calc(100vh-48px)] overflow-hidden">
+        {/* Chat Area - Independent Scroll */}
+        <div className={`${layoutClasses.chat} flex flex-col transition-all duration-300 ${isPanelOpen && !isMobile ? 'border-r border-border' : ''} overflow-hidden`}>
+          {!activeChatId && displayMessages.length === 0 ? (
+            /* Initial Empty State - Properly Centered */
+            <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 h-[calc(100vh-48px)]">
+              {/* Welcome Message */}
+              <div className="text-center mb-12">
+                <h1 className="text-xl font-light text-foreground/80 tracking-wide">
+                  How can I help you with education policy today?
+                </h1>
+              </div>
 
-      {!activeChatId && displayMessages.length === 0 ? (
-        /* Initial Empty State - Properly Centered */
-        <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
-          {/* Welcome Message */}
-          <div className="text-center mb-12">
-            <h1 className="text-xl font-light text-foreground/80 tracking-wide">
-              How can I help you with education policy today?
-            </h1>
-          </div>
+              {/* Centered Input Field */}
+              <div className="w-full max-w-3xl">
+                <ChatInput
+                  onSendMessage={handleSendMessage}
+                  isLoading={isSending}
+                  placeholder="Ask about education policies or say hi..."
+                  onThinkingModeChange={handleQueryModeChange}
+                  onInternetToggle={handleInternetToggle}
+                />
+              </div>
+            </div>
+          ) : (
+            /* Chat Messages State */
+            <>
+              {/* Messages Area - Independent Scroll with Smooth Behavior */}
+              <div
+                className="overflow-y-auto premium-scrollbar px-4"
+                style={{
+                  scrollBehavior: 'smooth',
+                  height: 'calc(100vh - 48px - 100px)' // Viewport - Header - Input area
+                }}
+              >
+                <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+                  {displayMessages.map((message) => (
+                    <ChatMessage
+                      key={message.id}
+                      message={message}
+                      onCopyToDraft={handleCopyToDraft}
+                    />
+                  ))}
+                  {/* TypingIndicator removed in favor of Thinking Message */}
+                  <div ref={messagesEndRef} />
+                </div>
+              </div>
 
-          {/* Centered Input Field */}
-          <div className="w-full max-w-3xl">
-            <ChatInput
-              onSendMessage={handleSendMessage}
-              isLoading={isSending}
-              placeholder="Ask about education policies or say hi..."
-              onThinkingModeChange={handleQueryModeChange}
-              onInternetToggle={handleInternetToggle}
+              {/* Chat Input - Fixed at Bottom */}
+              <div className="px-6 py-6 border-t border-border bg-background flex-shrink-0">
+                <div className="max-w-4xl mx-auto">
+                  <ChatInput
+                    onSendMessage={handleSendMessage}
+                    isLoading={isSending}
+                    placeholder="Ask about education policies or say hi..."
+                    onThinkingModeChange={handleQueryModeChange}
+                    onInternetToggle={handleInternetToggle}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Draft Panel - Fixed to Right */}
+        {isPanelOpen && (
+          <div className={`${layoutClasses.panel} flex-shrink-0 transition-all duration-300 flex flex-col overflow-hidden`}>
+            <DraftPanel
+              content={draftContent}
+              onChange={setDraftContent}
+              onClose={togglePanel}
+              isMobile={isMobile}
             />
           </div>
-        </div>
-      ) : (
-        /* Chat Messages State */
-        <>
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto premium-scrollbar">
-            <div className="max-w-4xl mx-auto px-6 py-8 space-y-8">
-              {displayMessages.map((message) => (
-                <ChatMessage key={message.id} message={message} />
-              ))}
-              {/* TypingIndicator removed in favor of Thinking Message */}
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
+        )}
+      </div>
 
-          {/* Chat Input */}
-          <div className="px-6 py-6">
-            <div className="max-w-4xl mx-auto">
-              <ChatInput
-                onSendMessage={handleSendMessage}
-                isLoading={isSending}
-                placeholder="Ask about education policies or say hi..."
-                onThinkingModeChange={handleQueryModeChange}
-                onInternetToggle={handleInternetToggle}
-              />
-            </div>
-          </div>
-        </>
+      {/* Floating Action Button - Only show when panel is closed */}
+      {!isPanelOpen && (
+        <FloatingActionButton onClick={togglePanel} />
+      )}
+
+      {/* Mobile Overlay */}
+      {isMobile && isPanelOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40"
+          onClick={togglePanel}
+          aria-label="Close draft panel"
+        />
       )}
     </div>
   )

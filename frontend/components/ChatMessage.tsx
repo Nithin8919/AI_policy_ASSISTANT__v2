@@ -1,11 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { User, Bot, AlertCircle, ChevronDown, ChevronRight, Brain, FileText, CheckCircle2 } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { User, Bot, AlertCircle, ChevronDown, ChevronRight, Brain, FileText, CheckCircle2, Copy, Check, Loader2 } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
+import { usePdfViewer } from '@/hooks/usePdfViewer'
+import { PdfViewer } from '@/components/PdfViewer'
 
 interface Message {
   id: string
@@ -21,6 +24,7 @@ interface Message {
 
 interface ChatMessageProps {
   message: Message
+  onCopyToDraft?: (content: string) => void
 }
 
 // Utility function to format time consistently across server and client
@@ -33,13 +37,74 @@ function formatTime(date: Date): string {
   return `${displayHours}:${displayMinutes} ${ampm}`
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({ message, onCopyToDraft }: ChatMessageProps) {
   const [isThinkingOpen, setIsThinkingOpen] = useState(message.isThinking || false)
+  const [copied, setCopied] = useState(false)
+  const [showSelectionTooltip, setShowSelectionTooltip] = useState(false)
+  const [selectedText, setSelectedText] = useState('')
+  const [loadingCitationIndex, setLoadingCitationIndex] = useState<number | null>(null)
+  const messageRef = useRef<HTMLDivElement>(null)
+  const tooltipRef = useRef<HTMLDivElement>(null)
 
-  // Auto-open thinking for thinking messages
-  if (message.isThinking && !isThinkingOpen) {
-    setIsThinkingOpen(true)
-  }
+  // PDF Viewer Hook (temporarily using openPdf instead of openWithSnippet)
+  const { state: pdfState, openPdf, closePdf } = usePdfViewer()
+
+
+  // Handle text selection within this message
+  useEffect(() => {
+    const handleSelection = () => {
+      const selection = window.getSelection()
+      if (!selection || selection.rangeCount === 0) {
+        setShowSelectionTooltip(false)
+        setSelectedText('')
+        return
+      }
+
+      const range = selection.getRangeAt(0)
+      const messageElement = messageRef.current
+
+      // Check if selection is within this message
+      if (messageElement && messageElement.contains(range.commonAncestorContainer)) {
+        const selectedTextContent = selection.toString().trim()
+        if (selectedTextContent && message.role === 'assistant') {
+          setSelectedText(selectedTextContent)
+          setShowSelectionTooltip(true)
+        } else {
+          setShowSelectionTooltip(false)
+          setSelectedText('')
+        }
+      } else {
+        setShowSelectionTooltip(false)
+        setSelectedText('')
+      }
+    }
+
+    document.addEventListener('mouseup', handleSelection)
+    document.addEventListener('selectionchange', handleSelection)
+
+    return () => {
+      document.removeEventListener('mouseup', handleSelection)
+      document.removeEventListener('selectionchange', handleSelection)
+    }
+  }, [message.role])
+
+  // Position tooltip near selection
+  useEffect(() => {
+    if (showSelectionTooltip && tooltipRef.current) {
+      const selection = window.getSelection()
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0)
+        const rect = range.getBoundingClientRect()
+        const tooltip = tooltipRef.current
+
+        // Position tooltip above selection, centered
+        tooltip.style.position = 'fixed'
+        tooltip.style.top = `${rect.top - 40}px`
+        tooltip.style.left = `${rect.left + rect.width / 2}px`
+        tooltip.style.transform = 'translateX(-50%)'
+      }
+    }
+  }, [showSelectionTooltip, selectedText])
 
   // Extract thinking content from message
   const extractThinkingContent = (content: string) => {
@@ -51,6 +116,46 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const cleanMessageContent = (content: string) => {
     if (!content) return ''
     return content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
+  }
+
+  // Get HTML content from message (preserve formatting)
+  const getMessageHTML = () => {
+    if (messageRef.current) {
+      const messageElement = messageRef.current.querySelector('[class*="break-words"]')
+      if (messageElement) {
+        return messageElement.innerHTML
+      }
+    }
+    // Fallback to markdown-rendered content
+    return cleanMessageContent(message.content)
+  }
+
+  const handleCopyToDraft = (content: string, isHTML: boolean = false) => {
+    if (onCopyToDraft) {
+      // If HTML, wrap in a div to preserve formatting
+      const formattedContent = isHTML ? `<div>${content}</div>` : content
+      onCopyToDraft(formattedContent)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const handleCopySelection = () => {
+    if (selectedText) {
+      handleCopyToDraft(selectedText, false)
+      setShowSelectionTooltip(false)
+      window.getSelection()?.removeAllRanges()
+    }
+  }
+
+  const handleCopyFullMessage = () => {
+    const htmlContent = getMessageHTML()
+    handleCopyToDraft(htmlContent, true)
+  }
+
+  // Auto-open thinking for thinking messages
+  if (message.isThinking && !isThinkingOpen) {
+    setIsThinkingOpen(true)
   }
 
   // For cloud models, we don't have <think> tags, so we'll show a generic thinking process
@@ -116,8 +221,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
       </Avatar>
 
       {/* Message Content */}
-      <div className={`flex-1 max-w-3xl ${isUser ? 'text-right' : 'text-left'}`}>
-        <div className={`inline-block rounded-2xl px-4 py-3 text-sm leading-relaxed ${isUser
+      <div className={`flex-1 max-w-3xl ${isUser ? 'text-right' : 'text-left'}`} ref={messageRef}>
+        <div className={`inline-block rounded-2xl px-4 py-3 text-sm leading-relaxed relative ${isUser
           ? 'bg-primary text-primary-foreground'
           : isSystem
             ? 'bg-destructive/10 text-destructive border border-destructive/20'
@@ -129,6 +234,51 @@ export function ChatMessage({ message }: ChatMessageProps) {
                 content={cleanContent || message.content || 'Processing your query...'}
                 className="text-sm"
               />
+            </div>
+          )}
+
+          {/* Copy to Page Button - Only for assistant messages */}
+          {message.role === 'assistant' && !message.isThinking && onCopyToDraft && (
+            <div className="mt-3 flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopyFullMessage}
+                className="h-7 px-3 text-xs gap-1.5"
+                aria-label="Copy entire message to draft document"
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-3 w-3" />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3 w-3" />
+                    Copy to page
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* Selection Tooltip */}
+          {showSelectionTooltip && selectedText && (
+            <div
+              ref={tooltipRef}
+              className="fixed z-50 bg-background border border-border rounded-lg shadow-lg p-2"
+              style={{ pointerEvents: 'auto' }}
+            >
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleCopySelection}
+                className="h-7 px-3 text-xs gap-1.5"
+                aria-label="Copy selected text to draft document"
+              >
+                <Copy className="h-3 w-3" />
+                Copy selection
+              </Button>
             </div>
           )}
 
@@ -176,6 +326,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                   const hasUrl = !!citation.url;
                   const displayName = citation.filename || citation.source || citation.docId;
                   const pageInfo = citation.page ? `Page ${citation.page}` : '';
+                  const isLoading = loadingCitationIndex === index;
 
                   const CardContent = () => (
                     <div className="flex items-start gap-3">
@@ -191,8 +342,46 @@ export function ChatMessage({ message }: ChatMessageProps) {
                           {citation.span}
                         </div>
                       </div>
+                      {isLoading && (
+                        <div className="flex-shrink-0">
+                          <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                        </div>
+                      )}
                     </div>
                   );
+
+                  // Handle citation click - temporarily skip snippet location
+                  const handleCitationClick = async () => {
+                    if (hasUrl) return; // Allow default behavior for web links
+
+                    try {
+                      setLoadingCitationIndex(index);
+                      console.log('Opening PDF for citation:', citation);
+                      console.log('Citation fields:', {
+                        docId: citation.docId,
+                        source: citation.source,
+                        filename: citation.filename,
+                        url: citation.url
+                      });
+
+                      // Try to use filename if available, otherwise use docId
+                      const pdfIdentifier = citation.filename || citation.docId;
+
+                      // Temporarily skip snippet location, just open the PDF
+                      // Pass citation.source as sourceHint (4th argument)
+                      await openPdf(
+                        pdfIdentifier,
+                        citation.source || displayName,
+                        1, // pageNumber
+                        citation.source // sourceHint
+                      );
+                    } catch (error) {
+                      console.error('Failed to open PDF:', error);
+                      alert(`Failed to open PDF: ${error instanceof Error ? error.message : 'Unknown error'}\n\nThe PDF file may not exist in the storage bucket.`);
+                    } finally {
+                      setLoadingCitationIndex(null);
+                    }
+                  };
 
                   return hasUrl ? (
                     <a
@@ -207,7 +396,8 @@ export function ChatMessage({ message }: ChatMessageProps) {
                   ) : (
                     <div
                       key={index}
-                      className="group relative p-3 rounded-xl bg-card/50 hover:bg-card border border-border/50 hover:border-primary/20 transition-all duration-200 cursor-pointer"
+                      onClick={handleCitationClick}
+                      className={`group relative p-3 rounded-xl bg-card/50 hover:bg-card border border-border/50 hover:border-primary/20 transition-all duration-200 cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] ${isLoading ? 'opacity-75' : ''}`}
                     >
                       <CardContent />
                     </div>
@@ -218,10 +408,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
           )}
 
           {/* Thinking Section for Assistant Messages - Only show for deep thinking modes OR active thinking */}
-          {message.role === 'assistant' && (
-            message.isThinking ||
-            ((message.queryMode === 'deep_think' || message.queryMode === 'qa') && (message.response?.processing_trace || thinkingContent || cloudThinkingContent))
-          ) && (
+          {
+            message.role === 'assistant' && (
+              message.isThinking ||
+              ((message.queryMode === 'deep_think' || message.queryMode === 'qa') && (message.response?.processing_trace || thinkingContent || cloudThinkingContent))
+            ) && (
               <div className="mt-3">
                 <Collapsible open={isThinkingOpen} onOpenChange={setIsThinkingOpen}>
                   <CollapsibleTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full">
@@ -363,13 +554,25 @@ export function ChatMessage({ message }: ChatMessageProps) {
                   </CollapsibleContent>
                 </Collapsible>
               </div>
-            )}
+            )
+          }
         </div>
 
         <div className={`text-xs text-muted-foreground mt-2 ${isUser ? 'text-right' : 'text-left'}`}>
           {formatTime(message.timestamp)}
         </div>
       </div>
+
+      {/* PDF Viewer Portal */}
+      {pdfState.isOpen && pdfState.pdfUrl && (
+        <PdfViewer
+          fileUrl={pdfState.pdfUrl || ''}
+          initialPage={pdfState.pageNumber || 1}
+          highlightText={pdfState.highlightText || undefined}
+          title={pdfState.title || undefined}
+          onClose={closePdf}
+        />
+      )}
     </div>
   )
 }

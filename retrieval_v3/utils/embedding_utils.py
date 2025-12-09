@@ -255,4 +255,4 @@ if __name__ == "__main__":
     print("\nValidation:")
     print(f"vec1 is valid: {is_valid_embedding(vec1)}")
     print(f"vec1 has expected dim 3: {is_valid_embedding(vec1, expected_dim=3)}")
-    print(f"vec1 has expected dim 5: {is_valid_embedding(vec1, expected_dim=5)}")c
+    print(f"vec1 has expected dim 5: {is_valid_embedding(vec1, expected_dim=5)}")

@@ -56,19 +56,6 @@ export default function UserGuidePage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>PolicyCrafter</CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm text-gray-700 space-y-2">
-                  <p>Generate structured drafts (briefs, SOPs, circulars) with section templates.</p>
-                  <ul className="list-disc pl-6 space-y-1">
-                    <li>Insert evidence snippets from the retrieval panel.</li>
-                    <li>Toggle translation to HI/TE where needed.</li>
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
                   <CardTitle>Export & Review</CardTitle>
                 </CardHeader>
                 <CardContent className="text-sm text-gray-700 space-y-2">
