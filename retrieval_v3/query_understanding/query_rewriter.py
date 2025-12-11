@@ -458,60 +458,117 @@ class QueryRewriter:
         self,
         query: str,
         num_rewrites: int = 3,
-        api_key: Optional[str] = None
+        api_key: Optional[str] = None # Deprecated, kept for signature compatibility
     ) -> List[QueryRewrite]:
         """
-        Generate rewrites using Gemini Flash (fast and cheap)
+        Generate rewrites using Gemini Flash via Vertex AI (OAuth/ADC ONLY).
+        NO API KEY FALLBACK - strictly OAuth/ADC.
         
         Args:
             query: Original query
             num_rewrites: Number of rewrites (3-5)
-            api_key: Google API key for Gemini (or set GEMINI_API_KEY env var)
+            api_key: Ignored (OAuth enforced)
             
         Returns:
             List of QueryRewrite objects
         """
         try:
-            import google.generativeai as genai
+            # STRICTLY OAuth / Vertex AI - no API key fallback
+            project_id = os.getenv("GOOGLE_CLOUD_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
+            # Default to us-central1 where Gemini 2.5 is available
+            location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
             
-            # Get API key from env if not provided
-            if not api_key:
-                api_key = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
-            
-            if not api_key:
-                print("No Gemini API key found, falling back to rule-based rewrites")
+            if not project_id:
+                # No project ID = no OAuth, skip Gemini entirely
                 return self.generate_rewrites(query, num_rewrites)
             
-            # Configure Gemini Flash (fastest, cheapest)
-            genai.configure(api_key=api_key)
-            
-            # Try different model names - API version compatibility varies
             model_names_to_try = [
-                'gemini-1.5-flash',         # Primary model (fast & cheap)
-                'gemini-2.0-flash',         # Newer version
-                'gemini-1.5-pro',           # Fallback to pro
-                'models/gemini-1.5-flash',  # v1beta format (AI Studio)
+                'gemini-2.5-flash',
             ]
-            
-            model = None
+
+            client = None
             last_error = None
+            selected_model_name = None
+
+            # Vertex AI - Get credentials with proper scopes
+            import google.auth
+            from google import genai as genai_new
             
+            try:
+                # Get credentials with proper scopes
+                service_account_file = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+                if service_account_file and os.path.exists(service_account_file):
+                    from google.oauth2 import service_account
+                    scopes = [
+                        'https://www.googleapis.com/auth/cloud-platform'
+                    ]
+                    creds = service_account.Credentials.from_service_account_file(
+                        service_account_file, 
+                        scopes=scopes
+                    )
+                    if not project_id:
+                        import json
+                        with open(service_account_file, 'r') as f:
+                            project_id = json.load(f).get('project_id')
+                else:
+                    # Use ADC (gcloud auth application-default login)
+                    creds, computed_project = google.auth.default(scopes=[
+                        'https://www.googleapis.com/auth/cloud-platform'
+                    ])
+                    if not project_id:
+                        project_id = computed_project
+                
+                if not project_id:
+                    return self.generate_rewrites(query, num_rewrites)
+
+                # Initialize Vertex AI client
+                client = genai_new.Client(
+                    vertexai=True,
+                    project=project_id,
+                    location=location,
+                    credentials=creds,
+                )
+                
+            except google.auth.exceptions.DefaultCredentialsError as e:
+                # ADC not available - skip Gemini, use rule-based
+                return self.generate_rewrites(query, num_rewrites)
+            except Exception as e:
+                # Any other credential error - skip Gemini
+                return self.generate_rewrites(query, num_rewrites)
+            
+            if not client:
+                return self.generate_rewrites(query, num_rewrites)
+            
+            # Try models with Vertex AI
             for model_name in model_names_to_try:
                 try:
-                    model = genai.GenerativeModel(model_name)
-                    # Test if model works by attempting to generate
-                    test_response = model.generate_content(
-                        "test",
-                        generation_config={'max_output_tokens': 10}
+                    # Quick test/warmup
+                    test_response = client.models.generate_content(
+                        model=model_name,
+                        contents=[{"role": "user", "parts": [{"text": "test"}]}],
+                        config={'max_output_tokens': 10},
                     )
-                    print(f"✅ Successfully using model: {model_name}")
-                    break
+                    # Check if response has text (some models return empty)
+                    if hasattr(test_response, 'text') and test_response.text:
+                        selected_model_name = model_name
+                        break
                 except Exception as e:
+                    error_str = str(e)
                     last_error = e
-                    continue
-            
-            if not model:
-                print(f"❌ All Gemini models failed: {last_error}, falling back to rule-based")
+                    # If it's a permission error (403), don't try other models - fall back immediately
+                    if "403" in error_str or "PERMISSION_DENIED" in error_str or "aiplatform.endpoints.predict" in error_str:
+                        print(f"⚠️ Vertex AI permission denied (403) for {model_name}, falling back to rule-based rewrites")
+                        return self.generate_rewrites(query, num_rewrites)
+                    continue # Try next model
+
+            if not selected_model_name:
+                # All models failed - use rule-based, don't try API key
+                if last_error:
+                    error_str = str(last_error)
+                    if "403" in error_str or "PERMISSION_DENIED" in error_str:
+                        print(f"⚠️ All Vertex AI models failed with permission error (403), using rule-based rewrites")
+                    else:
+                        print(f"⚠️ All Vertex AI models failed: {error_str[:200]}, using rule-based rewrites")
                 return self.generate_rewrites(query, num_rewrites)
             
             # Create prompt for domain-specific rewrites
@@ -534,29 +591,43 @@ REASON: <why this rewrite is useful>
 
 Keep rewrites concise (10-15 words) and focused on policy/legal documents."""
 
-            # Generate with Gemini Flash (ultra-fast)
-            response = model.generate_content(
-                prompt,
-                generation_config={
-                    'temperature': 0.7,
-                    'max_output_tokens': 500,
-                }
-            )
+            # Generate with Gemini via Vertex AI
+            generation_config = {
+                'temperature': 0.7,
+                'max_output_tokens': 500,
+            }
             
-            # Parse response
-            rewrites = self._parse_llm_response(response.text)
-            
-            if rewrites:
-                return rewrites[:num_rewrites]
-            else:
-                # Fallback if parsing failed
+            try:
+                response = client.models.generate_content(
+                    model=selected_model_name,
+                    contents=[{"role": "user", "parts": [{"text": prompt}]}],
+                    config=generation_config,
+                )
+                
+                # Parse response
+                if hasattr(response, 'text') and response.text:
+                    rewrites = self._parse_llm_response(response.text)
+                    if rewrites:
+                        return rewrites[:num_rewrites]
+                
+                # If parsing failed or no response, fallback to rule-based
+                return self.generate_rewrites(query, num_rewrites)
+                
+            except Exception as e:
+                error_str = str(e)
+                # Check for permission errors (403)
+                if "403" in error_str or "PERMISSION_DENIED" in error_str or "aiplatform.endpoints.predict" in error_str:
+                    print(f"⚠️ Vertex AI query rewriting permission denied (403), using rule-based rewrites")
+                else:
+                    print(f"⚠️ Vertex AI query rewriting failed: {error_str[:200]}, using rule-based rewrites")
+                # Vertex AI call failed - use rule-based, NO API key fallback
                 return self.generate_rewrites(query, num_rewrites)
             
         except ImportError:
-            print("google-generativeai not installed, falling back to rule-based")
+            # Missing dependencies - use rule-based
             return self.generate_rewrites(query, num_rewrites)
         except Exception as e:
-            print(f"Gemini rewrite failed: {e}, falling back to rule-based")
+            # Any other error - use rule-based, NO API key fallback
             return self.generate_rewrites(query, num_rewrites)
     
     def _parse_llm_response(self, response_text: str) -> List[QueryRewrite]:

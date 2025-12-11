@@ -9,7 +9,11 @@ CRITICAL FIX: Strengthened prompts to ensure Gemini always generates citations.
 import logging
 import os
 from typing import List, Dict, Optional
+
+# For API-key path (AI Studio)
 import google.generativeai as genai
+# For ADC/Vertex path
+from google import genai as genai_client
 
 logger = logging.getLogger(__name__)
 
@@ -22,15 +26,50 @@ class AnswerGenerator:
     
     def __init__(self):
         """Initialize answer generator"""
-        # Configure Gemini
-        api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY or GOOGLE_API_KEY environment variable not set")
+        # Allow opting out of Vertex even when project/ADC is configured
+        disable_vertex = os.getenv("GOOGLE_DISABLE_VERTEX_AI", "").lower() in ("1", "true", "yes")
+        genai_vertex_enabled = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "true").lower() not in ("0", "false", "no")
+
+        # Choose auth: OAuth/ADC (gcloud) or API key
+        use_oauth = os.getenv("GOOGLE_USE_OAUTH", "").lower() in ("1", "true", "yes")
+        project_id = os.getenv("GOOGLE_CLOUD_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
+        location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+
+        self.client = None
+        self.model = None
+        self.model_name = "gemini-2.5-flash"
+        self._llm_disabled = False
+
+        if use_oauth and project_id and not disable_vertex and genai_vertex_enabled:
+            # ADC path (requires `gcloud auth application-default login`)
+            import google.auth
+            try:
+                # Use only valid cloud-platform scope
+                creds, _ = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
+                self.client = genai_client.Client(
+                    vertexai=True,
+                    project=project_id,
+                    location=location,
+                    credentials=creds,
+                )
+                logger.info("✅ Answer generator initialized with Vertex AI (ADC) using gemini-2.5-flash")
+            except Exception as e:
+                logger.warning(f"⚠️ ADC credentials not available: {e}. Falling back to API key if present.")
         
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel("gemini-2.0-flash")
-        
-        logger.info("✅ Answer generator initialized")
+        if self.client is None:
+            # API key path (AI Studio)
+            api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            if not api_key:
+                # Stay up but mark LLM disabled; backend can still run with retrieval only
+                self._llm_disabled = True
+                logger.warning(
+                    "⚠️ No ADC credentials and no API key set. Answer generation LLM disabled; "
+                    "retrieval will still run and return sources."
+                )
+            else:
+                genai.configure(api_key=api_key)
+                self.model = genai.GenerativeModel(self.model_name)
+                logger.info("✅ Answer generator initialized with API key using gemini-2.5-flash")
     
     def _normalize_year_query(self, query: str) -> str:
         """Normalize year queries to match academic year format (e.g., 2025 -> 2024-25)"""
@@ -122,10 +161,83 @@ class AnswerGenerator:
         # Build prompt based on mode (use normalized query for better context)
         prompt = self._build_prompt(normalized_query, context_text, mode, external_context, conversation_history, is_weak_retrieval=is_weak_retrieval, has_internet_results=has_internet_results)
         
-        # Generate answer
+        # Generate answer with optimized config based on mode
         try:
-            response = self.model.generate_content(prompt)
-            answer_text = response.text
+            if self._llm_disabled and not self.client and not self.model:
+                # Fallback: return a structured response using retrieved sources only
+                top_sources = [r.get("title") or r.get("source") or "source" for r in context_results]
+                answer_text = "LLM is disabled (no Vertex/API key). Showing top retrieved sources:\n- " + "\n- ".join(top_sources or ["No sources found"])
+                citations = self._extract_citations(answer_text)
+                bibliography = []
+                return {
+                    "answer": answer_text,
+                    "citations": citations,
+                    "bibliography": bibliography,
+                    "confidence": max_score if results else 0.0
+                }
+
+            # Optimize generation config based on mode for better quality
+            mode_configs = {
+                'qa': {
+                    'temperature': 0.2,  # Lower for factual accuracy
+                    'max_output_tokens': 2000,  # Increased for detailed answers
+                    'top_p': 0.95,
+                    'top_k': 40
+                },
+                'deep_think': {
+                    'temperature': 0.4,  # Balanced for analysis
+                    'max_output_tokens': 4000,  # More tokens for comprehensive analysis
+                    'top_p': 0.95,
+                    'top_k': 40
+                },
+                'brainstorm': {
+                    'temperature': 0.6,  # Higher for creative ideas
+                    'max_output_tokens': 3000,
+                    'top_p': 0.95,
+                    'top_k': 40
+                }
+            }
+            
+            # Get config for mode, default to QA if mode not found
+            gen_config = mode_configs.get(mode, mode_configs['qa'])
+            
+            def _response_to_text(resp):
+                """Robustly extract text from Google GenAI responses."""
+                if not resp:
+                    return ""
+                # Most common path
+                if getattr(resp, "text", None):
+                    return resp.text or ""
+                # Fallback: concatenate candidate parts
+                candidates = getattr(resp, "candidates", None)
+                if candidates:
+                    parts_text = []
+                    for cand in candidates:
+                        content = getattr(cand, "content", None)
+                        if content and getattr(content, "parts", None):
+                            for part in content.parts:
+                                if getattr(part, "text", None):
+                                    parts_text.append(part.text)
+                    if parts_text:
+                        return "\n".join(parts_text)
+                return ""
+
+            if self.client:
+                # Vertex AI path (ADC)
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=[{"role": "user", "parts": [{"text": prompt}]}],
+                    config=gen_config,
+                )
+                answer_text = _response_to_text(response)
+            else:
+                response = self.model.generate_content(prompt, generation_config=gen_config)
+                answer_text = _response_to_text(response)
+            
+            # If the model returned an empty/None response, fall back to rule-based summary
+            if not answer_text.strip():
+                logger.warning("⚠️ LLM returned empty text; falling back to rule-based summary")
+                return self._fallback_rule_based(context_results)
             
             # Extract citations
             citations = self._extract_citations(answer_text)
@@ -141,13 +253,17 @@ class AnswerGenerator:
             }
             
         except Exception as e:
+            error_str = str(e)
             logger.error(f"❌ Error generating answer: {e}")
-            return {
-                "answer": "I encountered an error while generating the answer.",
-                "citations": [],
-                "bibliography": [],
-                "confidence": 0.0
-            }
+            
+            # If Vertex AI path hit permission issues, disable and fall back to rule-based summary
+            if self.client and ("403" in error_str or "PERMISSION_DENIED" in error_str or "aiplatform.endpoints.predict" in error_str):
+                logger.warning("Vertex AI permission denied. Disabling client and falling back to rule-based summary.")
+                self.client = None
+                return self._fallback_rule_based(context_results)
+            
+            # If API-key path or other failure, fall back to rule-based summary
+            return self._fallback_rule_based(context_results)
     
     def _format_context(self, results: List[Dict]) -> str:
         """
@@ -491,7 +607,7 @@ Question: {query}
 Suggest innovative approaches, citing existing policies with bracketed numbers where relevant:
 """
     
-    def _extract_citations(self, text: str) -> List[str]:
+    def _extract_citations(self, text: Optional[str]) -> List[str]:
         """
         Extract citation numbers from text (bracketed format).
         
@@ -499,6 +615,9 @@ Suggest innovative approaches, citing existing policies with bracketed numbers w
             List of cited doc numbers (e.g., ["1", "2", "3"])
         """
         import re
+        
+        if not text:
+            return []
         
         # Pattern: [1] [2] [3] etc.
         pattern = r'\[(\d+)\]'
@@ -520,23 +639,42 @@ Suggest innovative approaches, citing existing policies with bracketed numbers w
         for i, result in enumerate(results, 1):
             # FIXED: Get metadata from correct location
             metadata = result.get("metadata", {})
+            vertical = result.get("vertical", "")
+            
+            # Extract URL from multiple locations (critical for internet results)
+            url = (
+                result.get('url') or 
+                metadata.get('url') or 
+                metadata.get('source_url') or
+                None
+            )
+            
+            # For internet results, use title and URL
+            if vertical == "internet" and url:
+                source = metadata.get("title") or metadata.get("source") or url
+            else:
+                source = metadata.get("source", result.get("chunk_id", "Unknown Source"))
             
             entry = {
                 "number": i,
-                "source": metadata.get("source", result.get("chunk_id", "Unknown Source")),
-                "vertical": result.get("vertical", ""),
+                "source": source,
+                "vertical": vertical,
                 "doc_type": metadata.get("doc_type", ""),
                 "year": metadata.get("year", ""),
-                "url": metadata.get("url")
+                "url": url  # Always include URL if available
             }
             
             # Add vertical-specific fields from metadata
-            if result.get("vertical") == "legal":
+            if vertical == "legal":
                 entry["section"] = metadata.get("section", "")
-            elif result.get("vertical") == "go":
+            elif vertical == "go":
                 entry["go_number"] = metadata.get("go_number", "")
-            elif result.get("vertical") == "judicial":
+            elif vertical == "judicial":
                 entry["case_number"] = metadata.get("case_number", "")
+            elif vertical == "internet":
+                # For internet, add title if available
+                if metadata.get("title"):
+                    entry["title"] = metadata.get("title")
             
             bibliography.append(entry)
         
@@ -557,7 +695,7 @@ Suggest innovative approaches, citing existing policies with bracketed numbers w
             confidence += 0.3
         
         # Boost if answer is substantial
-        if len(answer) > 200:
+        if len(answer or "") > 200:
             confidence += 0.1
         
         # Boost if has multiple citations
@@ -565,6 +703,38 @@ Suggest innovative approaches, citing existing policies with bracketed numbers w
             confidence += 0.1
         
         return min(confidence, 1.0)
+
+    def _fallback_rule_based(self, context_results: List[Dict]) -> Dict:
+        """
+        Fallback summarization when LLM is unavailable (e.g., 403 / no API key).
+        """
+        if not context_results:
+            return {
+                "answer": "I couldn't generate the answer because the model is unavailable and no documents were retrieved.",
+                "citations": [],
+                "bibliography": [],
+                "confidence": 0.0,
+            }
+
+        bullets = []
+        for i, res in enumerate(context_results, 1):
+            title = res.get("title") or res.get("doc_id") or f"Document {i}"
+            snippet = res.get("summary") or res.get("text") or res.get("content") or ""
+            snippet = snippet.strip().replace("\n", " ")
+            if len(snippet) > 220:
+                snippet = snippet[:220].rstrip() + "..."
+            bullets.append(f"- [{i}] {title}: {snippet}")
+
+        answer_text = "Model access failed; providing a direct summary from retrieved documents:\n" + "\n".join(bullets)
+        citations = [str(i) for i in range(1, len(context_results) + 1)]
+        bibliography = self._build_bibliography(context_results)
+
+        return {
+            "answer": answer_text,
+            "citations": citations,
+            "bibliography": bibliography,
+            "confidence": 0.2 if context_results else 0.0,
+        }
     
     # Backward compatibility aliases
     def generate_qa_answer(self, query: str, results: List[Dict], max_tokens: int = 500) -> Dict:

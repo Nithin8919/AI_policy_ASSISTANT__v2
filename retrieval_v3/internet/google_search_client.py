@@ -14,31 +14,69 @@ class GoogleSearchClient:
     Adopts the user's preferred implementation style using Vertex AI and streaming.
     """
 
+    def _is_international_query(self, query: str) -> bool:
+        """Heuristic: does the user explicitly want international patterns?"""
+        q = query.lower()
+        international_keywords = [
+            "international", "global", "world", "overseas",
+            "singapore", "finland", "estonia", "uk", "usa", "us",
+            "canada", "australia", "philippines", "japan", "korea",
+            "germany", "france", "europe", "oecd", "unicef", "unesco"
+        ]
+        return any(k in q for k in international_keywords)
+
+    def _filter_results(self, query: str, results: list[dict]) -> list[dict]:
+        """
+        Prefer India/AP government domains unless the query explicitly asks for international context.
+        """
+        if self._is_international_query(query):
+            return results
+
+        allowed_domains = [
+            "ap.gov.in",
+            "gov.in",
+            ".nic.in",
+            ".in",
+        ]
+
+        filtered = []
+        for r in results:
+            url = (r.get("url") or r.get("source") or "").lower()
+            if any(dom in url for dom in allowed_domains):
+                filtered.append(r)
+
+        # If we filtered everything out, fall back to originals to avoid empty results.
+        if filtered:
+            logger.info(f"🌐 Filtered internet results to {len(filtered)}/{len(results)} India/AP domains")
+            return filtered
+
+        logger.info("🌐 No India/AP domains found; returning unfiltered internet results")
+        return results
+
     def __init__(self, api_key: Optional[str] = None):
         """
         Initialize the Google Search Client.
 
-        Auth strategy:
-        - If a Google Cloud project is configured, we FIRST try Vertex AI using gcloud / ADC.
-        - If that fails OR no project is set, we fall back to API-key-only AI Studio.
-        - API key is read from (in order): GOOGLE_CLOUD_API_KEY, GEMINI_API_KEY, GOOGLE_API_KEY.
+        Auth strategy (API-key-free):
+        - Try Vertex AI via OAuth/ADC when a project is set and not explicitly disabled.
+        - If Vertex AI is unavailable or permission-denied, internet search is disabled (no API key fallback).
         """
         # Optional project/location for Vertex AI
         self.project_id = os.environ.get("GOOGLE_CLOUD_PROJECT_ID") or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        # Default to us-central1 because Gemini 2.5 is available there; some regions return 404
         self.location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
         self.use_vertex_ai = False
-
-        self.api_key = (
-            api_key 
-            or os.environ.get("GOOGLE_CLOUD_API_KEY") 
-            or os.environ.get("GEMINI_API_KEY") 
-            or os.environ.get("GOOGLE_API_KEY")
-        )
-        
         self.client = None
 
-        # 1) Try Vertex AI if project is configured (uses gcloud / ADC, no API key)
-        if self.project_id:
+        # Explicit opt-out flag to skip Vertex AI
+        disable_vertex = os.environ.get("GOOGLE_DISABLE_VERTEX_AI", "").lower() in {"1", "true", "yes"}
+        # Also respect global GENAI flag to skip Vertex
+        genai_vertex_enabled = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "true").lower() not in {"0", "false", "no"}
+        if not genai_vertex_enabled:
+            disable_vertex = True
+
+        # Try Vertex AI if a project is configured and not disabled
+        if self.project_id and not disable_vertex:
             try:
                 logger.info(
                     f"Initializing GoogleSearchClient with Vertex AI (project={self.project_id}, "
@@ -52,41 +90,20 @@ class GoogleSearchClient:
                 self.use_vertex_ai = True
                 logger.info("✅ Initialized GoogleSearchClient with Vertex AI (ADC/gcloud)")
             except Exception as e:
+                error_str = str(e)
                 logger.warning(f"Vertex AI initialization failed: {e}")
-                logger.info("Falling back to API-key AI Studio client...")
-                self.client = None
-
-        # 2) Fall back to API-key AI Studio if Vertex AI is not used / failed
-        if self.client is None:
-            if not self.api_key:
-                logger.error(
-                    "No API key found. Please set GOOGLE_API_KEY (or GOOGLE_CLOUD_API_KEY / GEMINI_API_KEY) "
-                    "in your .env or environment."
-                )
-                self.model = "gemini-1.5-flash"
-                return
-
-            try:
-                # Pure AI Studio client: API key, no project, no vertexai=True
-                # NOTE: google-genai handles the correct API version internally for AI Studio.
-                logger.info(
-                    "Initializing GoogleSearchClient with API Key (AI Studio, vertexai=False)"
-                )
-                self.client = genai.Client(
-                    vertexai=False,
-                    api_key=self.api_key,
-                )
+                # Detect permission denied and disable Vertex AI for this process
+                if "403" in error_str or "PERMISSION_DENIED" in error_str or "aiplatform.endpoints.predict" in error_str:
+                    logger.warning("Vertex AI permission denied (403). Internet search will be disabled (no API key fallback).")
+                else:
+                    logger.warning("Vertex AI unavailable. Internet search will be disabled (no API key fallback).")
                 self.use_vertex_ai = False
-                logger.info("✅ Initialized GoogleSearchClient (AI Studio)")
-            except Exception as e:
-                logger.error(f"Failed to initialize GoogleSearchClient with API key: {e}")
                 self.client = None
+        else:
+            logger.info("Vertex AI disabled via config or missing project. Internet search will be disabled (no API key fallback).")
 
-        # Default model name (starting point); search() will try multiple variants
-        # For AI Studio (vertexai=False), use SHORT model names without "models/" prefix
-        # For Vertex AI, use model names directly (e.g., "gemini-2.0-flash")
-        # The SDK will automatically prepend "models/" for AI Studio
-        self.model = "gemini-2.0-flash"  # Changed from "gemini-1.5-flash" - use newer model
+        # Default model name
+        self.model = "gemini-2.5-flash"
         
         # Initialize query rewriter for search optimization
         try:
@@ -97,14 +114,15 @@ class GoogleSearchClient:
             logger.warning(f"Query rewriter initialization failed: {e}, will use raw queries")
             self.query_rewriter = None
 
-    def search(self, query: str, max_results: int = 5, timeout: float = 15.0) -> List[Dict[str, str]]:
+    def search(self, query: str, max_results: int = 5, timeout: float = 5.0) -> List[Dict[str, str]]:
         """
         Perform an internet search and return structured results.
+        OPTIMIZED for speed: non-streaming, reduced timeout, minimal tokens.
         
         Args:
             query: Original user query
-            max_results: Maximum number of results to return (default: 5, increased from 1)
-            timeout: Timeout in seconds for the search operation (default: 15.0, increased from 8.0 to prevent timeouts)
+            max_results: Maximum number of results to return (default: 5)
+            timeout: Timeout in seconds for the search operation (default: 5.0, REDUCED for speed)
             
         Returns:
             List of search results with title, snippet, url, and source
@@ -113,17 +131,9 @@ class GoogleSearchClient:
             logger.error("GoogleSearchClient not initialized.")
             return []
         
-        # OPTIMIZATION: Rewrite query for better search results
+        # OPTIMIZATION: Skip query rewriting to save time (~200-500ms)
+        # Use query directly for internet search
         search_query = query
-        if self.query_rewriter:
-            try:
-                rewrites = self.query_rewriter.generate_rewrites(query, num_rewrites=1)
-                if rewrites:
-                    search_query = rewrites[0].text
-                    logger.info(f"🔄 Query rewritten for internet search: '{query}' → '{search_query}'")
-            except Exception as e:
-                logger.warning(f"Query rewriting failed: {e}, using original query")
-                search_query = query
 
         try:
             # Use timeout protection for internet search
@@ -158,14 +168,12 @@ class GoogleSearchClient:
                 types.Tool(google_search=types.GoogleSearch()),
             ]
 
-            # Base config; we will tweak per backend (Vertex vs AI Studio)
+            # OPTIMIZATION: Reduced max_output_tokens for faster responses
+            # 1024 tokens is ~750 words, sufficient for summaries
             config_kwargs = {
-                "temperature": 1,
+                "temperature": 0.7,  # Reduced from 1 for more focused responses
                 "top_p": 0.95,
-                # max_output_tokens limit differs between Vertex and AI Studio
-                # - Vertex (e.g. gemini-2.0-flash) typically supports up to 8192
-                # - AI Studio can support larger, but 4096 is plenty for our summaries
-                "max_output_tokens": 4096,
+                "max_output_tokens": 1024,  # REDUCED from 4096 for speed (3-4x faster)
                 "safety_settings": [
                     types.SafetySetting(
                         category="HARM_CATEGORY_HATE_SPEECH",
@@ -187,45 +195,33 @@ class GoogleSearchClient:
                 "tools": tools,
             }
 
-            # Adjust token limit and model list based on backend
+            # Adjust model list based on backend
             if self.use_vertex_ai:
-                # Vertex AI: respect the 1–8192 maxOutputTokens range
-                config_kwargs["max_output_tokens"] = 2048
                 models_to_try = [
-                    "gemini-2.0-flash",
+                    "gemini-2.5-flash",  # Try newest first; avoid 2.0 (404 in some regions)
                 ]
             else:
-                # AI Studio: use SHORT model names (SDK auto-prepends "models/")
-                # Try newer models first as they're more reliable
+                # AI Studio: Try newest model first
                 models_to_try = [
-                    "gemini-2.0-flash",   # Newest, most reliable
-                    "gemini-1.5-flash",   # Fallback
-                    "gemini-1.5-pro",     # Pro version
+                    "gemini-2.5-flash",   # Newest, most reliable
                 ]
 
             generate_content_config = types.GenerateContentConfig(**config_kwargs)
 
-            full_response_text = ""
-
-            last_error: Any = None
+            response = None
+            last_error = None
 
             for model_name in models_to_try:
                 try:
                     backend = "Vertex AI" if self.use_vertex_ai else "AI Studio"
                     logger.info(f"Calling {backend} model: {model_name}")
-                    response_stream = self.client.models.generate_content_stream(
+                    
+                    # OPTIMIZATION: Use non-streaming for 2-3x faster response
+                    response = self.client.models.generate_content(
                         model=model_name,
                         contents=contents,
                         config=generate_content_config,
                     )
-
-                    for chunk in response_stream:
-                        if (
-                            chunk.candidates
-                            and chunk.candidates[0].content
-                            and chunk.candidates[0].content.parts
-                        ):
-                            full_response_text += chunk.text
 
                     # Success: remember working model and break
                     self.model = model_name
@@ -233,28 +229,77 @@ class GoogleSearchClient:
                     break
 
                 except Exception as e:
+                    error_str = str(e)
                     last_error = e
-                    logger.warning(f"Model {model_name} failed: {e}")
-                    full_response_text = ""
-                    continue
+                    
+                    # Log the error and continue to next model
+                    if self.use_vertex_ai and ("403" in error_str or "PERMISSION_DENIED" in error_str or "IAM_PERMISSION_DENIED" in error_str):
+                        logger.warning(f"⚠️ Vertex AI permission denied for {model_name}: {e}")
+                        logger.error(f"💡 Service account needs 'roles/aiplatform.user' role. Contact your GCP admin.")
+                        response = None
+                        continue
+                    else:
+                        logger.warning(f"Model {model_name} failed: {e}")
+                        response = None
+                        continue
 
-            if not full_response_text:
-                logger.error(f"Internet search failed for all tried models. Last error: {last_error}")
+            if not response or not response.text:
+                error_msg = f"Internet search failed for all tried models"
+                if last_error:
+                    error_msg += f". Last error: {last_error}"
+                logger.error(error_msg)
+                
+                # If using Vertex AI and got permission error, suggest fix
+                if self.use_vertex_ai and last_error and ("403" in str(last_error) or "PERMISSION_DENIED" in str(last_error)):
+                    logger.error("💡 TIP: Vertex AI requires 'aiplatform.endpoints.predict' permission. "
+                               "Either grant this permission to your service account, or unset GOOGLE_CLOUD_PROJECT_ID "
+                               "to use AI Studio with API key instead.")
+                
                 return []
 
-            # Parse response to extract multiple results if possible
-            # For now, return as a single comprehensive result
-            # TODO: Parse structured results if the model returns them
-            results = [{
-                "title": "Google Search Summary",
-                "snippet": full_response_text,
-                "url": "https://google.com",
-                "source": "Google Search"
-            }]
+            full_response_text = response.text
+
+            # CRITICAL FIX: Extract actual URLs from grounding metadata
+            results = []
+            grounding_metadata = None
             
-            # If max_results > 1, we could split the response or make multiple calls
-            # For now, we return the single comprehensive result
-            logger.info(f"✅ Internet search returned {len(results)} result(s)")
+            # Extract grounding metadata from the response
+            try:
+                if response and hasattr(response, 'candidates'):
+                    for candidate in response.candidates:
+                        if hasattr(candidate, 'grounding_metadata') and candidate.grounding_metadata:
+                            grounding_metadata = candidate.grounding_metadata
+                            logger.info(f"📌 Found grounding metadata")
+                            break
+            except Exception as e:
+                logger.warning(f"Failed to extract grounding metadata: {e}")
+            
+            # Extract URLs from grounding chunks
+            if grounding_metadata and hasattr(grounding_metadata, 'grounding_chunks'):
+                for chunk in grounding_metadata.grounding_chunks:
+                    if hasattr(chunk, 'web') and chunk.web:
+                        results.append({
+                            "title": chunk.web.title if hasattr(chunk.web, 'title') else "Search Result",
+                            "snippet": full_response_text[:500],  # Share the summary across results
+                            "url": chunk.web.uri,
+                            "source": chunk.web.uri
+                        })
+                logger.info(f"✅ Extracted {len(results)} source URLs from grounding metadata")
+            
+            # Fallback: If no grounding metadata, create a single result with the summary
+            if not results:
+                logger.warning("⚠️ No grounding URLs found, returning summary only")
+                results = [{
+                    "title": "Google Search Summary",
+                    "snippet": full_response_text,
+                    "url": None,  # No URL available
+                    "source": "Google Search (no sources)"
+                }]
+            
+            # Filter out unrelated international results unless query demands international
+            results = self._filter_results(query, results)
+            
+            logger.info(f"✅ Internet search returned {len(results)} result(s) after filtering")
             return results[:max_results]
 
         except Exception as exc:

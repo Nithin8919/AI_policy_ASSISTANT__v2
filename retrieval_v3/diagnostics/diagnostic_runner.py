@@ -22,20 +22,46 @@ class DiagnosticRunner:
     
     def __init__(self, api_key: Optional[str] = None):
         """
-        Initialize diagnostic runner
-        
-        Args:
-            api_key: Gemini API key
+        Initialize diagnostic runner - Strictly Vertex AI / OAuth
         """
-        # Prefer explicit arg, then GEMINI_API_KEY, then GOOGLE_API_KEY
-        self.api_key = api_key or os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
-        
-        if self.api_key:
-            genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
-        else:
-            logger.warning("No API key provided for DiagnosticRunner. Diagnostics will fail.")
-            self.model = None
+        try:
+            import google.auth
+            from google import genai as genai_new
+            
+            # Get credentials with proper scopes
+            service_account_file = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            if service_account_file and os.path.exists(service_account_file):
+                from google.oauth2 import service_account
+                scopes = ['https://www.googleapis.com/auth/cloud-platform', 'https://www.googleapis.com/auth/generative-language.retriever']
+                creds = service_account.Credentials.from_service_account_file(service_account_file, scopes=scopes)
+                project_id = os.getenv("GOOGLE_CLOUD_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
+                if not project_id:
+                    import json
+                    with open(service_account_file, 'r') as f:
+                        project_id = json.load(f).get('project_id')
+            else:
+                creds, computed_project = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform', 'https://www.googleapis.com/auth/generative-language.retriever'])
+                project_id = os.getenv("GOOGLE_CLOUD_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or computed_project
+            
+            location = os.getenv("GOOGLE_CLOUD_LOCATION", "asia-south1")
+            
+            if not project_id:
+                logger.warning("No Google Cloud Project ID found. Diagnostics will fail.")
+                self.client = None
+                return
+
+            self.client = genai_new.Client(
+                vertexai=True,
+                project=project_id,
+                location=location,
+                credentials=creds,
+            )
+            self.model_name = 'gemini-2.5-flash'
+            logger.info("✅ DiagnosticRunner initialized with Vertex AI")
+            
+        except Exception as e:
+            logger.warning(f"Failed to initialize DiagnosticRunner with Vertex AI: {e}")
+            self.client = None
 
     def _format_docs(self, results: List[Any]) -> str:
         """Format retrieval results for the prompt"""
@@ -59,8 +85,8 @@ class DiagnosticRunner:
         Test 1: Retrieval sanity test
         'What exact documents did you retrieve? List them and summarize each in 2 lines.'
         """
-        if not self.model:
-            return DiagnosticResult("Retrieval Sanity", "Error: No API key")
+        if not self.client:
+            return DiagnosticResult("Retrieval Sanity", "Error: Client not initialized")
             
         docs = self._format_docs(results)
         prompt = f"""
@@ -76,7 +102,13 @@ class DiagnosticRunner:
         """
         
         try:
-            response = self.model.generate_content(prompt)
+            if not self.client:
+                return DiagnosticResult("Retrieval Sanity Test", "Error: Client not initialized (OAuth failed)")
+                
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[{"role": "user", "parts": [{"text": prompt}]}]
+            )
             return DiagnosticResult("Retrieval Sanity Test", response.text)
         except Exception as e:
             return DiagnosticResult("Retrieval Sanity Test", f"Error: {str(e)}", "failed")
@@ -86,8 +118,8 @@ class DiagnosticRunner:
         Test 2: Missing-information test
         'Based on the retrieved docs, list what information you still don’t have but is needed for a full answer.'
         """
-        if not self.model:
-            return DiagnosticResult("Missing Info", "Error: No API key")
+        if not self.client:
+            return DiagnosticResult("Missing Info", "Error: Client not initialized")
             
         docs = self._format_docs(results)
         prompt = f"""
@@ -103,7 +135,13 @@ class DiagnosticRunner:
         """
         
         try:
-            response = self.model.generate_content(prompt)
+            if not self.client:
+                return DiagnosticResult("Missing Information Test", "Error: Client not initialized")
+                
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[{"role": "user", "parts": [{"text": prompt}]}]
+            )
             return DiagnosticResult("Missing Information Test", response.text)
         except Exception as e:
             return DiagnosticResult("Missing Information Test", f"Error: {str(e)}", "failed")
@@ -113,8 +151,8 @@ class DiagnosticRunner:
         Test 3: Policy-grade structure test
         'Answer using: 1) background, 2) current rules, 3) gaps, 4) recommendations.'
         """
-        if not self.model:
-            return DiagnosticResult("Policy Structure", "Error: No API key")
+        if not self.client:
+            return DiagnosticResult("Policy Structure", "Error: Client not initialized")
             
         docs = self._format_docs(results)
         prompt = f"""
@@ -133,7 +171,13 @@ class DiagnosticRunner:
         """
         
         try:
-            response = self.model.generate_content(prompt)
+            if not self.client:
+                return DiagnosticResult("Policy Structure Test", "Error: Client not initialized")
+                
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[{"role": "user", "parts": [{"text": prompt}]}]
+            )
             return DiagnosticResult("Policy Structure Test", response.text)
         except Exception as e:
             return DiagnosticResult("Policy Structure Test", f"Error: {str(e)}", "failed")
@@ -143,8 +187,8 @@ class DiagnosticRunner:
         Test 4: Explain-your-reasoning test
         'Explain step-by-step how you formed this answer from the retrieved text.'
         """
-        if not self.model:
-            return DiagnosticResult("Reasoning", "Error: No API key")
+        if not self.client:
+            return DiagnosticResult("Reasoning", "Error: Client not initialized")
             
         docs = self._format_docs(results)
         prompt = f"""
@@ -160,7 +204,13 @@ class DiagnosticRunner:
         """
         
         try:
-            response = self.model.generate_content(prompt)
+            if not self.client:
+                return DiagnosticResult("Reasoning Test", "Error: Client not initialized")
+
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[{"role": "user", "parts": [{"text": prompt}]}]
+            )
             return DiagnosticResult("Reasoning Test", response.text)
         except Exception as e:
             return DiagnosticResult("Reasoning Test", f"Error: {str(e)}", "failed")
@@ -170,8 +220,8 @@ class DiagnosticRunner:
         Test 5: Contradiction test
         'Tell me what parts of your answer might be inaccurate or need verification.'
         """
-        if not self.model:
-            return DiagnosticResult("Contradiction", "Error: No API key")
+        if not self.client:
+            return DiagnosticResult("Contradiction", "Error: Client not initialized")
             
         docs = self._format_docs(results)
         prompt = f"""
@@ -187,7 +237,13 @@ class DiagnosticRunner:
         """
         
         try:
-            response = self.model.generate_content(prompt)
+            if not self.client:
+                return DiagnosticResult("Contradiction Test", "Error: Client not initialized")
+
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[{"role": "user", "parts": [{"text": prompt}]}]
+            )
             return DiagnosticResult("Contradiction Test", response.text)
         except Exception as e:
             return DiagnosticResult("Contradiction Test", f"Error: {str(e)}", "failed")
@@ -196,8 +252,8 @@ class DiagnosticRunner:
         """
         Run the single diagnostic prompt that breaks down everything.
         """
-        if not self.model:
-            return {"error": "No API key"}
+        if not self.client:
+            return {"error": "Client not initialized"}
             
         docs = self._format_docs(results)
         prompt = f"""
@@ -220,7 +276,13 @@ class DiagnosticRunner:
         """
         
         try:
-            response = self.model.generate_content(prompt)
+            if not self.client:
+                return {"error": "Client not initialized"}
+
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[{"role": "user", "parts": [{"text": prompt}]}]
+            )
             return {
                 "diagnostic_output": response.text,
                 "query": query,

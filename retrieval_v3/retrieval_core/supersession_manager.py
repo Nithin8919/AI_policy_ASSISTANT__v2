@@ -48,7 +48,7 @@ class SupersessionManager:
             
             while True:
                 points, offset = client_instance.scroll(
-                    collection_name="go",
+                    collection_name="ap_government_orders",  # FIXED: was 'go' (empty collection)
                     scroll_filter=None, # Ideally filter by has_relations=True if available
                     limit=1000,
                     offset=offset,
@@ -96,27 +96,41 @@ class SupersessionManager:
     def _build_supersession_map(self):
         """
         Builds the map of superseded documents.
-        1. Scan all GOs to build `go_number_to_id` map.
-        2. Scan all GOs to find `supersedes` relations.
-        3. Mark corresponding IDs as superseded.
+        OPTIMIZED: Only scans documents with relations to avoid full collection scan
         """
         go_number_to_id = {}
         supersession_claims = [] # List of (new_doc_id, superseded_go_number_str)
         
         try:
-            offset = None
+            import time
+            start_time = time.time()
             
             # Check if we have a wrapper or real client
             client_instance = self.client.client if hasattr(self.client, 'client') else self.client
             
+            # OPTIMIZATION: Only fetch documents that have relations
+            # This reduces scan from 5495 to ~few hundred documents
+            scroll_filter = {
+                "must": [
+                    {"key": "has_relations", "match": {"value": True}}
+                ]
+            }
+            
+            offset = None
+            docs_scanned = 0
+            relations_found = 0
+            
             while True:
                 points, offset = client_instance.scroll(
-                    collection_name="go",
+                    collection_name="ap_government_orders",
+                    scroll_filter=scroll_filter,  # OPTIMIZED: Filter to docs with relations only
                     limit=1000,
                     offset=offset,
                     with_payload=True,
                     with_vectors=False
                 )
+                
+                docs_scanned += len(points)
                 
                 for point in points:
                     doc_id = point.payload.get("doc_id")
@@ -124,14 +138,16 @@ class SupersessionManager:
                     
                     # Map GO number to Doc ID
                     if go_number and doc_id:
-                        # Normalize GO number (remove non-digits)
+                        # Normalize GO number (keep as-is for now)
                         clean_go = str(go_number).strip()
                         go_number_to_id[clean_go] = doc_id
                         
                     # Check for supersession claims
                     relations = point.payload.get("relations", [])
                     for rel in relations:
-                        if rel.get("relation_type") == "supersedes":
+                        rel_type = rel.get("relation_type") or rel.get("type")
+                        if rel_type == "supersedes":
+                            relations_found += 1
                             target = rel.get("target", "")
                             # Extract number from target string "G.O.Ms.No.123"
                             import re
@@ -152,7 +168,10 @@ class SupersessionManager:
                         self.superseded_ids.add(old_id)
                         self.supersession_map[old_id] = new_id
             
-            logger.info(f"✅ Supersession map built. Found {len(self.superseded_ids)} superseded documents.")
+            elapsed = time.time() - start_time
+            logger.info(f"✅ Supersession map built in {elapsed:.2f}s")
+            logger.info(f"   Scanned {docs_scanned} docs with relations, found {relations_found} 'supersedes' relations")
+            logger.info(f"   Result: {len(self.superseded_ids)} superseded documents")
             
         except Exception as e:
             logger.error(f"Error building supersession map: {e}")

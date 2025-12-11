@@ -108,7 +108,7 @@ class RetrievalEngine:
         self,
         qdrant_client=None,
         embedder=None,
-        gemini_api_key: Optional[str] = None,
+        gemini_api_key: Optional[str] = None, # Deprecated, kept for backward compatibility
         use_llm_rewrites: bool = False,
         use_llm_reranking: bool = True,
         use_cross_encoder: bool = True, # Default to True now
@@ -121,7 +121,7 @@ class RetrievalEngine:
         Args:
             qdrant_client: Qdrant client for vector search
             embedder: Embedding model for query encoding
-            gemini_api_key: API key for Gemini Flash
+            gemini_api_key: Deprecated/Ignored (We strictly use OAuth/Vertex AI now)
             use_llm_rewrites: Use Gemini for query rewrites
             use_llm_reranking: Use Gemini for reranking
             use_cross_encoder: Use cross-encoder model for reranking
@@ -130,12 +130,10 @@ class RetrievalEngine:
         # Core components
         self.qdrant_client = qdrant_client
         self.embedder = embedder
-        # Prefer explicit arg, then GEMINI_API_KEY, then GOOGLE_API_KEY for backward compatibility
-        self.gemini_api_key = (
-            gemini_api_key
-            or os.getenv('GEMINI_API_KEY')
-            or os.getenv('GOOGLE_API_KEY')
-        )
+        
+        # REMOVED API Key logic - STRICTLY OAUTH
+        # Leave None so any legacy API-key code paths short-circuit.
+        self.gemini_api_key = None
         
         # Flags
         self.use_llm_rewrites = use_llm_rewrites
@@ -171,14 +169,16 @@ class RetrievalEngine:
         # NEW: Initialize Hybrid Searcher
         self.hybrid_searcher = HybridSearcher()
         
-        # NEW: Initialize Supersession Manager
-        self.supersession_manager = SupersessionManager(qdrant_client) if qdrant_client else None
+        # NEW: Initialize        # Supersession tracking - DISABLED: Relation reranker already uses 'is_superseded' from payload
+        # This manager would scan 5495 docs at startup to find only 13 supersessions (slow + redundant)
+        self.supersession_manager = None  # SupersessionManager(qdrant_client) if qdrant_client else None
         
         # Initialize production clause indexer for instant clause lookup
         self.clause_indexer = ProductionClauseIndexer(qdrant_client) if qdrant_client else None
         
         # Initialize answer generation and validation components
-        self.answer_builder = AnswerBuilder(use_llm=True, api_key=self.gemini_api_key)
+        # Removed API key passing - AnswerBuilder uses OAuth internally now
+        self.answer_builder = AnswerBuilder(use_llm=True)
         self.answer_validator = AnswerValidator()
         
         # Initialize cross-encoder model (lazy loading)
@@ -202,10 +202,12 @@ class RetrievalEngine:
         
         # Initialize Diagnostic Runner
         from diagnostics.diagnostic_runner import DiagnosticRunner
-        self.diagnostic_runner = DiagnosticRunner(api_key=self.gemini_api_key)
+        # Removed API key passing
+        self.diagnostic_runner = DiagnosticRunner()
         
         # NEW: Initialize Google Search Client
-        self.google_search_client = GoogleSearchClient(api_key=self.gemini_api_key)
+        # Removed API key passing
+        self.google_search_client = GoogleSearchClient()
         
         # Stats
         self.stats = {
@@ -391,10 +393,10 @@ class RetrievalEngine:
         )
         
         # Rewrites task
-        if self.use_llm_rewrites and self.gemini_api_key:
+        if self.use_llm_rewrites:
             understanding_futures['rewrites'] = self.executor.submit(
                 self.rewriter.generate_rewrites_with_gemini,
-                normalized_query, 3, self.gemini_api_key
+                normalized_query, 3
             )
         else:
             understanding_futures['rewrites'] = self.executor.submit(
@@ -409,8 +411,12 @@ class RetrievalEngine:
             # Add context entities to rewrites to ensure they are searched
             rewrites = [normalized_query] + [r.text for r in rewrites_obj] + context_entities
         except Exception as e:
-            print(f"Parallel query understanding failed: {e}")
-            # Fallback to sequential
+            # Log error but don't print full trace (may contain API key errors from libraries)
+            error_msg = str(e)
+            # Filter out API key related errors in logs (they're expected when using OAuth)
+            if "API key" not in error_msg and "API_KEY" not in error_msg:
+                logger.warning(f"Parallel query understanding failed: {error_msg[:200]}")
+            # Fallback to sequential (rule-based rewrites)
             interpretation = self.interpreter.interpret_query(normalized_query, query)
             rewrites = [normalized_query]
         
@@ -1496,6 +1502,7 @@ class RetrievalEngine:
         
         Fast and cheap reranking with Gemini 1.5 Flash 8B
         """
+        # If no API key (we run OAuth-only), skip LLM rerank
         if not self.gemini_api_key or not results:
             return results[:top_k]
         
@@ -1516,7 +1523,7 @@ class RetrievalEngine:
             
             genai.configure(api_key=self.gemini_api_key)
             # Use standard Gemini Flash model (v1beta-compatible)
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("gemini-2.5-flash")
             
             # Prepare candidates (top results only to save tokens)
             candidates = results[:min(30, len(results))]

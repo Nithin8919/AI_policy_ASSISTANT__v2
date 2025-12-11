@@ -32,8 +32,12 @@ class Embedder:
         self._torch = None
         self._sentence_transformer_cls = None
         self._google_client = None
+        self._vertex_project = None
+        self._vertex_location = None
+        self._vertex_creds = None
         self._google_available = False
         self._use_google = False
+        self._use_vertex_ai = False
         self._backend = "lite"
         self._lite_dim = EMBEDDING_CONFIG.fast_dim
         self.device = "cpu"
@@ -66,10 +70,51 @@ class Embedder:
         return "cpu"
     
     def _setup_google_api(self):
-        """Setup Google API if available"""
+        """Setup Google API if available - supports OAuth/ADC for Vertex AI embeddings"""
+        # Allow opt-out even when project/ADC is set (e.g., use local or API key only)
+        disable_vertex = os.getenv("GOOGLE_DISABLE_VERTEX_AI", "").lower() in ("1", "true", "yes")
+        genai_vertex_enabled = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "true").lower() not in ("0", "false", "no")
+        if disable_vertex or not genai_vertex_enabled:
+            return
+
         if EMBEDDING_CONFIG.provider != "google":
             return
         
+        # Try OAuth/ADC first (Vertex AI)
+        use_oauth = os.getenv("GOOGLE_USE_OAUTH", "").lower() in ("1", "true", "yes")
+        project_id = os.getenv("GOOGLE_CLOUD_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
+        location = os.getenv("GOOGLE_CLOUD_LOCATION", "asia-south1")
+        
+        if use_oauth and project_id:
+            try:
+                import google.auth
+                from google.auth.transport.requests import Request
+                
+                # Get credentials with proper scope
+                service_account_file = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+                if service_account_file and os.path.exists(service_account_file):
+                    from google.oauth2 import service_account
+                    creds = service_account.Credentials.from_service_account_file(
+                        service_account_file,
+                        scopes=['https://www.googleapis.com/auth/cloud-platform']
+                    )
+                else:
+                    creds, _ = google.auth.default(
+                        scopes=['https://www.googleapis.com/auth/cloud-platform']
+                    )
+                
+                # Store Vertex AI config for REST API calls
+                self._vertex_project = project_id
+                self._vertex_location = location
+                self._vertex_creds = creds
+                self._use_google = True
+                self._use_vertex_ai = True
+                print(f"✅ Google embedding API configured with Vertex AI (OAuth): {EMBEDDING_CONFIG.model}")
+                return
+            except Exception as e:
+                print(f"⚠️ Vertex AI embedding setup failed: {e}, trying API key fallback...")
+        
+        # Fallback to API key (AI Studio) - only if OAuth not available
         if not self._can_use_google_api():
             return
         
@@ -78,11 +123,12 @@ class Embedder:
             try:
                 self._google_client.configure(api_key=api_key)
                 self._use_google = True
-                print(f"✅ Google embedding API configured: {EMBEDDING_CONFIG.model}")
+                self._use_vertex_ai = False
+                print(f"✅ Google embedding API configured with API key: {EMBEDDING_CONFIG.model}")
             except Exception as e:
                 print(f"⚠️ Failed to configure Google API, falling back to local: {e}")
         else:
-            print("⚠️ GOOGLE_API_KEY not found, falling back to local models")
+            print("⚠️ GOOGLE_API_KEY not found and OAuth not configured, falling back to local models")
 
     def _can_use_google_api(self) -> bool:
         """Safely check whether google.generativeai can be imported"""
@@ -199,9 +245,64 @@ class Embedder:
         if self._backend == "google":
             try:
                 return self._embed_google(texts)
+            except (PermissionError, RuntimeError) as e:
+                error_str = str(e)
+                # Check if it's a permission error (403) - should fall back gracefully
+                if isinstance(e, PermissionError) or "403" in error_str or "PERMISSION_DENIED" in error_str or "aiplatform.endpoints.predict" in error_str:
+                    print(f"⚠️ Vertex AI embedding permission denied, falling back to local models")
+                    # Disable Vertex AI for future calls
+                    self._use_vertex_ai = False
+                    self._backend = "sentence_transformer" if self._sentence_transformer_cls else "lite"
+                else:
+                    print(f"⚠️ Google API failed, falling back to local models: {error_str[:200]}")
+                    self._backend = "sentence_transformer" if self._sentence_transformer_cls else "lite"
+                
+                # Retry with fallback backend
+                if self._backend == "sentence_transformer":
+                    if model_type == "fast":
+                        model = self.fast_model
+                    elif model_type == "deep":
+                        model = self.deep_model
+                    else:
+                        model = self.fast_model
+                    
+                    embeddings = model.encode(
+                        texts,
+                        batch_size=EMBEDDING_CONFIG.batch_size,
+                        show_progress_bar=False,
+                        convert_to_numpy=False,
+                        convert_to_tensor=False
+                    )
+                    return [self._ensure_list(vec) for vec in embeddings]
+                else:
+                    # Fall back to lite embedder
+                    return self._lite_embed(texts)
             except Exception as e:
-                print(f"⚠️ Google API failed, falling back to {self._backend}: {e}")
+                # Catch any other exceptions and fall back
+                error_str = str(e)
+                print(f"⚠️ Google API failed with unexpected error, falling back to local models: {error_str[:200]}")
                 self._backend = "sentence_transformer" if self._sentence_transformer_cls else "lite"
+                
+                # Retry with fallback backend
+                if self._backend == "sentence_transformer":
+                    if model_type == "fast":
+                        model = self.fast_model
+                    elif model_type == "deep":
+                        model = self.deep_model
+                    else:
+                        model = self.fast_model
+                    
+                    embeddings = model.encode(
+                        texts,
+                        batch_size=EMBEDDING_CONFIG.batch_size,
+                        show_progress_bar=False,
+                        convert_to_numpy=False,
+                        convert_to_tensor=False
+                    )
+                    return [self._ensure_list(vec) for vec in embeddings]
+                else:
+                    # Fall back to lite embedder
+                    return self._lite_embed(texts)
         
         if self._backend == "sentence_transformer":
             if model_type == "fast":
@@ -237,25 +338,139 @@ class Embedder:
         return vectors
     
     def _embed_google(self, texts: List[str]) -> List[List[float]]:
-        """Embed texts using Google API"""
+        """Embed texts using Google API (Vertex AI OAuth or API key)"""
         embeddings = []
-        for text in texts:
+        
+        # Use Vertex AI REST API if OAuth is configured
+        if self._use_vertex_ai and self._vertex_project:
             try:
-                # Try with output_dimensionality first
-                result = self._google_client.embed_content(
-                    model=EMBEDDING_CONFIG.model,
-                    content=text,
-                    task_type="retrieval_document",
-                    output_dimensionality=EMBEDDING_CONFIG.dimension
-                )
-            except TypeError:
-                # Fallback without output_dimensionality for older API versions
-                result = self._google_client.embed_content(
-                    model=EMBEDDING_CONFIG.model,
-                    content=text,
-                    task_type="retrieval_document"
-                )
-            embeddings.append(result['embedding'])
+                import requests
+            except ImportError:
+                raise RuntimeError("'requests' library required for Vertex AI embeddings. Install with: pip install requests")
+            
+            from google.auth.transport.requests import Request
+            
+            # Refresh credentials if needed
+            if not self._vertex_creds.valid:
+                self._vertex_creds.refresh(Request())
+            
+            # Vertex AI embedding endpoint
+            endpoint = f"https://{self._vertex_location}-aiplatform.googleapis.com/v1beta1/projects/{self._vertex_project}/locations/{self._vertex_location}/publishers/google/models/text-embedding-004:predict"
+            
+            headers = {
+                "Authorization": f"Bearer {self._vertex_creds.token}",
+                "Content-Type": "application/json"
+            }
+            
+            for text in texts:
+                try:
+                    # Prepare request payload for Vertex AI embedding API
+                    # Note: Vertex AI uses a different payload structure
+                    payload = {
+                        "instances": [{
+                            "content": text,
+                            "task_type": "RETRIEVAL_DOCUMENT"
+                        }],
+                        "parameters": {
+                            "outputDimensionality": EMBEDDING_CONFIG.dimension
+                        }
+                    }
+                    
+                    response = requests.post(endpoint, json=payload, headers=headers, timeout=30)
+                    
+                    # Check for errors
+                    if response.status_code != 200:
+                        error_detail = response.text
+                        # Check if it's a permission error (403) - disable Vertex AI immediately
+                        if response.status_code == 403 or "PERMISSION_DENIED" in error_detail or "aiplatform.endpoints.predict" in error_detail:
+                            print(f"⚠️ Vertex AI embedding permission denied (403). Disabling Vertex AI and falling back to local models.")
+                            self._use_vertex_ai = False  # Disable Vertex AI for future calls
+                            # Raise a specific exception that will trigger fallback
+                            raise PermissionError(f"Vertex AI embedding permission denied: {error_detail}")
+                        print(f"⚠️ Vertex AI embedding API error ({response.status_code}): {error_detail}")
+                        raise RuntimeError(f"Vertex AI embedding failed: {response.status_code} - {error_detail}")
+                    
+                    result = response.json()
+                    
+                    # Parse response - Vertex AI returns predictions array
+                    if "predictions" in result and len(result["predictions"]) > 0:
+                        prediction = result["predictions"][0]
+                        
+                        # Try different response formats
+                        embedding = None
+                        if "embeddings" in prediction:
+                            # Format: {"embeddings": {"values": [...]}}
+                            if isinstance(prediction["embeddings"], dict):
+                                embedding = prediction["embeddings"].get("values", [])
+                            else:
+                                embedding = prediction["embeddings"]
+                        elif "embedding" in prediction:
+                            # Direct embedding field
+                            embedding = prediction["embedding"]
+                        elif "values" in prediction:
+                            # Direct values field
+                            embedding = prediction["values"]
+                        else:
+                            # Try to find any list-like field
+                            for key, value in prediction.items():
+                                if isinstance(value, list) and len(value) > 100:  # Likely an embedding vector
+                                    embedding = value
+                                    break
+                        
+                        if embedding is None or len(embedding) == 0:
+                            raise ValueError(f"No embedding found in Vertex AI response. Response structure: {list(prediction.keys())}")
+                        
+                        embeddings.append(embedding)
+                    else:
+                        raise ValueError(f"No predictions in Vertex AI response: {result}")
+                        
+                except requests.exceptions.RequestException as e:
+                    error_str = str(e)
+                    # Check if it's a permission error in the response
+                    if hasattr(e, 'response') and e.response is not None:
+                        if e.response.status_code == 403 or "PERMISSION_DENIED" in e.response.text:
+                            print(f"⚠️ Vertex AI embedding permission denied (403). Disabling Vertex AI.")
+                            self._use_vertex_ai = False
+                            raise PermissionError(f"Vertex AI embedding permission denied: {e.response.text}")
+                        print(f"   Response: {e.response.text}")
+                    print(f"⚠️ Vertex AI embedding request failed: {e}")
+                    raise
+                except PermissionError:
+                    # Re-raise permission errors to trigger fallback
+                    raise
+                except Exception as e:
+                    error_str = str(e)
+                    # Check if it's a permission error
+                    if "403" in error_str or "PERMISSION_DENIED" in error_str or "aiplatform.endpoints.predict" in error_str:
+                        print(f"⚠️ Vertex AI embedding permission denied. Disabling Vertex AI.")
+                        self._use_vertex_ai = False
+                        raise PermissionError(f"Vertex AI embedding permission denied: {error_str}")
+                    print(f"⚠️ Vertex AI embedding failed: {e}")
+                    print(f"   Text length: {len(text)}")
+                    raise
+        
+        # Fallback to API key (AI Studio)
+        elif self._google_client:
+            for text in texts:
+                try:
+                    # Try with output_dimensionality first
+                    result = self._google_client.embed_content(
+                        model=EMBEDDING_CONFIG.model,
+                        content=text,
+                        task_type="retrieval_document",
+                        output_dimensionality=EMBEDDING_CONFIG.dimension
+                    )
+                except TypeError:
+                    # Fallback without output_dimensionality for older API versions
+                    result = self._google_client.embed_content(
+                        model=EMBEDDING_CONFIG.model,
+                        content=text,
+                        task_type="retrieval_document"
+                    )
+                embeddings.append(result['embedding'])
+        else:
+            raise RuntimeError("No Google embedding client available")
+        
         return [self._ensure_list(vec) for vec in embeddings]
     
     def embed_query(self, query: str, model_type: str = "fast") -> List[float]:

@@ -64,7 +64,7 @@ class VertexAISearchEngine:
                 
                 # Initialize model with grounding
                 self._model = GenerativeModel(
-                    "gemini-1.5-flash-002",  # Fast model for search
+                    "gemini-2.5-flash",  # Fast model for search
                     tools=[grounding_tool]
                 )
                 

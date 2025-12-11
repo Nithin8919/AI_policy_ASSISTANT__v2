@@ -137,6 +137,7 @@ class Citation(BaseModel):
     span: str
     source: str
     vertical: str
+    url: Optional[str] = None  # NEW: For internet search results, this is the clickable source URL
 
 class V3RetrievalResult(BaseModel):
     verticals_searched: List[str]
@@ -170,6 +171,18 @@ class SystemStatusResponse(BaseModel):
 def construct_citation_name(result: Dict, metadata: Dict) -> str:
     """Construct a user-friendly display name from available metadata"""
     import re
+    
+    # Priority 0: Internet results with URL (should show URL prominently)
+    vertical = result.get("vertical", "")
+    if vertical == "internet":
+        url = result.get('url') or metadata.get('url') or metadata.get('source_url')
+        title = metadata.get('title')
+        if title and url:
+            return f"{title} ({url})"
+        elif url:
+            return url
+        elif title:
+            return title
     
     # Priority 1: Check for explicit filename or title (for uploaded files or web results)
     if metadata.get('filename'):
@@ -310,7 +323,10 @@ async def v3_query_endpoint(request: QueryRequest):
             # Convert V3 results to old format
             results_old_fmt = []
             for result in v3_output.results:
-                results_old_fmt.append({
+                # Extract URL from metadata for internet results
+                url = result.metadata.get('url') if result.metadata else None
+                
+                result_dict = {
                     "chunk_id": result.chunk_id,
                     "text": result.content,
                     "doc_id": result.doc_id,
@@ -318,7 +334,13 @@ async def v3_query_endpoint(request: QueryRequest):
                     "metadata": result.metadata,
                     "vertical": result.vertical,
                     "rewrite_source": result.rewrite_source
-                })
+                }
+                
+                # Add URL at top level for easy access (internet results)
+                if url:
+                    result_dict['url'] = url
+                
+                results_old_fmt.append(result_dict)
             
             answer_response = answer_generator.generate(
                 query=request.query,
@@ -343,12 +365,23 @@ async def v3_query_endpoint(request: QueryRequest):
         if request.mode == "policy_draft":
             # V3 Builder citations format
             for citation in citations_list:
+                vertical = citation.get('vertical', 'unknown')
+                url = citation.get('url')
+                
+                # For internet results, use URL as docId
+                doc_id = url if (vertical == 'internet' and url) else (
+                    citation.get('filename') or 
+                    citation.get('source') or 
+                    citation.get('doc_id', 'Unknown')
+                )
+                
                 citations.append(Citation(
-                    docId=citation.get('filename') or citation.get('source') or citation.get('doc_id', 'Unknown'),
+                    docId=doc_id,
                     page=citation.get('page') or 1,
                     span=citation.get('source', '')[:150],
                     source=citation.get('filename') or citation.get('source', 'Policy Document'),
-                    vertical=citation.get('vertical', 'unknown')
+                    vertical=vertical,
+                    url=url  # Include URL for internet results
                 ))
         else:
             # Old Generator citations format
@@ -359,29 +392,48 @@ async def v3_query_endpoint(request: QueryRequest):
                         result = results_old_fmt[result_idx]
                         metadata = result.get("metadata", {})
                         
-                        # Construct display name from metadata
-                        display_name = construct_citation_name(result, metadata)
+                        vertical = result.get("vertical", "unknown")
                         
-                        # Try to get actual GCS file path from metadata
-                        # Priority: filename > file_name > source > doc_id
-                        gcs_path = (
-                            metadata.get('filename') or 
-                            metadata.get('file_name') or 
-                            metadata.get('source') or 
-                            result.get("doc_id", "Unknown")
+                        # Extract URL from multiple possible locations
+                        url = (
+                            result.get('url') or 
+                            metadata.get('url') or 
+                            metadata.get('source_url') or
+                            None
                         )
                         
+                        # For internet results, prioritize title and URL
+                        if vertical == 'internet' and url:
+                            # Use title from metadata or URL itself
+                            display_name = metadata.get('title') or metadata.get('source') or url
+                            # Make it clear it's a web source if not obvious
+                            if not display_name.startswith('http') and not display_name.endswith('(Web)'):
+                                display_name = f"{display_name} (Web)"
+                            # For internet, use URL as docId (not GCS path)
+                            gcs_path = url
+                        else:
+                            # Construct display name from metadata for non-internet results
+                            display_name = construct_citation_name(result, metadata)
+                            
+                            # Try to get actual GCS file path from metadata
+                            # Priority: filename > file_name > source > doc_id
+                            gcs_path = (
+                                metadata.get('filename') or 
+                                metadata.get('file_name') or 
+                                metadata.get('source') or 
+                                result.get("doc_id", "Unknown")
+                            )
+                        
                         # Debug logging to see metadata
-                        logger.info(f"📋 Citation metadata keys: {list(metadata.keys())}")
-                        logger.info(f"📍 Using gcs_path: {gcs_path}")
-
+                        logger.info(f"📋 Citation - vertical: {vertical}, url: {url}, display_name: {display_name}")
                         
                         citations.append(Citation(
-                            docId=gcs_path,  # Use actual GCS path for backend
+                            docId=gcs_path,  # Use URL for internet, GCS path for local docs
                             page=metadata.get('page_number') or metadata.get('page') or 1,
-                            span=result.get("text", "")[:150] + "...",
+                            span=result.get("text", result.get("content", ""))[:150] + "...",
                             source=display_name,  # Use display name for frontend
-                            vertical=result.get("vertical", "unknown")
+                            vertical=vertical,
+                            url=url  # Internet search URL, None for local docs
                         ))
                 except (ValueError, IndexError):
                     continue

@@ -39,11 +39,13 @@ class AnswerBuilder:
         
         Args:
             use_llm: Use Gemini for answer generation
-            api_key: Gemini API key
+            api_key: Ignored (We use OAuth/Vertex AI now)
         """
         self.use_llm = use_llm
-        # Prefer explicit arg, then GEMINI_API_KEY, then GOOGLE_API_KEY (used elsewhere in the project)
-        self.api_key = api_key or os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
+        # REMOVED API Key logic - STRICTLY OAUTH
+        self.use_oauth = True
+        self.project_id = os.getenv("GOOGLE_CLOUD_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
+        self.location = os.getenv("GOOGLE_CLOUD_LOCATION", "asia-south1")
     
     def build_answer(
         self,
@@ -66,7 +68,8 @@ class AnswerBuilder:
         Returns:
             Structured Answer object
         """
-        if self.use_llm and self.api_key:
+        # Ensure we have what we need for LLM
+        if self.use_llm:
             return self._build_with_llm(query, results, mode, external_context, conversation_history)
         else:
             return self._build_template(query, results, mode)
@@ -79,13 +82,37 @@ class AnswerBuilder:
         external_context: Optional[str] = None,
         conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Answer:
-        """Build answer using Gemini Flash"""
+        """Build answer using Gemini via Vertex AI (OAuth)"""
         try:
-            import google.generativeai as genai
+            model_name = 'gemini-2.5-flash'
+            import google.auth
+            from google import genai as genai_new
             
-            genai.configure(api_key=self.api_key)
-            # Use Gemini 2.0 Flash (same as AnswerGenerator)
-            model = genai.GenerativeModel('gemini-2.0-flash')
+            # Get credentials with proper scopes
+            service_account_file = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            if service_account_file and os.path.exists(service_account_file):
+                from google.oauth2 import service_account
+                scopes = ['https://www.googleapis.com/auth/cloud-platform']
+                creds = service_account.Credentials.from_service_account_file(service_account_file, scopes=scopes)
+                project_id = self.project_id
+                if not project_id:
+                    import json
+                    with open(service_account_file, 'r') as f:
+                        project_id = json.load(f).get('project_id')
+            else:
+                creds, computed_project = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
+                project_id = self.project_id or computed_project
+            
+            if not project_id:
+                raise ValueError("GOOGLE_CLOUD_PROJECT_ID not found for Vertex AI")
+
+            client = genai_new.Client(
+                vertexai=True,
+                project=project_id,
+                location=self.location,
+                credentials=creds,
+            )
+            model = client
             
             # Prepare context from results
             context = self._prepare_context(results)
@@ -104,13 +131,51 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
             # Build prompt based on mode
             prompt = self._build_prompt(query, context, mode, conversation_history)
             
-            # Generate answer
-            response = model.generate_content(
-                prompt,
-                generation_config={
+            # Optimize generation config based on mode
+            # QA: Lower temperature for accuracy, moderate tokens
+            # Deep Think: Balanced for analysis, more tokens
+            # Policy Draft: Creative but structured, maximum tokens
+            mode_configs = {
+                'qa': {
+                    'temperature': 0.2,  # Lower for factual accuracy
+                    'max_output_tokens': 2000,  # Increased for detailed answers
+                    'top_p': 0.95,
+                    'top_k': 40
+                },
+                'deep_think': {
+                    'temperature': 0.4,  # Balanced for analysis
+                    'max_output_tokens': 4000,  # More tokens for comprehensive analysis
+                    'top_p': 0.95,
+                    'top_k': 40
+                },
+                'policy_draft': {
+                    'temperature': 0.5,  # Slightly higher for creativity
+                    'max_output_tokens': 8192,  # Maximum for policy drafts
+                    'top_p': 0.95,
+                    'top_k': 40
+                },
+                'policy_brief': {
                     'temperature': 0.3,
-                    'max_output_tokens': 1000,
+                    'max_output_tokens': 3000,
+                    'top_p': 0.95,
+                    'top_k': 40
+                },
+                'brainstorm': {
+                    'temperature': 0.6,  # Higher for creative ideas
+                    'max_output_tokens': 3000,
+                    'top_p': 0.95,
+                    'top_k': 40
                 }
+            }
+            
+            # Get config for mode, default to QA if mode not found
+            gen_config = mode_configs.get(mode, mode_configs['qa'])
+            
+            # Generate answer with optimized config
+            response = model.models.generate_content(
+                model=model_name,
+                contents=[{"role": "user", "parts": [{"text": prompt}]}],
+                config=gen_config,
             )
             
             # Parse response
@@ -138,7 +203,7 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
                 sections=sections,
                 citations=citations,
                 confidence=confidence,
-                metadata={'generated_by': 'gemini', 'mode': mode}
+                metadata={'generated_by': 'gemini_vertex', 'mode': mode}
             )
             
         except Exception as e:
@@ -384,25 +449,44 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
         
         for i, result in enumerate(results[:10], 1):
             metadata = result.get('metadata', {})
+            vertical = result.get('vertical', 'unknown')
             
-            # Construct a user-friendly display name from available metadata
-            display_name = self._construct_display_name(result, metadata)
+            # Extract URL - check multiple locations
+            url = (
+                result.get('url') or 
+                metadata.get('url') or 
+                metadata.get('source_url') or
+                None
+            )
+            
+            # For internet results, prioritize title and URL
+            if vertical == 'internet' and url:
+                # Use title from metadata or construct from URL
+                display_name = metadata.get('title') or metadata.get('source') or url
+                # Make it clear it's a web source
+                if not display_name.startswith('http'):
+                    display_name = f"{display_name} (Web)"
+            else:
+                # Construct a user-friendly display name from available metadata
+                display_name = self._construct_display_name(result, metadata)
             
             citation = {
                 'id': i,
                 'doc_id': result.get('doc_id', result.get('chunk_id', 'unknown')),
                 'filename': display_name,  # User-friendly name
-                'vertical': result.get('vertical', 'unknown'),
+                'vertical': vertical,
                 'source': metadata.get('source', 'Unknown'),
                 'relevance': result.get('score', 0.0),
                 'page': metadata.get('page_number') or metadata.get('page')  # Add page number if available
             }
             
-            # Add URL if from internet
-            if 'url' in result:
-                citation['url'] = result['url']
-            elif 'url' in metadata:
-                 citation['url'] = metadata['url']
+            # Always add URL if available (critical for internet results)
+            if url:
+                citation['url'] = url
+                # For internet results, make URL the primary identifier
+                if vertical == 'internet':
+                    citation['source'] = url
+                    citation['filename'] = metadata.get('title', url)  # Prefer title over URL for display
             
             citations.append(citation)
         
@@ -410,6 +494,18 @@ ADDITIONAL CONTEXT FROM UPLOADED FILES:
     
     def _construct_display_name(self, result: Dict, metadata: Dict) -> str:
         """Construct a user-friendly display name from available metadata"""
+        
+        # Priority 0: Internet results with URL (should be handled in _build_citations, but fallback here)
+        vertical = result.get('vertical', '')
+        if vertical == 'internet':
+            url = result.get('url') or metadata.get('url')
+            title = metadata.get('title')
+            if title and url:
+                return f"{title} ({url})"
+            elif url:
+                return url
+            elif title:
+                return title
         
         # Priority 1: Check for explicit filename or title (for uploaded files or web results)
         if metadata.get('filename'):

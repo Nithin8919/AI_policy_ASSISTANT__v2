@@ -45,11 +45,38 @@ class GCSService:
             )
         
         # Initialize storage client
-        if credentials_path:
-            self.client = storage.Client.from_service_account_json(credentials_path)
+        # For signed URLs, we need service account credentials (with private key)
+        # Try to get service account credentials first
+        # Check credentials_path parameter first, then environment variable
+        service_account_file = credentials_path
+        if not service_account_file:
+            service_account_file = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        
+        # Expand ~ and resolve path
+        if service_account_file:
+            service_account_file = os.path.expanduser(service_account_file)
+            service_account_file = os.path.abspath(service_account_file)
+        
+        if service_account_file and os.path.exists(service_account_file):
+            # Use service account credentials (required for signed URLs)
+            self.client = storage.Client.from_service_account_json(service_account_file)
+            self._service_account_creds = service_account_file
+            logger.info(f"✅ GCS Service initialized with service account: {service_account_file}")
         else:
-            # Uses GOOGLE_APPLICATION_CREDENTIALS env var or Application Default Credentials
+            # Fall back to Application Default Credentials
+            # Note: These won't work for signed URLs, but will work for other operations
             self.client = storage.Client()
+            self._service_account_creds = None
+            if service_account_file:
+                logger.warning(
+                    f"⚠️ GCS Service: GOOGLE_APPLICATION_CREDENTIALS set to '{service_account_file}' but file not found. "
+                    "Falling back to ADC. Signed URLs will fail."
+                )
+            else:
+                logger.warning(
+                    "⚠️ GCS Service initialized with ADC (no service account). "
+                    "Signed URLs will fail - set GOOGLE_APPLICATION_CREDENTIALS in .env for signed URL support."
+                )
         
         self.bucket = self.client.bucket(self.bucket_name)
         
@@ -101,16 +128,30 @@ class GCSService:
                 logger.info(f"✅ Found match (without prefix) at: {blob.name}")
                 matches.append(blob.name)
             
-            # Strategy 3: Partial match (filename is contained in blob path)
-            # This helps with files that might have slightly different naming
+            # Strategy 3: Partial match (filename is contained in blob path - basic)
             base_search = search_name_lower.replace('.pdf', '').replace('_', '')
             base_blob = blob_name_lower.replace('.pdf', '').replace('_', '').replace('/', '')
+            
             if base_search in base_blob and blob_name_lower.endswith('.pdf'):
-                logger.info(f"   Potential partial match: {blob.name}")
+                logger.info(f"   Potential partial match (basic): {blob.name}")
+                matches.append(blob.name)
+                continue
+
+            # Strategy 4: Aggressive Alphanumeric Match
+            # useful when doc_id has underscores but file has spaces, or other separators differ
+            search_alpha = "".join(c for c in search_name_lower.replace('.pdf', '') if c.isalnum())
+            blob_alpha = "".join(c for c in blob_name_lower if c.isalnum())
+            
+            # Check if the core alphanumeric sequence exists in the blob name
+            # We enforce a minimum length to avoid spurious matches on short IDs
+            if len(search_alpha) > 5 and search_alpha in blob_alpha and blob_name_lower.endswith('.pdf'):
+                logger.info(f"   Potential fuzzy match (alphanumeric): {blob.name}")
                 matches.append(blob.name)
         
         # Return first match if any were found
         if matches:
+            # Prefer shorter matches (likely closer to exact filename vs deep path)
+            matches.sort(key=len)
             best_match = matches[0]
             logger.info(f"✅ Returning best match: {best_match}")
             return best_match
@@ -178,12 +219,63 @@ class GCSService:
         expiration = datetime.utcnow() + timedelta(minutes=expiration_minutes)
         
         # Generate signed URL (v4 for better security)
-        signed_url = blob.generate_signed_url(
-            version='v4',
-            expiration=expiration,
-            method='GET',
-            response_type='application/pdf'
-        )
+        # Signed URLs require service account credentials with private key
+        # OAuth user credentials don't have private keys, so they can't sign URLs
+        service_account_file = self._service_account_creds
+        if not service_account_file:
+            # Try to get from environment (in case it was set after initialization)
+            service_account_file = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        
+        # Expand ~ and resolve path
+        if service_account_file:
+            service_account_file = os.path.expanduser(service_account_file)
+            service_account_file = os.path.abspath(service_account_file)
+        
+        if not service_account_file or not os.path.exists(service_account_file):
+            # Provide helpful error message
+            env_value = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', 'Not set')
+            error_msg = (
+                "❌ Service account credentials required for signed URLs.\n"
+                "   Signed URLs need a private key, which only service account JSON files have.\n"
+                "   OAuth user credentials (from 'gcloud auth application-default login') cannot generate signed URLs.\n\n"
+                "   Current status:\n"
+                f"   - GOOGLE_APPLICATION_CREDENTIALS env var: {env_value}\n"
+            )
+            if service_account_file:
+                error_msg += f"   - Resolved path: {service_account_file}\n"
+                error_msg += f"   - File exists: {os.path.exists(service_account_file)}\n"
+            
+            error_msg += (
+                "\n   To fix this:\n"
+                "   1. Ensure GOOGLE_APPLICATION_CREDENTIALS is set in your .env file\n"
+                "   2. Restart your backend server to load the .env file\n"
+                "   3. Or set it directly: export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json\n"
+            )
+            
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
+        # Use service account credentials for signing
+        if self._service_account_creds and self._service_account_creds == service_account_file:
+            # Use existing service account client
+            signed_url = blob.generate_signed_url(
+                version='v4',
+                expiration=expiration,
+                method='GET',
+                response_type='application/pdf'
+            )
+        else:
+            # Create a new client with service account for signing
+            signing_client = storage.Client.from_service_account_json(service_account_file)
+            # Get the blob path (name) from the original blob
+            blob_path = blob.name
+            signing_blob = signing_client.bucket(self.bucket_name).blob(blob_path)
+            signed_url = signing_blob.generate_signed_url(
+                version='v4',
+                expiration=expiration,
+                method='GET',
+                response_type='application/pdf'
+            )
         
         logger.info(f"✅ Generated signed URL for '{pdf_filename}', expires at {expiration.isoformat()}Z")
         

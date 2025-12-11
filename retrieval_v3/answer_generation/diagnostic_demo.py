@@ -110,7 +110,7 @@ def _build_diagnostic_llm() -> Callable[[str], str]:
 
         genai.configure(api_key=api_key)
         # Use standard Gemini Flash model (v1beta-compatible)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-2.5-flash")
 
         def _gemini_llm(prompt: str) -> str:
             try:

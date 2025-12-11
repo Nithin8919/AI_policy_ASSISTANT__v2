@@ -70,34 +70,57 @@ class FileHandler:
     
     async def _extract_with_gemini(self, file_path: str, mime_type: str = "application/pdf") -> Dict:
         """
-        Extract text using Gemini 1.5 Flash (Cloud OCR).
+        Extract text using Gemini 1.5 Flash (Cloud OCR) via Vertex AI.
         Used as fallback for scanned documents/images.
         """
         try:
-            import google.generativeai as genai
+            import google.auth
+            from google import genai
             import time
             
-            api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-            if not api_key:
+            # Get credentials with proper scopes
+            service_account_file = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            if service_account_file and os.path.exists(service_account_file):
+                from google.oauth2 import service_account
+                scopes = ['https://www.googleapis.com/auth/cloud-platform', 'https://www.googleapis.com/auth/generative-language.retriever']
+                creds = service_account.Credentials.from_service_account_file(service_account_file, scopes=scopes)
+                project_id = os.getenv("GOOGLE_CLOUD_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
+                if not project_id:
+                    import json
+                    with open(service_account_file, 'r') as f:
+                        project_id = json.load(f).get('project_id')
+            else:
+                creds, computed_project = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform', 'https://www.googleapis.com/auth/generative-language.retriever'])
+                project_id = os.getenv("GOOGLE_CLOUD_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT") or computed_project
+            
+            location = os.getenv("GOOGLE_CLOUD_LOCATION", "asia-south1")
+            
+            if not project_id:
                 return {
                     "text": "",
                     "word_count": 0,
                     "success": False,
-                    "error": "Gemini API key not found for OCR fallback"
+                    "error": "Google Cloud Project ID not found for Gemini OCR"
                 }
 
-            genai.configure(api_key=api_key)
+            # Initialize Vertex AI client
+            client = genai.Client(
+                vertexai=True,
+                project=project_id,
+                location=location,
+                credentials=creds,
+            )
             
             # 1. Upload file
             logger.info(f"📤 Uploading {Path(file_path).name} to Gemini for OCR...")
-            uploaded_file = genai.upload_file(file_path, mime_type=mime_type)
+            uploaded_file = client.files.upload(file_path)
             
             # 2. Wait for processing (usually fast for small files)
-            while uploaded_file.state.name == "PROCESSING":
+            while uploaded_file.state == "PROCESSING":
                 time.sleep(1)
-                uploaded_file = genai.get_file(uploaded_file.name)
+                uploaded_file = client.files.get(uploaded_file.name)
                 
-            if uploaded_file.state.name == "FAILED":
+            if uploaded_file.state == "FAILED":
                 return {
                     "text": "",
                     "word_count": 0,
@@ -106,19 +129,24 @@ class FileHandler:
                 }
 
             # 3. Generate content (Extract text)
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            response = model.generate_content(
-                [uploaded_file, "Extract all text from this document verbatim. Preserve structure where possible."],
-                generation_config={"temperature": 0.0}
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[
+                    {
+                        "role": "user",
+                        "parts": [
+                            {"file_data": {"file_uri": uploaded_file.uri}},
+                            {"text": "Extract all text from this document verbatim. Preserve structure where possible."}
+                        ]
+                    }
+                ],
+                config={"temperature": 0.0}
             )
             
             text = response.text
             word_count = len(text.split())
             
             logger.info(f"✨ Gemini OCR extracted {word_count} words")
-            
-            # Cleanup (optional, but good practice if we uploaded it)
-            # genai.delete_file(uploaded_file.name) 
             
             return {
                 "text": text,

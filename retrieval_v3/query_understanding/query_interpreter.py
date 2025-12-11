@@ -190,7 +190,7 @@ class QueryInterpreter:
     
     # Entity patterns
     ENTITY_PATTERNS = {
-        'go_refs': r'GO\.?\s*(?:Ms\.?|Rt\.?)?\s*No\.?\s*(\d+)',
+        'go_refs': r'(?:GO|G\.?O\.?)\s*(?:Ms\.?|Rt\.?|MS|RT)?\s*(?:No\.?|Number)?\s*(\d+)',  # Improved GO pattern
         'sections': r'Section\s+(\d+(?:\([a-z0-9]+\))?)',
         'acts': r'(RTE|Right\s+to\s+Education|SSA|RMSA|MDM)\s+Act',
         'years': r'\b(?:19|20)\d{2}\b',

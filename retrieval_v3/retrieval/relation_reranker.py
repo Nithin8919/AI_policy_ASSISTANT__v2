@@ -357,12 +357,6 @@ class RelationReranker:
             # Extract targets from valid relation types only
             targets_to_fetch = []
             for rel in relations:
-                # OPTIMIZATION: Skip low-confidence relations to reduce noise
-                confidence = rel.get('confidence', 0.0)
-                if confidence < 0.7:
-                    print(f"   ⏭️ Skipping low-confidence relation (conf={confidence:.2f})")
-                    continue
-                
                 rel_type = rel.get('relation_type') or rel.get('type')
                 if rel_type not in valid_rel_types:
                     continue
@@ -386,54 +380,50 @@ class RelationReranker:
             
             # Fetch neighbors (single lookup per batch, not scroll)
             try:
-                # Validate IDs before calling retrieve (must be int or UUID)
-                valid_targets = []
-                for t in targets_to_fetch[:max_neighbors - neighbors_fetched]:
-                    # Check if it looks like a UUID or int
-                    if isinstance(t, int) or (isinstance(t, str) and (t.isdigit() or len(t) == 36)):
-                        valid_targets.append(t)
-                    else:
-                        # If it's a GO number string, we need to search for it, not retrieve by ID
-                        # Fallback to filter search for these cases
-                        try:
-                            # Use _fetch_by_identifier to find the document
-                            # We use 'neighbor_expansion' as the relation type context
-                            found_docs = self._fetch_by_identifier(t, 'neighbor_expansion')
-                            for doc in found_docs:
-                                # Add to all_results immediately since we have the full object
-                                # But we need to be careful not to add duplicates or exceed max_neighbors
-                                if neighbors_fetched < max_neighbors:
-                                    doc.score = result.score * 0.8  # Slightly lower than parent
-                                    doc.metadata['neighbor_expansion'] = True
-                                    all_results.append(doc)
-                                    neighbors_fetched += 1
-                        except Exception as e:
-                            logger.warning(f"Fallback search failed for {t}: {e}")
-
-                if not valid_targets:
-                    continue
-
-                # Use retrieve instead of scroll for efficiency
-                points = self._client.retrieve(
-                    collection_name="ap_government_orders",
-                    ids=valid_targets,
-                    with_payload=True,
-                    with_vectors=False
-                )
+                # Validate and group targets
+                valid_ids = []
+                search_targets = []
                 
-                for point in points:
-                    # Convert to RelationResult
-                    neighbor = RelationResult(
-                        chunk_id=point.id,
-                        doc_id=point.payload.get('doc_id', point.id),
-                        content=point.payload.get('content', ''),
-                        score=result.score * 0.8,  # Slightly lower than parent
-                        metadata=point.payload,
-                        vertical=point.payload.get('vertical', 'go')
-                    )
-                    neighbor.metadata['neighbor_expansion'] = True
-                    all_results.append(neighbor)
-                    neighbors_fetched += 1
+                for t in targets_to_fetch[:max_neighbors - neighbors_fetched]:
+                    # Check if it looks like a valid Qdrant ID (UUID or int)
+                    if isinstance(t, int) or (isinstance(t, str) and (t.isdigit() or len(t) == 36)):
+                        valid_ids.append(t)
+                    else:
+                        # It's a string reference (e.g. "G.O.Ms.No. 123")
+                        search_targets.append(t)
+
+                # 1. Direct ID Retrieval (Fastest)
+                if valid_ids:
+                    try:
+                        points = self._client.retrieve(
+                            collection_name="ap_government_orders",
+                            ids=valid_ids,
+                            with_payload=True,
+                            with_vectors=False
+                        )
+                        for point in points:
+                            if neighbors_fetched >= max_neighbors: break
+                            neighbor = self._point_to_relation_result(point, 'surgical_expansion_id')
+                            neighbor.score = result.score * 0.85
+                            all_results.append(neighbor)
+                            neighbors_fetched += 1
+                    except Exception as e:
+                        logger.warning(f"ID retrieval failed: {e}")
+
+                # 2. Search Retrieval (For string references)
+                if search_targets and neighbors_fetched < max_neighbors:
+                    for target in search_targets:
+                         if neighbors_fetched >= max_neighbors: break
+                         
+                         # Utilize our robust fetcher
+                         found_docs = self._fetch_by_identifier(target, 'surgical_expansion_ref')
+                         for doc in found_docs:
+                             if neighbors_fetched >= max_neighbors: break
+                             # Check distinctness
+                             if doc.doc_id not in [r.doc_id for r in all_results]:
+                                 doc.score = result.score * 0.8  # Slightly lower score
+                                 all_results.append(doc)
+                                 neighbors_fetched += 1
                     
             except Exception as e:
                 logger.warning(f"Failed to fetch neighbors: {e}")
@@ -766,9 +756,30 @@ class EntityMatcher:
         return results
     
     def _extract_query_entities(self, query: str) -> Dict[str, List[str]]:
-        """Extract entities from query using patterns - FIXED for informal queries"""
+        """Extract entities from query using patterns - ENHANCED for semantic understanding"""
         entities = {}
         query_lower = query.lower()
+        
+        # Domain-specific keyword lists for education policy
+        EDUCATION_KEYWORDS = {
+            'literacy', 'education', 'learning', 'curriculum', 'pedagogy', 'teaching',
+            'assessment', 'examination', 'evaluation', 'training', 'professional development'
+        }
+        
+        GOVERNANCE_KEYWORDS = {
+            'policy', 'regulation', 'guideline', 'standard', 'framework', 'act', 'rule',
+            'provision', 'mandate', 'requirement', 'compliance'
+        }
+        
+        GEOGRAPHIC_KEYWORDS = {
+            'country', 'countries', 'nation', 'state', 'international', 'global',
+            'singapore', 'finland', 'japan', 'korea', 'andhra pradesh', 'india'
+        }
+        
+        QUALITY_KEYWORDS = {
+            'quality', 'excellence', 'performance', 'achievement', 'improvement',
+            'development', 'progress', 'standards', 'benchmarks', 'best practices'
+        }
         
         # CRITICAL FIX: Add informal/intent-based entity detection
         informal_patterns = {
@@ -825,7 +836,25 @@ class EntityMatcher:
                     match = re.search(pattern, query_lower, re.IGNORECASE)
                     if match:
                         matched_text = match.group(1) if match.groups() else match.group(0)
-                        entities[entity_type].append(matched_text)
+                        if matched_text not in entities[entity_type]:
+                            entities[entity_type].append(matched_text)
+        
+        # NEW: Extract domain keywords as generic 'keywords' entity type
+        # Split query into words
+        words = re.findall(r'\b[a-z]+\b', query_lower)
+        keyword_matches = []
+        
+        for word in words:
+            if word in EDUCATION_KEYWORDS or word in GOVERNANCE_KEYWORDS or \
+               word in GEOGRAPHIC_KEYWORDS or word in QUALITY_KEYWORDS:
+                keyword_matches.append(word)
+        
+        if keyword_matches:
+            if 'keywords' not in entities:
+                entities['keywords'] = []
+            entities['keywords'].extend(keyword_matches)
+            # Deduplicate
+            entities['keywords'] = list(set(entities['keywords']))
         
         # Also look for scheme names in query (keep original logic)
         scheme_names = ['nadu nedu', 'amma vodi', 'vidya kanuka', 'gorumudda', 'midday meal']
@@ -835,8 +864,8 @@ class EntityMatcher:
                 entities['schemes'] = []
             entities['schemes'].extend(found_schemes)
         
-        # Clean up empty lists
-        entities = {k: v for k, v in entities.items() if v}
+        # Clean up empty lists and deduplicate
+        entities = {k: list(set(v)) for k, v in entities.items() if v}
         
         return entities
     
@@ -847,6 +876,7 @@ class EntityMatcher:
     ) -> float:
         """
         Calculate entity overlap score between query and result
+        Enhanced with fuzzy matching for partial matches
         
         Returns:
             Float between 0 and 1 indicating overlap strength
@@ -871,12 +901,25 @@ class EntityMatcher:
             query_set = set(str(v).lower() for v in query_values)
             result_set = set(str(v).lower() for v in result_values)
             
-            # Calculate overlap
-            intersection = query_set.intersection(result_set)
+            # Calculate EXACT overlap first
+            exact_intersection = query_set.intersection(result_set)
+            
+            # NEW: Calculate FUZZY overlap (substring matching)
+            fuzzy_matches = 0
+            for query_val in query_set:
+                if query_val not in exact_intersection:  # Only check non-exact matches
+                    # Check if query value is substring of any result value OR vice versa
+                    for result_val in result_set:
+                        if query_val in result_val or result_val in query_val:
+                            fuzzy_matches += 0.5  # Partial credit for fuzzy match
+                            break
+            
             union = query_set.union(result_set)
             
             if union:
-                overlap = len(intersection) / len(union)
+                # Combine exact and fuzzy matches
+                overlap_count = len(exact_intersection) + fuzzy_matches
+                overlap = overlap_count / len(union)
                 
                 # Weight different entity types
                 weight = self._get_entity_weight(entity_type)
@@ -1129,34 +1172,58 @@ class EntityExpander:
     ) -> List[RelationResult]:
         """Find documents by entity filters"""
         try:
-            # CRITICAL: Only use indexed entity fields to avoid Qdrant errors
-            # Indexed fields: departments, acts, schemes, go_numbers, sections
-            # NOT indexed: years (causes 400 Bad Request)
-            INDEXED_ENTITY_FIELDS = {
-                'departments', 'acts', 'schemes', 'go_numbers', 'sections',
-                'go_refs'  # Also indexed
+            # Map entity types to actual Qdrant payload fields
+            # Based on payload inspection: year, go_number, department are top-level
+            FIELD_MAPPING = {
+                'years': 'year',
+                'go_numbers': 'go_number',
+                'departments': 'department',
+                'sections': 'mentioned_sections',  # or entities.sections
+                'acts': 'entities.acts',
+                'schemes': 'entities.schemes',
+                'go_refs': 'entities.go_refs'
             }
             
             # Build filter conditions
             filter_conditions = []
             
             for entity_type, entity_values in entities.items():
-                # Skip entity types that don't have Qdrant indexes
-                if entity_type not in INDEXED_ENTITY_FIELDS:
-                    logger.info(f"   ⚠️ Skipping unindexed entity type: {entity_type}")
+                if entity_type not in FIELD_MAPPING:
+                    logger.info(f"   ⚠️ Skipping unknown entity type: {entity_type}")
                     continue
+                
+                field_name = FIELD_MAPPING[entity_type]
                     
                 for entity_value in entity_values[:2]:  # Max 2 values per type
-                    filter_conditions.append({
-                        "key": f"entities.{entity_type}",
-                        "match": {"value": entity_value}
-                    })
+                    # Special handling for GO numbers to support string variants
+                    if entity_type == 'go_numbers':
+                         filter_conditions.append({
+                            "key": field_name,
+                            "match": {"value": str(entity_value)}
+                        })
+                    # Special handling for years (must be int for Integer index)
+                    elif entity_type == 'years':
+                         try:
+                             year_val = int(entity_value)
+                             filter_conditions.append({
+                                "key": field_name,
+                                "match": {"value": year_val}
+                            })
+                         except ValueError:
+                             # If year is not a valid int, skip or treat as str
+                             continue
+                    else:
+                        filter_conditions.append({
+                            "key": field_name,
+                            "match": {"value": entity_value}
+                        })
             
             if not filter_conditions:
-                logger.info(f"   ⚠️ No indexed entity fields found for expansion")
+                logger.info(f"   ⚠️ No entity fields found for expansion")
                 return []
             
             # Search with entity filters
+            # Use 'should' clause so any match is good
             results, _ = self._client.scroll(
                 collection_name="ap_government_orders",
                 scroll_filter={"should": filter_conditions},

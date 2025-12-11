@@ -300,7 +300,7 @@ engine = RetrievalEngine(qdrant_client=qdrant, embedder=embedder)
 
 # Setup diagnostic LLM (Gemini Flash)
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-model = genai.GenerativeModel('gemini-1.5-flash-8b')
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 def diagnostic_llm(prompt: str) -> str:
     response = model.generate_content(prompt)
