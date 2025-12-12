@@ -7,13 +7,12 @@ import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { ChatBot } from './ChatBot'
 import { modelService } from '@/lib/modelService'
-import { useChatStore } from '@/hooks/useChatStore'
+import { useLocalChatStore } from '@/hooks/useLocalChatStore'
 
 export default function ChatPage() {
-  const { chats, deleteChat } = useChatStore()
+  const { chats, currentChatId, createChat, deleteChat, setCurrentChatId } = useLocalChatStore()
   const [selectedModel, setSelectedModel] = useState<string>("")
   const [isDraftPanelOpen, setIsDraftPanelOpen] = useState(false)
-  const [activeChatId, setActiveChatId] = useState<string | undefined>()
 
   // Load available models and set default
   useEffect(() => {
@@ -47,22 +46,19 @@ export default function ChatPage() {
   }, [])
 
   const handleNewChat = () => {
-    setActiveChatId(undefined)
+    createChat()
   }
 
   const handleSelectChat = (chatId: string) => {
-    setActiveChatId(chatId)
+    setCurrentChatId(chatId)
   }
 
-  const handleDeleteChat = async (chatId: string) => {
-    await deleteChat(chatId)
-    if (activeChatId === chatId) {
-      setActiveChatId(undefined)
-    }
+  const handleDeleteChat = (chatId: string) => {
+    deleteChat(chatId)
   }
 
   const handleChatCreated = (chatId: string) => {
-    setActiveChatId(chatId)
+    setCurrentChatId(chatId)
   }
 
   const handleModelChange = (modelId: string) => {
@@ -91,8 +87,16 @@ export default function ChatPage() {
       {!isDraftPanelOpen && (
         <AppSidebar
           variant="inset"
-          chatHistory={chats}
-          activeChatId={activeChatId}
+          chatHistory={chats.map(chat => ({
+            id: chat.id,
+            title: chat.title,
+            preview: chat.messages.length > 0 
+              ? (chat.messages[chat.messages.length - 1].content.substring(0, 50) + (chat.messages[chat.messages.length - 1].content.length > 50 ? '...' : ''))
+              : 'No messages yet',
+            timestamp: chat.updatedAt,
+            messageCount: chat.messages.length
+          }))}
+          activeChatId={currentChatId || undefined}
           onNewChat={handleNewChat}
           onSelectChat={handleSelectChat}
           onDeleteChat={handleDeleteChat}
@@ -107,7 +111,7 @@ export default function ChatPage() {
         <div className="flex-1 flex flex-col min-h-0 relative">
           {selectedModel ? (
             <ChatBot
-              activeChatId={activeChatId}
+              activeChatId={currentChatId || undefined}
               onChatCreated={handleChatCreated}
               selectedModel={selectedModel}
               onPanelStateChange={setIsDraftPanelOpen}

@@ -265,10 +265,13 @@ async def v3_query_endpoint(request: QueryRequest):
         logger.info("⚡ Starting V3 parallel retrieval...")
         retrieval_start = time.time()
         
-        # Build custom plan with internet setting
+        # Build custom plan with internet setting and mode
         # Force internet ON for brainstorm mode, otherwise use request setting
         should_enable_internet = request.internet_enabled or request.mode == "brainstorm"
-        custom_plan = {'internet_enabled': True} if should_enable_internet else None
+        custom_plan = {
+            'internet_enabled': should_enable_internet,  # Always explicit (True or False)
+            'mode': request.mode  # Pass mode for lightweight QA retrieval
+        }
         
         v3_output = v3_engine.retrieve(
             query=request.query,
@@ -567,8 +570,11 @@ async def v3_query_with_files_endpoint(
         logger.info(f"⚡ Starting V3 retrieval with external_context length: {len(file_context_text) if file_context_text else 0}")
         retrieval_start = time.time()
         
-        # Build custom plan with internet setting
-        custom_plan = {'internet_enabled': internet_enabled} if internet_enabled else None
+        # Build custom plan with internet setting and mode
+        custom_plan = {
+            'internet_enabled': internet_enabled,  # Always explicit (True or False)
+            'mode': mode  # Pass mode for lightweight QA retrieval
+        }
         
         v3_output = v3_engine.retrieve(
             query=query,

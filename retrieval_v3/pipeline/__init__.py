@@ -8,9 +8,11 @@ Main retrieval engine and execution
 
 from .retrieval_engine import (
     RetrievalEngine,
-    RetrievalResult,
-    RetrievalOutput,
     retrieve
+)
+from .models import (
+    RetrievalResult,
+    RetrievalOutput
 )
 
 __all__ = [
@@ -19,6 +21,10 @@ __all__ = [
     'RetrievalOutput',
     'retrieve',
 ]
+
+
+
+
 
 
 

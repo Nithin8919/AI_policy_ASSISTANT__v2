@@ -26,7 +26,7 @@ class CrossEncoderReranker:
             logger.error(f"Failed to load Cross-Encoder: {e}")
             self.is_ready = False
             
-    def rerank(self, query: str, results: List[Dict], top_k: int = 10, max_candidates: int = 50) -> List[Dict]:
+    def rerank(self, query: str, results: List[Dict], top_k: int = 10, max_candidates: int = 50, mode: str = "qa") -> List[Dict]:
         """
         Rerank a list of results with timeout protection and smart batching.
         
@@ -35,6 +35,7 @@ class CrossEncoderReranker:
             results: List of result dicts (must have 'content' or 'text')
             top_k: Number of results to return
             max_candidates: Maximum number of candidates to process (default: 50, increased from 25)
+            mode: Query mode (qa, policy, etc.) - affects candidate limit
             
         Returns:
             Reranked list of results
@@ -42,8 +43,17 @@ class CrossEncoderReranker:
         if not self.is_ready or not results:
             return results[:top_k]
         
-        # Smart candidate selection: process up to max_candidates (default 50)
-        # This is a reasonable limit for performance while maintaining quality
+        # OPTIMIZATION: Reduce candidates based on mode for faster processing
+        # QA mode: 25 candidates (was 50), Policy mode: 30 candidates
+        if max_candidates == 50:  # Only adjust if using default
+            if mode == "qa":
+                max_candidates = 25
+            elif mode in ["policy", "framework", "brainstorm"]:
+                max_candidates = 30
+            else:
+                max_candidates = 25  # Default to conservative for other modes
+        
+        # Smart candidate selection: process up to max_candidates
         num_to_process = min(len(results), max_candidates)
         if len(results) > num_to_process:
             logger.info(f"Processing top {num_to_process} candidates (out of {len(results)}) for cross-encoder")

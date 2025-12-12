@@ -475,8 +475,7 @@ class QueryRewriter:
         try:
             # STRICTLY OAuth / Vertex AI - no API key fallback
             project_id = os.getenv("GOOGLE_CLOUD_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT")
-            # Default to us-central1 where Gemini 2.5 is available
-            location = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+            location = os.getenv("GOOGLE_CLOUD_LOCATION", "asia-south1")
             
             if not project_id:
                 # No project ID = no OAuth, skip Gemini entirely
@@ -484,6 +483,7 @@ class QueryRewriter:
             
             model_names_to_try = [
                 'gemini-2.5-flash',
+                'gemini-1.5-flash',  # Fallback (2.0-flash doesn't exist)
             ]
 
             client = None
@@ -555,10 +555,14 @@ class QueryRewriter:
                 except Exception as e:
                     error_str = str(e)
                     last_error = e
-                    # If it's a permission error (403), don't try other models - fall back immediately
+                    # If it's a permission error (403) or model not found (404), don't try other models - fall back immediately
                     if "403" in error_str or "PERMISSION_DENIED" in error_str or "aiplatform.endpoints.predict" in error_str:
                         print(f"⚠️ Vertex AI permission denied (403) for {model_name}, falling back to rule-based rewrites")
                         return self.generate_rewrites(query, num_rewrites)
+                    elif "404" in error_str or "NOT_FOUND" in error_str:
+                        # Model doesn't exist, try next model
+                        print(f"⚠️ Model {model_name} not found (404), trying next model...")
+                        continue
                     continue # Try next model
 
             if not selected_model_name:
@@ -567,6 +571,8 @@ class QueryRewriter:
                     error_str = str(last_error)
                     if "403" in error_str or "PERMISSION_DENIED" in error_str:
                         print(f"⚠️ All Vertex AI models failed with permission error (403), using rule-based rewrites")
+                    elif "404" in error_str or "NOT_FOUND" in error_str:
+                        print(f"⚠️ All Vertex AI models not found (404), using rule-based rewrites")
                     else:
                         print(f"⚠️ All Vertex AI models failed: {error_str[:200]}, using rule-based rewrites")
                 return self.generate_rewrites(query, num_rewrites)

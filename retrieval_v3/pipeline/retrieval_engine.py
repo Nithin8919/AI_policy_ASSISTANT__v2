@@ -7,9 +7,8 @@ Coordinates: normalization → interpretation → routing → retrieval → rera
 
 import time
 from typing import List, Dict, Optional, Any
-from dataclasses import dataclass, field
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 import threading
 import logging
 
@@ -36,8 +35,6 @@ from routing.retrieval_plan import RetrievalPlanBuilder, RetrievalPlan
 from pipeline.diversity_reranker import DiversityReranker
 
 # Import BM25Booster with correct path
-import sys
-from pathlib import Path
 retrieval_v3_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(retrieval_v3_dir / "retrieval"))
 from bm25_boosting import BM25Booster
@@ -50,7 +47,6 @@ from answer_generation.answer_builder import AnswerBuilder, Answer
 from answer_generation.answer_validator import AnswerValidator
 
 # Import relation-entity system
-sys.path.insert(0, str(retrieval_v3_dir / "retrieval"))
 from relation_reranker import RelationEntityProcessor
 
 # NEW IMPORTS
@@ -61,35 +57,18 @@ from retrieval_core.hybrid_search import HybridSearcher
 from cache.query_cache import QueryCache
 from internet.google_search_client import GoogleSearchClient
 
+# Import modularized components
+from .models import RetrievalResult, RetrievalOutput
+from .query_coordinator import QueryUnderstandingCoordinator
+from .retrieval_executor import RetrievalExecutor
+from .result_processor import ResultProcessor
+from .reranking_coordinator import RerankingCoordinator
+from .legal_clause_handler import LegalClauseHandler
+from .internet_handler import InternetSearchHandler
+from .engine_stats import EngineStatsManager
 
-@dataclass
-class RetrievalResult:
-    """Single retrieval result (chunk)"""
-    chunk_id: str
-    doc_id: str
-    content: str
-    score: float
-    vertical: str
-    metadata: Dict = field(default_factory=dict)
-    rewrite_source: Optional[str] = None  # Which rewrite retrieved this
-    hop_number: int = 1  # Which hop retrieved this
-
-
-@dataclass
-class RetrievalOutput:
-    """Complete retrieval output"""
-    query: str
-    normalized_query: str
-    interpretation: QueryInterpretation
-    plan: RetrievalPlan
-    rewrites: List[str]
-    verticals_searched: List[str]
-    results: List[RetrievalResult]
-    total_candidates: int
-    final_count: int
-    processing_time: float
-    metadata: Dict = field(default_factory=dict)
-    trace_steps: List[str] = field(default_factory=list)
+# Re-export models for backward compatibility
+__all__ = ['RetrievalEngine', 'RetrievalResult', 'RetrievalOutput', 'retrieve']
 
 
 class RetrievalEngine:
@@ -142,13 +121,8 @@ class RetrievalEngine:
         self.enable_cache = enable_cache
         self.use_relation_entity = use_relation_entity
         
-        # Simple caches for speed
-        if self.enable_cache:
-            self._embedding_cache = {}
-            self._llm_cache = {}
-            self._cache_max_size = 100
-            
         # Thread pool for parallel operations
+        # OPTIMIZATION P2-4: Adaptive sizing will be applied per-query (executor shared)
         self.executor = ThreadPoolExecutor(max_workers=6, thread_name_prefix="v3_retrieval")
         self._lock = threading.Lock()  # For thread-safe cache access
         
@@ -169,7 +143,7 @@ class RetrievalEngine:
         # NEW: Initialize Hybrid Searcher
         self.hybrid_searcher = HybridSearcher()
         
-        # NEW: Initialize        # Supersession tracking - DISABLED: Relation reranker already uses 'is_superseded' from payload
+        # Supersession tracking - DISABLED: Relation reranker already uses 'is_superseded' from payload
         # This manager would scan 5495 docs at startup to find only 13 supersessions (slow + redundant)
         self.supersession_manager = None  # SupersessionManager(qdrant_client) if qdrant_client else None
         
@@ -194,12 +168,6 @@ class RetrievalEngine:
         # Initialize query cache (10 minute TTL)
         self.query_cache = QueryCache(ttl_seconds=600)
         
-        if self.use_relation_entity:
-            self.relation_entity_processor = RelationEntityProcessor(qdrant_client)
-        
-        # Initialize query cache (10 minute TTL)
-        self.query_cache = QueryCache(ttl_seconds=600)
-        
         # Initialize Diagnostic Runner
         from diagnostics.diagnostic_runner import DiagnosticRunner
         # Removed API key passing
@@ -209,32 +177,62 @@ class RetrievalEngine:
         # Removed API key passing
         self.google_search_client = GoogleSearchClient()
         
-        # Stats
-        self.stats = {
-            'total_queries': 0,
-            'avg_processing_time': 0,
-            'cache_hits': 0,
-            'validation_scores': [],
-        }
-
-    def _extract_entities_from_text(self, text: str) -> List[str]:
-        """Extract explicit entities like GOs, Acts, Sections from text"""
-        if not text:
-            return []
-            
-        import re
-        entities = []
+        # Initialize stats manager
+        self.stats_manager = EngineStatsManager(enable_cache=enable_cache)
+        # Share stats dict reference for backward compatibility
+        self.stats = self.stats_manager.stats
         
-        # GO patterns: GO Ms No 123, G.O.Rt.No. 456, G.O.Ms.No. 789, GO Number 123
-        go_pattern = r'G\.?O\.?\s*(?:Ms\.?|Rt\.?|P\.?)?[\s\.]?(?:No\.?|Number)?\s*\d+'
-        entities.extend(re.findall(go_pattern, text, re.IGNORECASE))
+        # Initialize coordinators
+        self.query_coordinator = QueryUnderstandingCoordinator(
+            normalizer=self.normalizer,
+            interpreter=self.interpreter,
+            rewriter=self.rewriter,
+            expander=self.expander,
+            executor=self.executor,
+            use_llm_rewrites=use_llm_rewrites
+        )
         
-        # Act patterns: X Act, 2020 (simple heuristic)
-        act_pattern = r'(?:The\s+)?([A-Z][a-zA-Z\s]+Act(?:,?\s+\d{4})?)'
-        matches = re.findall(act_pattern, text)
-        entities.extend([m for m in matches if len(m) > 10 and len(m) < 50])
+        # Get cache references from stats manager (shared caches)
+        embedding_cache = self.stats_manager.get_embedding_cache()
+        llm_cache = self.stats_manager.get_llm_cache()
         
-        return list(set(entities))
+        self.retrieval_executor = RetrievalExecutor(
+            qdrant_client=qdrant_client,
+            embedder=embedder,
+            executor=self.executor,
+            lock=self._lock,
+            enable_cache=enable_cache,
+            embedding_cache=embedding_cache,
+            cache_max_size=self.stats_manager._cache_max_size,
+            stats=self.stats,
+            bm25_retriever=self.bm25_retriever,
+            hybrid_searcher=self.hybrid_searcher
+        )
+        
+        self.result_processor = ResultProcessor()
+        
+        self.reranking_coordinator = RerankingCoordinator(
+            category_predictor=self.category_predictor,
+            diversity_reranker=self.diversity_reranker,
+            cross_encoder=self.cross_encoder,
+            relation_entity_processor=self.relation_entity_processor,
+            use_cross_encoder=use_cross_encoder,
+            use_relation_entity=use_relation_entity,
+            gemini_api_key=self.gemini_api_key,
+            enable_cache=enable_cache,
+            llm_cache=llm_cache,
+            cache_max_size=self.stats_manager._cache_max_size,
+            stats=self.stats
+        )
+        
+        self.legal_clause_handler = LegalClauseHandler(
+            clause_indexer=self.clause_indexer,
+            qdrant_client=qdrant_client
+        )
+        
+        self.internet_handler = InternetSearchHandler(
+            google_search_client=self.google_search_client
+        )
     
     def retrieve(
         self,
@@ -261,6 +259,9 @@ class RetrievalEngine:
         trace_steps = []
         trace_steps.append("Understanding your query...")
         
+        # OPTIMIZATION P4-2: Track per-stage timings
+        stage_start = time.time()
+        
         # STEP 1: QUERY UNDERSTANDING (PARALLEL PROCESSING)
         # ====================================================================
         
@@ -273,7 +274,6 @@ class RetrievalEngine:
         if "recent" in normalized_query.lower() and ("go" in normalized_query.lower() or "government order" in normalized_query.lower()):
             import time as time_module
             # Round to start of day for cache stability
-            # This ensures the filter doesn't change every second
             now_ts = int(time_module.time())
             start_of_day = (now_ts // 86400) * 86400
             eighteen_months_ago = start_of_day - (18 * 30 * 86400)
@@ -295,146 +295,79 @@ class RetrievalEngine:
             logger.info(f"🎯 Auto-pinned filters for recent GOs query (last 18 months)")
         
         # CHECK CACHE FIRST (after normalization and filter determination)
+        # OPTIMIZATION P2-5: Include mode in cache lookup
         logger.info(f"DEBUG: enable_cache={self.enable_cache}")
         if self.enable_cache:
-            cached_result = self.query_cache.get(normalized_query, force_filter)
+            mode = custom_plan.get('mode') if custom_plan else None
+            cached_result = self.query_cache.get(normalized_query, force_filter, mode=mode)
             if cached_result:
                 self.stats['cache_hits'] += 1
                 return cached_result
-
-
         
         # 1.2: CLAUSE INDEXER FAST PATH - Handle legal clause queries instantly
         # ====================================================================
-        if self._is_legal_clause_query(normalized_query) and self.clause_indexer:
-            print(f"🔍 Legal clause query detected - trying fast path: {normalized_query}")
+        is_qa_mode = custom_plan and custom_plan.get('mode') == 'qa'
+        fast_path_result = self.legal_clause_handler.try_fast_path(query, normalized_query, top_k)
+        if fast_path_result:
+            fast_interpretation, fast_plan, clause_results = fast_path_result
+            processing_time = time.time() - start_time
             
-            # Use original query for clause lookup (avoids normalized tokens)
-            clause_results = self._clause_indexer_lookup(query)  # Original query, not normalized
+            output = RetrievalOutput(
+                query=query,
+                normalized_query=normalized_query,
+                interpretation=fast_interpretation,
+                plan=fast_plan,
+                rewrites=[normalized_query],  # Single rewrite
+                verticals_searched=['legal'],
+                results=clause_results,
+                total_candidates=len(clause_results),
+                final_count=len(clause_results),
+                processing_time=processing_time,
+                metadata={
+                    'fast_path': True,
+                    'clause_indexer_hits': len(clause_results),
+                    'bypass_full_pipeline': True,
+                    'fast_path_confidence': 0.95
+                }
+            )
             
-            # If we found good clause matches, use fast path
-            if clause_results and len(clause_results) >= 2:
-                print(f"⚡ Fast path successful - found {len(clause_results)} clause matches")
-                
-                # Create minimal interpretation for legal queries
-                from query_understanding.query_interpreter import QueryType, QueryScope, QueryInterpretation
-                fast_interpretation = QueryInterpretation(
-                    query_type=QueryType.QA,  # Legal clause queries are QA type
-                    scope=QueryScope.NARROW,  # Specific legal clause
-                    needs_internet=False,
-                    needs_deep_mode=False,
-                    confidence=0.95,
-                    detected_entities={"legal_clauses": [normalized_query]},
-                    keywords=[normalized_query.lower()],
-                    temporal_references=[],
-                    reasoning="legal_clause_fast_path_detected"
-                )
-                
-                # Create simple plan for fast path
-                from routing.retrieval_plan import RetrievalPlan
-                final_top_k = min(top_k or 10, len(clause_results))
-                fast_plan = RetrievalPlan(
-                    num_rewrites=1,
-                    num_hops=1,
-                    top_k_per_vertical=final_top_k,
-                    top_k_total=final_top_k,
-                    use_internet=False,
-                    use_hybrid=False,
-                    rerank_top_k=final_top_k,
-                    diversity_weight=0.0,  # No diversity needed for clause lookup
-                    mode="fast_clause_lookup"
-                )
-                
-                # Build fast output
-                processing_time = time.time() - start_time
-                
-                output = RetrievalOutput(
-                    query=query,
-                    normalized_query=normalized_query,
-                    interpretation=fast_interpretation,
-                    plan=fast_plan,
-                    rewrites=[normalized_query],  # Single rewrite
-                    verticals_searched=['legal'],
-                    results=clause_results[:final_top_k],
-                    total_candidates=len(clause_results),
-                    final_count=len(clause_results[:final_top_k]),
-                    processing_time=processing_time,
-                    metadata={
-                        'fast_path': True,
-                        'clause_indexer_hits': len(clause_results),
-                        'bypass_full_pipeline': True,
-                        'fast_path_confidence': 0.95
-                    }
-                )
-                
-                self._update_stats(output)
-                return output
-
+            self.stats_manager.update_stats(output)
+            return output
         
         # Add trace step for understanding phase
         trace_steps.append("Expanding and rewriting query...")
-
-        # 1.3: Submit parallel tasks for query understanding (Full Pipeline)
-        understanding_futures = {}
         
-        # START FILE CONTEXT ANALYSIS
-        context_entities = []
-        if external_context:
-             trace_steps.append("Analyzing uploaded file content...")
-             context_entities = self._extract_entities_from_text(external_context)
-             if context_entities:
-                 logger.info(f"📄 Extracted entities from file: {context_entities}")
-                 trace_steps.append(f"Found relevant entities in file: {', '.join(context_entities[:3])}...")
-        # END FILE CONTEXT ANALYSIS
-        
-        # Interpretation task
-        understanding_futures['interpretation'] = self.executor.submit(
-            self.interpreter.interpret_query, normalized_query, query
+        # 1.3: Query Understanding via Coordinator
+        # Pass already-normalized query to avoid double normalization
+        interpretation, rewrites, expanded_rewrites = self.query_coordinator.understand_query(
+            query=query,
+            normalized_query=normalized_query,
+            external_context=external_context,
+            is_qa_mode=is_qa_mode
         )
         
-        # Rewrites task
-        if self.use_llm_rewrites:
-            understanding_futures['rewrites'] = self.executor.submit(
-                self.rewriter.generate_rewrites_with_gemini,
-                normalized_query, 3
-            )
+        # OPTIMIZATION P2-4: Adaptive thread pool sizing based on query complexity
+        # Note: Executor is shared, but we log the optimal size for monitoring
+        if is_qa_mode:
+            optimal_workers = 4
+        elif interpretation.query_type.value in ['policy', 'framework', 'brainstorm']:
+            optimal_workers = 10
         else:
-            understanding_futures['rewrites'] = self.executor.submit(
-                self.rewriter.generate_rewrites,
-                normalized_query, 3
-            )
+            optimal_workers = 6
+        logger.debug(f"🔧 Optimal thread pool size for this query: {optimal_workers} workers")
         
-        # Wait for parallel tasks to complete
-        try:
-            interpretation = understanding_futures['interpretation'].result(timeout=5)
-            rewrites_obj = understanding_futures['rewrites'].result(timeout=10)
-            # Add context entities to rewrites to ensure they are searched
-            rewrites = [normalized_query] + [r.text for r in rewrites_obj] + context_entities
-        except Exception as e:
-            # Log error but don't print full trace (may contain API key errors from libraries)
-            error_msg = str(e)
-            # Filter out API key related errors in logs (they're expected when using OAuth)
-            if "API key" not in error_msg and "API_KEY" not in error_msg:
-                logger.warning(f"Parallel query understanding failed: {error_msg[:200]}")
-            # Fallback to sequential (rule-based rewrites)
-            interpretation = self.interpreter.interpret_query(normalized_query, query)
-            rewrites = [normalized_query]
+        # Add context entities trace if external context provided
+        if external_context:
+            context_entities = self.query_coordinator.extract_entities_from_text(external_context)
+            if context_entities:
+                trace_steps.append("Analyzing uploaded file content...")
+                logger.info(f"📄 Extracted entities from file: {context_entities}")
+                trace_steps.append(f"Found relevant entities in file: {', '.join(context_entities[:3])}...")
         
-        # 1.4: Expand with domain keywords (parallel)
-        expansion_futures = {
-            self.executor.submit(self.expander.expand_query, r, 8): r 
-            for r in rewrites
-        }
-        
-        expanded_rewrites = []
-        for future in as_completed(expansion_futures, timeout=3):
-            try:
-                expanded = future.result()
-                expanded_rewrites.append(expanded)
-            except Exception as e:
-                original_query = expansion_futures[future]
-                print(f"Expansion failed for '{original_query}': {e}")
-                expanded_rewrites.append(original_query)  # Use original as fallback
+        # OPTIMIZATION P4-2: Record query understanding timing
+        query_understanding_time = time.time() - stage_start
+        self.stats_manager.record_stage_timing('query_understanding', query_understanding_time)
+        stage_start = time.time()
         
         # STEP 2: ROUTING & PLANNING
         # ====================================================================
@@ -465,193 +398,117 @@ class RetrievalEngine:
         if top_k:
             plan.top_k_total = top_k
         
+        # OPTIMIZATION: Make QA mode lightweight (faster retrieval)
+        if is_qa_mode:
+            # Reduce rewrites, disable LLM rewrites, reduce expansion, single hop
+            plan.num_rewrites = 1  # Only use original query + minimal rewrites
+            plan.num_hops = 1  # Single hop only
+            logger.info("⚡ QA mode: Using lightweight retrieval (1 rewrite, 1 hop)")
+        
+        # OPTIMIZATION P4-2: Record routing timing
+        routing_time = time.time() - stage_start
+        self.stats_manager.record_stage_timing('routing', routing_time)
+        stage_start = time.time()
+        
         # STEP 3: RETRIEVAL (HYBRID)
         # ====================================================================
         
         all_results = []
-        
-        # 3.1: Parallel Hybrid Retrieval
-        # We run vector search and BM25 search in parallel for all rewrites
         trace_steps.append("Running hybrid retrieval (vector + BM25)...")
         
-        # Helper for single hybrid search
-        def _single_hybrid_search(search_query, hop=1):
-            import concurrent.futures
-            
-            vector_res = []
-            bm25_res = []
-            
-            def run_vector_search():
-                return self._parallel_retrieve_hop(
-                    [search_query], 
-                    collection_names, 
-                    top_k=plan.top_k_per_vertical, 
-                    hop_number=hop
-                )
-            
-            def run_bm25_search():
-                res = []
-                if self.bm25_retriever:
-                    try:
-                        bm25_raw = self.bm25_retriever.search(search_query, top_k=plan.top_k_per_vertical)
-                        for r in bm25_raw:
-                            res.append(RetrievalResult(
-                                chunk_id=r['chunk_id'],
-                                doc_id=r['metadata'].get('doc_id', 'unknown'),
-                                content=r['content'],
-                                score=r['score'],
-                                vertical=r['vertical'],
-                                metadata=r['metadata'],
-                                rewrite_source=f"bm25_{search_query}",
-                                hop_number=hop
-                            ))
-                    except Exception as e:
-                        logger.warning(f"BM25 search failed: {e}")
-                return res
-
-            # P1 Quick Win #5: Parallelize BM25 and Dense searches
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                future_vector = executor.submit(run_vector_search)
-                future_bm25 = executor.submit(run_bm25_search)
-                
-                try:
-                    # 25s timeout for vector, 10s for BM25 (increased to prevent timeouts)
-                    vector_res = future_vector.result(timeout=25.0)
-                    bm25_res = future_bm25.result(timeout=10.0)
-                except concurrent.futures.TimeoutError:
-                    logger.warning("Search timeout - using partial results")
-                    if future_vector.done():
-                        vector_res = future_vector.result()
-                    if future_bm25.done():
-                        bm25_res = future_bm25.result()
-                except Exception as e:
-                    logger.warning(f"Parallel search error: {e}")
-                    # Fallback to sequential if parallel fails
-                    if not vector_res:
-                        vector_res = run_vector_search()
-            
-            # Fuse Vector + BM25 for this query
-            if not bm25_res:
-                return vector_res
-                
-            # Use RRF to combine
-            fused_ids = self.hybrid_searcher.rrf_fusion(
-                [r.chunk_id for r in vector_res],
-                [r.chunk_id for r in bm25_res]
-            )
-            
-            # Reconstruct results from fused IDs
-            fused_results = []
-            seen_ids = set()
-            
-            # Create a lookup map
-            all_candidates_map = {r.chunk_id: r for r in vector_res + bm25_res}
-            
-            for rank, cid in enumerate(fused_ids):
-                if cid in all_candidates_map and cid not in seen_ids:
-                    res = all_candidates_map[cid]
-                    # Assign a normalized score based on rank
-                    res.score = 1.0 / (rank + 1)
-                    fused_results.append(res)
-                    seen_ids.add(cid)
-            
-            # P1 Quick Win #1: Apply section type boost (orders > annexure > preamble)
-            try:
-                from retrieval_v3.retrieval_core.scoring import section_type_boost
-                for result in fused_results:
-                    section_type = result.metadata.get('section_type')
-                    if section_type:
-                        boost = section_type_boost(section_type)
-                        if boost > 1.0:
-                            result.score *= boost
-                            result.metadata['section_boost'] = boost
-            except Exception as e:
-                logger.warning(f"Section boost failed: {e}")
-            
-            return fused_results
-
         # Execute for all rewrites
         # Run hybrid for original query
-        all_results.extend(_single_hybrid_search(normalized_query, hop=1))
+        all_results.extend(self.retrieval_executor.execute_hybrid_search(
+            normalized_query, collection_names, plan, hop=1
+        ))
         
-        # Run vector-only for rewrites (to keep it fast)
-        if len(expanded_rewrites) > 1:
-            rewrite_results = self._parallel_retrieve_hop(
+        # OPTIMIZATION P1-5: Early exit check after first retrieval
+        # Check if we have high-quality results that don't need multi-hop or expensive reranking
+        early_exit_triggered = False
+        if all_results:
+            # Get top results and check their scores (use raw_score if available)
+            top_results = sorted(all_results, key=lambda x: x.metadata.get('raw_score', x.score), reverse=True)[:3]
+            top_scores = [r.metadata.get('raw_score', r.score) for r in top_results]
+            
+            # Early exit conditions:
+            # 1. Top-3 results have high scores (> 0.8)
+            # 2. Query is simple QA (not complex policy/framework)
+            # 3. We have at least 3 good results
+            has_excellent_results = (
+                len(top_scores) >= 3 and
+                max(top_scores) > 0.8 and
+                sum(top_scores) / len(top_scores) > 0.75
+            )
+            is_simple_query = (
+                interpretation.query_type.value == 'qa' and
+                interpretation.scope.value == 'narrow' and
+                len(normalized_query.split()) < 10
+            )
+            
+            if has_excellent_results and is_simple_query:
+                early_exit_triggered = True
+                logger.info(f"⚡ Early exit triggered: excellent results found (top score: {max(top_scores):.2f})")
+                # Skip rewrites, multi-hop, and use lightweight reranking
+                all_results = top_results + all_results[3:plan.top_k_total * 2]  # Keep top + some more for diversity
+        
+        # Run vector-only for rewrites (to keep it fast) - SKIP if early exit
+        if not early_exit_triggered and len(expanded_rewrites) > 1:
+            rewrite_results = self.retrieval_executor.parallel_retrieve_hop(
                 expanded_rewrites[1:], # Skip original
                 collection_names,
                 top_k=plan.top_k_per_vertical,
                 hop_number=1
             )
-            all_results.extend(self._normalize_scores(rewrite_results, method='min-max'))
+            all_results.extend(self.result_processor.normalize_scores(rewrite_results, method='min-max'))
             
-        # 3.2: Multi-hop retrieval (if enabled)
-        if plan.num_hops > 1 and all_results:
-            hop2_queries = self._generate_hop2_queries(all_results, limit=3)
-            hop2_results = self._parallel_retrieve_hop(
-                hop2_queries,
-                collection_names,
-                top_k=plan.top_k_per_vertical // 2,
-                hop_number=2
+        # 3.2: Multi-hop retrieval (if enabled) - SKIP if early exit
+        # OPTIMIZATION P2-1: Conditional multi-hop - only run if needed
+        if not early_exit_triggered and plan.num_hops > 1 and all_results:
+            # Check if first hop results are good enough
+            top_scores_hop1 = [r.metadata.get('raw_score', r.score) for r in all_results[:5]]
+            max_score_hop1 = max(top_scores_hop1) if top_scores_hop1 else 0.0
+            avg_score_hop1 = sum(top_scores_hop1) / len(top_scores_hop1) if top_scores_hop1 else 0.0
+            
+            # Only run multi-hop if:
+            # 1. First hop results are poor (max < 0.6) OR
+            # 2. Query type requires deep search (POLICY/FRAMEWORK) OR
+            # 3. User explicitly requested deep search (custom_plan)
+            should_run_multihop = (
+                max_score_hop1 < 0.6 or  # Poor results
+                interpretation.query_type.value in ['policy', 'framework', 'brainstorm'] or  # Complex query
+                (custom_plan and custom_plan.get('deep_search', False))  # Explicit request
             )
-            all_results.extend(self._normalize_scores(hop2_results, method='min-max'))
+            
+            if should_run_multihop:
+                logger.info(f"🔄 Running multi-hop retrieval (max_score={max_score_hop1:.2f}, query_type={interpretation.query_type.value})")
+                hop2_queries = self.retrieval_executor.generate_hop2_queries(all_results, limit=3)
+                hop2_results = self.retrieval_executor.parallel_retrieve_hop(
+                    hop2_queries,
+                    collection_names,
+                    top_k=plan.top_k_per_vertical // 2,
+                    hop_number=2
+                )
+                all_results.extend(self.result_processor.normalize_scores(hop2_results, method='min-max'))
+            else:
+                logger.info(f"⚡ Skipping multi-hop (good results from first hop: max_score={max_score_hop1:.2f})")
         
         # 3.3: Internet Retrieval (Optional Layer)
         # ====================================================================
-        internet_results = []
-        internet_enabled = False
+        internet_enabled = self.internet_handler.should_enable_internet(plan, custom_plan)
+        if internet_enabled:
+            internet_results = self.internet_handler.search(query, trace_steps)
+            all_results.extend(internet_results)
         
-        # Priority 1: Check if plan says internet is needed (automatic detection)
-        if plan.use_internet:
-            internet_enabled = True
-            logger.info(f"🌐 Internet enabled via automatic detection (query interpretation)")
-        
-        # Priority 2: Check custom_plan for manual overrides (backward compatibility)
-        if custom_plan:
-            if custom_plan.get('internet_enabled') is not None:
-                internet_enabled = custom_plan.get('internet_enabled')
-                logger.info(f"🌐 Internet {'enabled' if internet_enabled else 'disabled'} via custom_plan override")
-            elif custom_plan.get('use_internet') is not None:
-                internet_enabled = custom_plan.get('use_internet')
-                logger.info(f"🌐 Internet {'enabled' if internet_enabled else 'disabled'} via custom_plan (legacy)")
-            
-            
-        if internet_enabled and self.google_search_client:
-            trace_steps.append("Searching internet for latest policies...")
-            logger.info(f"🌐 Internet search enabled for: {query}")
-            try:
-                # Increased timeout from 10s to 20s to safely accommodate Gemini generation
-                web_raw_results = self.google_search_client.search(query, timeout=20.0)
-                
-                # Convert to RetrievalResult objects
-                for i, res in enumerate(web_raw_results):
-                    internet_results.append(RetrievalResult(
-                        chunk_id=f"web_{i}_{int(time.time())}",
-                        doc_id=f"web_{i}",
-                        content=f"{res['title']}\n{res['snippet']}",
-                        score=0.85 - (i * 0.05), # Decay score for web results
-                        vertical="internet",
-                        metadata={
-                            'title': res['title'],
-                            'url': res['url'],
-                            'source': 'Google Search',
-                            'is_web': True
-                        },
-                        rewrite_source="original_query",
-                        hop_number=1
-                    ))
-                logger.info(f"🌐 Found {len(internet_results)} web results")
-            except Exception as e:
-                logger.error(f"Internet search failed: {e}")
-                
-        # Merge web results (append them, they will be re-ranked or just added)
-        # We add them to all_results so they go through deduplication and reranking
-        all_results.extend(internet_results)
+        # OPTIMIZATION P4-2: Record retrieval timing
+        retrieval_time = time.time() - stage_start
+        self.stats_manager.record_stage_timing('retrieval', retrieval_time)
+        stage_start = time.time()
         
         # STEP 4: AGGREGATION & FILTERING
         # ====================================================================
         
         # 4.1: Deduplicate
-        unique_results = self._deduplicate_results(all_results)
+        unique_results = self.result_processor.deduplicate_results(all_results)
         
         # 4.2: Supersession Filtering
         if self.supersession_manager:
@@ -673,87 +530,43 @@ class RetrievalEngine:
         # 4.3: Limit to total budget
         unique_results = unique_results[:plan.top_k_total * 2] # Keep more for reranking
         
+        # OPTIMIZATION P4-2: Record aggregation timing
+        aggregation_time = time.time() - stage_start
+        self.stats_manager.record_stage_timing('aggregation', aggregation_time)
+        stage_start = time.time()
+        
         # STEP 5: ENHANCED RERANKING
         # ====================================================================
-        
-        # 5.1: Predict categories
-        predicted_categories = self.category_predictor.predict_categories(
-            normalized_query, 
-            query_type=interpretation.query_type.value
-        )
-        
-        # 5.2: BM25 Boosting (Infrastructure/Scheme)
-        # We apply this even if we used BM25 retrieval, as this logic is specific to categories
-        bm25_boosted = self.bm25_booster.boost_results(
-            normalized_query,
-            unique_results,
-            boost_threshold=0.0 # Boost anything relevant
-        )
-        
-        # 5.3: RELATION-ENTITY PROCESSING (NEW!) - Currency detection + Entity awareness
-        # ====================================================================
-        if self.use_relation_entity and self.relation_entity_processor:
-            trace_steps.append("Checking superseded policies and relations...")
-            print(f"🔗 Starting relation-entity processing...")
-            
-            # Add timeout protection (8s for deep think, 5s for regular)
-            # Deep think mode can take more time for quality
-            timeout_limit = 8.0 if interpretation.needs_deep_mode else 5.0
-            
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(
-                    self.relation_entity_processor.process_complete,
-                    query=normalized_query,
-                    results=bm25_boosted,
-                    phases_enabled={
-                        'relation_scoring': True, 
-                        'entity_matching': True, 
-                        'entity_expansion': True,
-                        'bidirectional_search': False  # DISABLED - was taking 38.78s and finding 0 results
-                    }
-                )
-                
-                try:
-                    relation_enhanced = future.result(timeout=timeout_limit)
-                    logger.info(f"✅ Relation-entity processing completed within {timeout_limit}s")
-                except concurrent.futures.TimeoutError:
-                    logger.warning(f"⏱️ Relation-entity timeout ({timeout_limit}s), using BM25 results")
-                    relation_enhanced = bm25_boosted
-                except Exception as e:
-                    logger.error(f"❌ Relation-entity processing failed: {e}, using BM25 results")
-                    relation_enhanced = bm25_boosted
+        # OPTIMIZATION P1-5: Use lightweight reranking for early exit cases
+        if early_exit_triggered:
+            # Lightweight reranking: just sort by score and apply diversity
+            trace_steps.append("Applying lightweight reranking (early exit)...")
+            sorted_results = sorted(unique_results, key=lambda x: x.metadata.get('raw_score', x.score), reverse=True)
+            # Simple diversity: take top result from each vertical if multiple verticals
+            final_results = []
+            seen_verticals = set()
+            for r in sorted_results:
+                if r.vertical not in seen_verticals or len(final_results) < plan.top_k_total:
+                    final_results.append(r)
+                    seen_verticals.add(r.vertical)
+                if len(final_results) >= plan.top_k_total:
+                    break
+            logger.info(f"⚡ Early exit: Using lightweight reranking ({len(final_results)} results)")
         else:
-            relation_enhanced = bm25_boosted
-            
-        # 5.4: Cross-Encoder Reranking (High Precision)
-        if self.use_cross_encoder and self.cross_encoder:
-            trace_steps.append("Applying rerankers and diversity checks...")
-            # Convert to dicts for reranker
-            res_dicts = [{'content': r.content, 'score': r.score, 'obj': r} for r in relation_enhanced]
-            reranked_dicts = self.cross_encoder.rerank(normalized_query, res_dicts, top_k=plan.rerank_top_k)
-            
-            # Update scores in objects
-            reranked = []
-            for rd in reranked_dicts:
-                r_obj = rd['obj']
-                r_obj.score = rd['score']
-                reranked.append(r_obj)
-        else:
-            reranked = sorted(relation_enhanced, key=lambda x: x.score, reverse=True)[:plan.rerank_top_k]
-            
-        # 5.5: Diversity Reranking (MMR)
-        final_results = self.diversity_reranker.rerank_with_diversity(
-            normalized_query,
-            reranked,
-            predicted_categories,
-            top_k=plan.top_k_total,
-            diversity_weight=plan.diversity_weight
-        )
+            # Full reranking pipeline
+            final_results = self.reranking_coordinator.rerank(
+                query=query,
+                normalized_query=normalized_query,
+                results=unique_results,
+                interpretation=interpretation,
+                plan=plan,
+                trace_steps=trace_steps,
+                bm25_booster=self.bm25_booster
+            )
         
         # 5.6: Clause indexer lookup for legal queries with poor results
-        if self._is_legal_clause_query(normalized_query) and len(final_results) < 3:
-            clause_results = self._clause_indexer_lookup(normalized_query)
+        if self.legal_clause_handler.is_legal_clause_query(normalized_query) and len(final_results) < 3:
+            clause_results = self.legal_clause_handler.clause_indexer_lookup(normalized_query)
             if clause_results:
                 print(f"🎯 Clause indexer found {len(clause_results)} results for '{normalized_query}'")
                 # Merge with existing results, prioritizing clause indexer results
@@ -761,7 +574,7 @@ class RetrievalEngine:
                 final_results = final_results[:plan.top_k_total]
             else:
                 # Fallback to original clause scanner
-                clause_results = self._fallback_clause_scan(normalized_query, collection_names)
+                clause_results = self.legal_clause_handler.fallback_clause_scan(normalized_query, collection_names)
                 if clause_results:
                     final_results = clause_results + [r for r in final_results if r.chunk_id not in {c.chunk_id for c in clause_results}]
                     final_results = final_results[:plan.top_k_total]
@@ -771,6 +584,22 @@ class RetrievalEngine:
         
         trace_steps.append("Building final results...")
         processing_time = time.time() - start_time
+        
+        # OPTIMIZATION P4-2: Record reranking timing
+        reranking_time = time.time() - stage_start
+        self.stats_manager.record_stage_timing('reranking', reranking_time)
+        self.stats_manager.record_stage_timing('total', processing_time)
+        
+        # OPTIMIZATION: Reuse predicted categories from reranking (already computed)
+        # Check if categories were already predicted in reranking coordinator
+        if hasattr(self.reranking_coordinator, '_last_predicted_categories'):
+            predicted_categories = self.reranking_coordinator._last_predicted_categories
+        else:
+            # Fallback: predict if not cached
+            predicted_categories = self.category_predictor.predict_categories(
+                normalized_query, 
+                query_type=interpretation.query_type.value
+            )
         
         output = RetrievalOutput(
             query=query,
@@ -797,10 +626,12 @@ class RetrievalEngine:
         )
         
         # Update stats
-        self._update_stats(output)
+        self.stats_manager.update_stats(output)
         
         # CACHE THE RESULT before returning
-        self.query_cache.set(normalized_query, output, force_filter)
+        # OPTIMIZATION P2-5: Include mode in cache key
+        mode = custom_plan.get('mode') if custom_plan else getattr(plan, 'mode', None)
+        self.query_cache.set(normalized_query, output, force_filter, mode=mode)
         
         return output
     
@@ -891,7 +722,7 @@ class RetrievalEngine:
             }
             
             # Track validation scores for stats
-            self.stats['validation_scores'].append(quality_score)
+            self.stats_manager.add_validation_score(quality_score)
             
             # Log validation issues if any
             if not is_valid:
@@ -935,176 +766,6 @@ class RetrievalEngine:
         else:
             return {"error": f"Unknown test type: {test_type}"}
     
-    def _is_legal_clause_query(self, query: str) -> bool:
-        """Check if query is asking for specific legal clause/section/rule"""
-        import re
-        query_lower = query.lower()
-        
-        # Enhanced patterns for better legal clause detection
-        patterns = [
-            # Basic section/article/rule patterns
-            r'\\b(?:section|clause|article|rule|sub-rule|amendment)\\s+\\d+',
-            r'\\bsection\\s+\\d+\\b',
-            r'\\brule\\s+\\d+\\b', 
-            r'\\barticle\\s+\\d+\\w*\\b',
-            
-            # Act + section combinations
-            r'\\b(?:rte|cce|apsermc|education)\\s+(?:act\\s+)?section\\s+\\d+',
-            r'\\b(?:rte|cce|apsermc)\\s+(?:act|rule)\\b',
-            r'\\bsection\\s+\\d+\\s+(?:of\\s+)?(?:rte|cce|apsermc|education)\\s+act',
-            
-            # Complex legal patterns
-            r'\\b\\d+\\(\\d+\\)\\(\\w+\\)\\b',  # 12(1)(c) pattern
-            r'\\b(?:act|rule|regulation)\\s+\\d+',
-            r'\\b(?:go|government\\s+order)\\s+(?:no\\.?\\s*)?\\d+',
-            
-            # Preserved token patterns (handle normalization artifacts)
-            r'__preserved_\\d+__',  # Catches normalized numbers
-            r'\\b(?:section|article|rule)\\s+__preserved_\\d+__',
-        ]
-        
-        # Check all patterns
-        for pattern in patterns:
-            if re.search(pattern, query_lower):
-                print(f"🔍 Legal clause pattern matched: '{pattern}' in '{query_lower}'")
-                return True
-        
-        # Additional heuristic: check for legal keywords + numbers
-        has_legal_keyword = any(keyword in query_lower for keyword in [
-            'section', 'article', 'rule', 'clause', 'act', 'rte', 'cce', 'apsermc'
-        ])
-        has_number = re.search(r'\\d+', query_lower)
-        
-        if has_legal_keyword and has_number:
-            print(f"🔍 Legal heuristic matched: legal_keyword + number in '{query_lower}'")
-            return True
-            
-        return False
-    
-    def _clause_indexer_lookup(self, query: str) -> List[RetrievalResult]:
-        """
-        Use clause indexer for instant clause lookup
-        """
-        if not self.clause_indexer:
-            return []
-        
-        try:
-            clause_matches = self.clause_indexer.lookup_clause(query)
-            results = []
-            
-            for match in clause_matches:
-                results.append(RetrievalResult(
-                    chunk_id=match.chunk_id,
-                    doc_id=match.doc_id,
-                    content=match.content,
-                    score=match.confidence,
-                    vertical=match.vertical,
-                    metadata={'source': 'clause_indexer'},
-                    rewrite_source='clause_indexer'
-                ))
-            
-            return results
-            
-        except Exception as e:
-            print(f"Clause indexer lookup failed: {e}")
-            return []
-    
-    def _fallback_clause_scan(
-        self, 
-        query: str, 
-        collection_names: List[str]
-    ) -> List[RetrievalResult]:
-        """
-        Fallback exact clause scanner for legal queries
-        When regular search fails, scan for exact clause matches
-        """
-        import re
-        
-        query_lower = query.lower()
-        
-        # Extract clause/section patterns
-        clause_patterns = []
-        
-        # Section X
-        section_match = re.search(r'section\\s+(\\d+)', query_lower)
-        if section_match:
-            section_num = section_match.group(1)
-            clause_patterns.extend([
-                f'section {section_num}',
-                f'section {section_num}.',
-                f'({section_num})',
-                f'{section_num})'
-            ])
-        
-        # Rule X
-        rule_match = re.search(r'rule\\s+(\\d+)', query_lower)
-        if rule_match:
-            rule_num = rule_match.group(1)
-            clause_patterns.extend([
-                f'rule {rule_num}',
-                f'rule {rule_num}.',
-                f'({rule_num})'
-            ])
-        
-        # Article X
-        article_match = re.search(r'article\\s+(\\d+\\w*)', query_lower)
-        if article_match:
-            article_num = article_match.group(1)
-            clause_patterns.extend([
-                f'article {article_num}',
-                f'article {article_num}.'
-            ])
-        
-        if not clause_patterns:
-            return []
-        
-        # Search for exact matches in legal collection
-        legal_collections = [c for c in collection_names if 'legal' in c.lower()]
-        if not legal_collections:
-            return []
-        
-        try:
-            results = []
-            
-            for collection in legal_collections:
-                # Use simple text search since Filter might be complex
-                for pattern in clause_patterns[:2]:  # Limit patterns to avoid timeout
-                    try:
-                        search_results = self.qdrant_client.client.scroll if hasattr(self.qdrant_client, "client") else self.qdrant_client.scroll(
-                            collection_name=collection,
-                            limit=10,
-                            with_payload=True
-                        )
-                        
-                        if search_results[0]:
-                            for point in search_results[0]:
-                                content = point.payload.get('content', '').lower()
-                                if pattern in content:
-                                    results.append(RetrievalResult(
-                                        chunk_id=str(point.id),
-                                        doc_id=point.payload.get('doc_id', 'unknown'),
-                                        content=point.payload.get('content', ''),
-                                        score=1.0,  # High score for exact matches
-                                        vertical='legal',
-                                        metadata=point.payload,
-                                        rewrite_source='fallback_clause_scanner'
-                                    ))
-                    except Exception as e:
-                        print(f"Pattern search failed for {pattern}: {e}")
-                        continue
-            
-            # Remove duplicates and return top 3
-            unique_results = {}
-            for result in results:
-                if result.chunk_id not in unique_results:
-                    unique_results[result.chunk_id] = result
-            
-            return list(unique_results.values())[:3]
-            
-        except Exception as e:
-            print(f"Fallback clause scanner failed: {e}")
-            return []
-
     def cleanup(self):
         """Clean up resources (thread pool, etc.)"""
         if hasattr(self, 'executor'):
@@ -1117,662 +778,15 @@ class RetrievalEngine:
         except:
             pass
     
-    def _parallel_retrieve_hop(
-        self,
-        queries: List[str],
-        collections: List[str],
-        top_k: int,
-        hop_number: int = 1
-    ) -> List[RetrievalResult]:
-        """
-        Parallel retrieval across all query-collection combinations
-        
-        This dramatically speeds up retrieval by running searches concurrently
-        """
-        if not self.qdrant_client or not self.embedder:
-            return self._generate_stub_results(queries, collections, top_k, hop_number)
-        
-        # Create all search tasks
-        search_tasks = []
-        for query in queries:
-            for collection in collections:
-                search_tasks.append((query, collection, top_k, hop_number))
-        
-        # Execute searches in parallel
-        all_results = []
-        
-        # Submit all tasks to thread pool
-        future_to_task = {
-            self.executor.submit(self._search_single_threadsafe, task[0], task[1], task[2], task[3]): task
-            for task in search_tasks
-        }
-        
-        # Collect results as they complete
-        for future in as_completed(future_to_task, timeout=60):  # 60s total timeout (increased from 30s)
-            try:
-                results = future.result(timeout=10)  # 10s per individual search (increased from 5s)
-                if results:
-                    all_results.extend(results)
-            except Exception as e:
-                task = future_to_task[future]
-                print(f"Parallel search failed for {task[0]} in {task[1]}: {e}")
-                continue
-        
-        return all_results
-    
-    def _search_single_threadsafe(
-        self,
-        query: str,
-        collection: str,
-        top_k: int,
-        hop_number: int = 1
-    ) -> List[RetrievalResult]:
-        """Thread-safe version of single search with caching"""
-        
-        # Thread-safe embedding cache access
-        embedding = None
-        cache_key = f"embed_{query}"
-        
-        with self._lock:
-            if self.enable_cache and cache_key in self._embedding_cache:
-                embedding = self._embedding_cache[cache_key]
-                self.stats['cache_hits'] += 1
-        
-        # Generate embedding if not cached
-        if embedding is None:
-            try:
-                if hasattr(self.embedder, 'embed_query'):
-                    embedding = self.embedder.embed_query(query)
-                else:
-                    embedding = self.embedder.embed_texts([query])[0]
-                
-                # Thread-safe cache update
-                with self._lock:
-                    if self.enable_cache:
-                        if len(self._embedding_cache) >= self._cache_max_size:
-                            oldest_key = next(iter(self._embedding_cache))
-                            del self._embedding_cache[oldest_key]
-                        self._embedding_cache[cache_key] = embedding
-                        
-            except Exception as e:
-                print(f"Embedding failed for '{query}': {e}")
-                return []
-        
-        # Perform search
-        try:
-            response = self.qdrant_client.query_points(
-                collection_name=collection,
-                query=embedding,
-                limit=top_k,
-                score_threshold=0.3,
-                with_payload=True,
-                with_vectors=False
-            )
-            search_results = response.points
-            
-            # Convert to RetrievalResult objects
-            results = []
-            for hit in search_results:
-                try:
-                    if isinstance(hit, dict):
-                        hit_id = hit.get('id', 'unknown')
-                        hit_score = hit.get('score', 0.0)
-                        hit_payload = hit.get('payload', {})
-                    else:
-                        hit_id = hit.id
-                        hit_score = hit.score
-                        hit_payload = hit.payload
-                    
-                    results.append(RetrievalResult(
-                        chunk_id=str(hit_id),
-                        doc_id=hit_payload.get('doc_id', 'unknown'),
-                        content=hit_payload.get('text', hit_payload.get('content', '')),
-                        score=float(hit_score),
-                        vertical=collection.replace('ap_', '').replace('_documents', '').replace('_orders', '').replace('_reports', ''),
-                        metadata=hit_payload,
-                        rewrite_source=query,
-                        hop_number=hop_number
-                    ))
-                except Exception as e:
-                    print(f"Result parsing failed: {e}")
-                    continue
-            
-            return results
-            
-        except Exception as e:
-            print(f"Search failed for {collection}: {e}")
-            return []
-    
-    def _retrieve_hop(
-        self,
-        queries: List[str],
-        collections: List[str],
-        top_k: int,
-        hop_number: int = 1
-    ) -> List[RetrievalResult]:
-        """
-        Retrieve documents for a single hop
-        
-        Args:
-            queries: List of query variations
-            collections: Qdrant collections to search
-            top_k: Results per query per collection
-            hop_number: Which hop this is (for tracking)
-            
-        Returns:
-            List of RetrievalResult objects
-        """
-        results = []
-        
-        if not self.qdrant_client or not self.embedder:
-            # Stub results for testing without Qdrant
-            return self._generate_stub_results(queries, collections, top_k, hop_number)
-        
-        for query in queries:
-            # Check embedding cache first
-            query_vector = None
-            if self.enable_cache and query in self._embedding_cache:
-                query_vector = self._embedding_cache[query]
-                self.stats['cache_hits'] += 1
-            else:
-                # Embed query
-                if hasattr(self.embedder, 'embed_single'):
-                    query_vector = self.embedder.embed_single(query)
-                elif hasattr(self.embedder, 'embed_query'):
-                    query_vector = self.embedder.embed_query(query)
-                else:
-                    query_vector = self.embedder.embed_texts([query])[0]
-                
-                # Cache the embedding
-                if self.enable_cache:
-                    if len(self._embedding_cache) >= self._cache_max_size:
-                        # Simple cache eviction - remove oldest
-                        oldest_key = next(iter(self._embedding_cache))
-                        del self._embedding_cache[oldest_key]
-                    self._embedding_cache[query] = query_vector
-            
-            for collection in collections:
-                try:
-                    # Vector search
-                    response = self.qdrant_client.query_points(
-                        collection_name=collection,
-                        query=query_vector,
-                        limit=top_k,
-                        score_threshold=0.0,
-                        with_payload=True,
-                        with_vectors=False
-                    )
-                    search_results = response.points
-                    
-                    # Convert to RetrievalResult objects
-                    for hit in search_results:
-                        # Handle both dict and object formats
-                        if isinstance(hit, dict):
-                            hit_id = hit.get('id', 'unknown')
-                            hit_score = hit.get('score', 0.0)
-                            hit_payload = hit.get('payload', {})
-                        else:
-                            hit_id = hit.id
-                            hit_score = hit.score
-                            hit_payload = hit.payload
-                            
-                        results.append(RetrievalResult(
-                            chunk_id=str(hit_id),
-                            doc_id=hit_payload.get('doc_id', 'unknown'),
-                            content=hit_payload.get('text', hit_payload.get('content', '')),
-                            score=hit_score,
-                            vertical=collection.replace('ap_', '').replace('_documents', '').replace('_orders', '').replace('_reports', ''),
-                            metadata=hit_payload,
-                            rewrite_source=query,
-                            hop_number=hop_number
-                        ))
-                
-                except Exception as e:
-                    print(f"Error searching {collection}: {e}")
-                    continue
-        
-        return results
-    
-    def _generate_hop2_queries(
-        self,
-        hop1_results: List[RetrievalResult],
-        limit: int = 3
-    ) -> List[str]:
-        """
-        Generate queries for second hop based on first hop results
-        Extracts key terms from top results
-        """
-        # Extract top chunks
-        top_chunks = sorted(hop1_results, key=lambda x: x.score, reverse=True)[:10]
-        
-        # Extract key terms (simple heuristic - can be enhanced with LLM)
-        key_terms = set()
-        
-        for chunk in top_chunks:
-            # Extract GO refs, sections, etc.
-            import re
-            go_refs = re.findall(r'GO\.?\s*(?:Ms\.?|Rt\.?)?\s*No\.?\s*\d+', chunk.content, re.IGNORECASE)
-            sections = re.findall(r'Section\s+\d+', chunk.content, re.IGNORECASE)
-            
-            key_terms.update(go_refs[:2])
-            key_terms.update(sections[:2])
-        
-        # Generate new queries
-        hop2_queries = list(key_terms)[:limit]
-        
-        return hop2_queries if hop2_queries else []
-    
-    def _deduplicate_results(
-        self,
-        results: List[RetrievalResult]
-    ) -> List[RetrievalResult]:
-        """Deduplicate results by chunk_id, keeping highest score"""
-        seen = {}
-        
-        for result in results:
-            if result.chunk_id not in seen:
-                seen[result.chunk_id] = result
-            else:
-                # Keep higher score
-                if result.score > seen[result.chunk_id].score:
-                    seen[result.chunk_id] = result
-        
-        # Return sorted by score
-        return sorted(seen.values(), key=lambda x: x.score, reverse=True)
-    
-    def _normalize_scores(
-        self, 
-        results: List[RetrievalResult], 
-        method: str = 'min-max'
-    ) -> List[RetrievalResult]:
-        """
-        Normalize scores to 0-1 range for better multi-hop/multi-rewrite fusion
-        
-        Args:
-            results: List of retrieval results
-            method: 'min-max' or 'z-score'
-            
-        Returns:
-            Results with normalized scores
-        """
-        if not results:
-            return results
-        
-        scores = [r.score for r in results]
-        
-        if method == 'min-max':
-            min_score = min(scores)
-            max_score = max(scores)
-            
-            # Handle edge case where all scores are the same
-            if max_score == min_score:
-                for r in results:
-                    r.score = 1.0
-                return results
-            
-            # Min-max normalization to [0, 1]
-            for r in results:
-                r.score = (r.score - min_score) / (max_score - min_score)
-        
-        elif method == 'z-score':
-            import statistics
-            mean_score = statistics.mean(scores)
-            stdev_score = statistics.stdev(scores) if len(scores) > 1 else 1.0
-            
-            if stdev_score == 0:
-                stdev_score = 1.0
-            
-            # Z-score normalization, then shift to [0, 1]
-            for r in results:
-                z_score = (r.score - mean_score) / stdev_score
-                r.score = max(0.0, min(1.0, (z_score + 3) / 6))  # Assuming 3-sigma range
-        
-        return results
-    
-    def _reciprocal_rank_fusion(
-        self,
-        result_lists: List[List[RetrievalResult]],
-        k: int = 60
-    ) -> List[RetrievalResult]:
-        """
-        Reciprocal Rank Fusion - combine multiple ranked lists
-        
-        RRF works better than score averaging because:
-        - Results appearing in multiple sources get boosted (strong consensus signal)
-        - Handles different score scales naturally 
-        - Position-based relevance (rank matters more than raw score)
-        
-        Formula: RRF_score(chunk) = Σ 1/(k + rank_in_list_i) for all lists containing chunk
-        
-        Args:
-            result_lists: List of ranked result lists (from different sources)
-            k: RRF parameter (typically 60, controls rank smoothing)
-            
-        Returns:
-            Fused results sorted by RRF score
-        """
-        if not result_lists:
-            return []
-        
-        chunk_scores = {}
-        chunk_to_result = {}
-        
-        # Calculate RRF scores
-        for result_list in result_lists:
-            for rank, result in enumerate(result_list, start=1):
-                chunk_id = result.chunk_id
-                
-                # Add RRF score contribution
-                rrf_contribution = 1.0 / (k + rank)
-                chunk_scores[chunk_id] = chunk_scores.get(chunk_id, 0) + rrf_contribution
-                
-                # Store the result object (keep highest-scored version)
-                if chunk_id not in chunk_to_result or result.score > chunk_to_result[chunk_id].score:
-                    chunk_to_result[chunk_id] = result
-        
-        # Sort by RRF score (descending)
-        sorted_chunks = sorted(
-            chunk_scores.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )
-        
-        # Build final result list with RRF scores
-        fused_results = []
-        for chunk_id, rrf_score in sorted_chunks:
-            result = chunk_to_result[chunk_id]
-            # Update metadata with RRF info
-            result.metadata['rrf_score'] = rrf_score
-            result.metadata['fusion_method'] = 'rrf'
-            result.metadata['original_score'] = result.score
-            # Update main score to RRF score for consistency
-            result.score = rrf_score
-            fused_results.append(result)
-        
-        return fused_results
-    
-    def _llm_rerank(
-        self,
-        query: str,
-        results: List[RetrievalResult],
-        top_k: int = 20
-    ) -> List[RetrievalResult]:
-        """
-        Rerank using Gemini Flash for semantic relevance
-        
-        Fast and cheap reranking with Gemini 1.5 Flash 8B
-        """
-        # If no API key (we run OAuth-only), skip LLM rerank
-        if not self.gemini_api_key or not results:
-            return results[:top_k]
-        
-        # Check cache for LLM reranking
-        cache_key = f"{query}_{len(results)}"
-        if self.enable_cache and cache_key in self._llm_cache:
-            cached_ranking = self._llm_cache[cache_key]
-            self.stats['cache_hits'] += 1
-            # Apply cached ranking
-            reranked = []
-            for idx in cached_ranking:
-                if idx < len(results):
-                    reranked.append(results[idx])
-            return reranked[:top_k]
-        
-        try:
-            import google.generativeai as genai
-            
-            genai.configure(api_key=self.gemini_api_key)
-            # Use standard Gemini Flash model (v1beta-compatible)
-            model = genai.GenerativeModel("gemini-2.5-flash")
-            
-            # Prepare candidates (top results only to save tokens)
-            candidates = results[:min(30, len(results))]
-            
-            # Build prompt
-            candidates_text = "\n\n".join([
-                f"ID: {i}\nContent: {r.content[:300]}..."  # First 300 chars
-                for i, r in enumerate(candidates)
-            ])
-            
-            prompt = f"""You are a relevance judge for education policy documents.
-
-Query: {query}
-
-Rank these document chunks by relevance to the query. Return ONLY a comma-separated list of IDs in order of relevance (most relevant first).
-
-Candidates:
-{candidates_text}
-
-Output format: 0,5,2,8,1,... (just the IDs, comma-separated)"""
-
-            # Generate ranking
-            response = model.generate_content(
-                prompt,
-                generation_config={
-                    'temperature': 0.1,  # Low temperature for consistency
-                    'max_output_tokens': 100,
-                }
-            )
-            
-            # Parse response
-            ranked_ids = [int(x.strip()) for x in response.text.strip().split(',') if x.strip().isdigit()]
-            
-            # Cache the ranking
-            if self.enable_cache:
-                if len(self._llm_cache) >= self._cache_max_size:
-                    oldest_key = next(iter(self._llm_cache))
-                    del self._llm_cache[oldest_key]
-                self._llm_cache[cache_key] = ranked_ids
-            
-            # Reorder results
-            reranked = []
-            for rank_id in ranked_ids:
-                if rank_id < len(candidates):
-                    # Update score based on LLM rank
-                    result = candidates[rank_id]
-                    result.score = 1.0 - (rank_id / len(ranked_ids))  # Normalize score
-                    reranked.append(result)
-            
-            # Add remaining results
-            remaining = [r for i, r in enumerate(candidates) if i not in ranked_ids]
-            reranked.extend(remaining)
-            
-            return reranked[:top_k]
-            
-        except Exception as e:
-            print(f"LLM reranking failed: {e}, using score-based ranking")
-            return sorted(results, key=lambda x: x.score, reverse=True)[:top_k]
-    
-    def _init_cross_encoder(self):
-        """Initialize cross-encoder model for reranking"""
-        try:
-            from sentence_transformers import CrossEncoder
-            
-            # Use a good cross-encoder model for relevance scoring
-            # ms-marco-MiniLM-L-6-v2 is fast and effective
-            model_name = 'cross-encoder/ms-marco-MiniLM-L-6-v2'
-            print(f"🔧 Loading cross-encoder model: {model_name}")
-            self.cross_encoder = CrossEncoder(model_name)
-            print(f"✅ Cross-encoder model loaded successfully")
-            
-        except ImportError:
-            print("⚠️ sentence-transformers not installed, cross-encoder reranking disabled")
-            print("   Install with: pip install sentence-transformers")
-            self.cross_encoder = None
-            self.use_cross_encoder = False
-            
-        except Exception as e:
-            print(f"❌ Failed to load cross-encoder model: {e}")
-            self.cross_encoder = None
-            self.use_cross_encoder = False
-    
-    def _cross_encoder_rerank(
-        self,
-        query: str,
-        results: List[RetrievalResult],
-        top_k: int = 20
-    ) -> List[RetrievalResult]:
-        """
-        Rerank using cross-encoder model for semantic relevance
-        
-        Cross-encoders are more accurate than bi-encoders for reranking
-        but slower than LLM reranking. Good middle ground.
-        """
-        if not self.cross_encoder or not results:
-            return results[:top_k]
-        
-        try:
-            # Prepare query-document pairs for cross-encoder
-            candidates = results[:min(50, len(results))]  # Limit for speed
-            
-            query_doc_pairs = []
-            for result in candidates:
-                # Use first 512 characters of content for cross-encoder
-                content = result.content[:512]
-                query_doc_pairs.append([query, content])
-            
-            # Get relevance scores from cross-encoder
-            print(f"🔄 Cross-encoder reranking {len(query_doc_pairs)} candidates...")
-            scores = self.cross_encoder.predict(query_doc_pairs)
-            
-            # Combine results with new scores
-            scored_results = []
-            for i, result in enumerate(candidates):
-                # Update result with cross-encoder score
-                result.score = float(scores[i])
-                result.metadata['original_score'] = result.metadata.get('original_score', result.score)
-                result.metadata['rerank_method'] = 'cross_encoder'
-                scored_results.append(result)
-            
-            # Sort by cross-encoder scores
-            reranked = sorted(scored_results, key=lambda x: x.score, reverse=True)
-            
-            # Add remaining results that weren't reranked
-            remaining = results[len(candidates):]
-            reranked.extend(remaining)
-            
-            print(f"✅ Cross-encoder reranking complete")
-            return reranked[:top_k]
-            
-        except Exception as e:
-            print(f"❌ Cross-encoder reranking failed: {e}, using score-based ranking")
-            return sorted(results, key=lambda x: x.score, reverse=True)[:top_k]
-    
-    def _diversity_rerank(
-        self,
-        results: List[RetrievalResult],
-        diversity_weight: float = 0.3,
-        top_k: int = 20
-    ) -> List[RetrievalResult]:
-        """
-        Ensure diversity across verticals/categories
-        
-        MMR-style reranking balancing relevance and diversity
-        """
-        if diversity_weight == 0:
-            return results[:top_k]
-        
-        selected = []
-        remaining = results.copy()
-        
-        # Track coverage
-        vertical_counts = {}
-        
-        while len(selected) < top_k and remaining:
-            best_idx = 0
-            best_score = -1
-            
-            for i, result in enumerate(remaining):
-                # Relevance score
-                rel_score = result.score
-                
-                # Diversity penalty (how many from this vertical already selected)
-                vertical = result.vertical
-                vertical_count = vertical_counts.get(vertical, 0)
-                div_penalty = vertical_count * diversity_weight
-                
-                # Combined score
-                combined = rel_score - div_penalty
-                
-                if combined > best_score:
-                    best_score = combined
-                    best_idx = i
-            
-            # Select best
-            selected_result = remaining.pop(best_idx)
-            selected.append(selected_result)
-            
-            # Update vertical count
-            vertical_counts[selected_result.vertical] = \
-                vertical_counts.get(selected_result.vertical, 0) + 1
-        
-        return selected
-    
-    def _generate_stub_results(
-        self,
-        queries: List[str],
-        collections: List[str],
-        top_k: int,
-        hop_number: int
-    ) -> List[RetrievalResult]:
-        """Generate stub results for testing without Qdrant"""
-        results = []
-        
-        for i, query in enumerate(queries):
-            for j, collection in enumerate(collections):
-                for k in range(min(3, top_k)):  # 3 results per query per collection
-                    results.append(RetrievalResult(
-                        chunk_id=f"stub_{i}_{j}_{k}",
-                        doc_id=f"doc_{j}_{k}",
-                        content=f"Stub content for query '{query}' from {collection}",
-                        score=0.9 - (k * 0.1) - (i * 0.05),
-                        vertical=collection.replace('ap_', ''),
-                        metadata={'source': 'stub'},
-                        rewrite_source=query,
-                        hop_number=hop_number
-                    ))
-        
-        return results
-    
-    def _update_stats(self, output: RetrievalOutput):
-        """Update engine statistics"""
-        self.stats['total_queries'] += 1
-        
-        # Update running average
-        n = self.stats['total_queries']
-        old_avg = self.stats['avg_processing_time']
-        self.stats['avg_processing_time'] = \
-            (old_avg * (n - 1) + output.processing_time) / n
-    
     def get_validation_stats(self) -> Dict:
         """Get validation performance statistics"""
-        validation_scores = self.stats.get('validation_scores', [])
-        
-        if not validation_scores:
-            return {
-                'total_validated': 0,
-                'avg_quality_score': 0.0,
-                'quality_distribution': {}
-            }
-        
-        import statistics
-        
-        avg_score = statistics.mean(validation_scores)
-        
-        # Quality distribution
-        high_quality = len([s for s in validation_scores if s >= 0.8])
-        medium_quality = len([s for s in validation_scores if 0.6 <= s < 0.8])
-        low_quality = len([s for s in validation_scores if s < 0.6])
-        
+        return self.stats_manager.get_validation_stats()
+    
+    def get_performance_stats(self) -> Dict:
+        """Get per-stage performance statistics - OPTIMIZATION P4-2"""
         return {
-            'total_validated': len(validation_scores),
-            'avg_quality_score': avg_score,
-            'quality_distribution': {
-                'high_quality': high_quality,
-                'medium_quality': medium_quality, 
-                'low_quality': low_quality
-            },
-            'latest_scores': validation_scores[-5:]  # Last 5 scores
+            'stage_timings': self.stats_manager.get_stage_stats(),
+            'overall': self.stats_manager.get_stats()
         }
 
 

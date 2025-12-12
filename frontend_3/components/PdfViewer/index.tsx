@@ -14,12 +14,15 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
+// Import worker as URL so Next/Webpack emits it correctly
+// @ts-expect-error asset import returns string URL
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { normalizeText } from '@/lib/textNormalization'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, X, Loader2 } from 'lucide-react'
 
-// Configure PDF.js worker from CDN (jsDelivr legacy build, .js)
-pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.js'
+// Configure PDF.js worker from bundled asset
+pdfjs.GlobalWorkerOptions.workerSrc = workerSrc as unknown as string
 
 export interface PdfViewerProps {
   fileUrl: string

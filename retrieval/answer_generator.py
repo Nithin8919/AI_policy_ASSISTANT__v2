@@ -129,9 +129,26 @@ class AnswerGenerator:
         context_text = self._format_context(context_results)
         
         # Calculate max score to detect weak retrieval
+        # CRITICAL FIX: Use raw_score from metadata if available (before normalization)
+        # V3 retrieval normalizes scores to 0-1, making weak detection broken
         max_score = 0.0
         if results:
-            max_score = max(r.get('score', 0) for r in results)
+            # Try to get raw_score from metadata first (preserved before normalization)
+            raw_scores = []
+            for r in results:
+                metadata = r.get('metadata', {})
+                raw_score = metadata.get('raw_score')
+                if raw_score is not None:
+                    raw_scores.append(raw_score)
+                else:
+                    # Fallback to current score if raw_score not available
+                    raw_scores.append(r.get('score', 0))
+            
+            if raw_scores:
+                max_score = max(raw_scores)
+            else:
+                # Fallback: use normalized scores
+                max_score = max(r.get('score', 0) for r in results)
         
         # Query intent detection: Check if query asks for policy design, strategy, or global models
         policy_design_keywords = [
@@ -146,6 +163,7 @@ class AnswerGenerator:
         is_policy_design_query = any(keyword in query_lower for keyword in policy_design_keywords)
         
         # Weak retrieval threshold (0.7 chosen as safe cutoff - only use strict mode for highly relevant docs)
+        # For vector similarity scores, 0.7 is a reasonable threshold (cosine similarity typically 0.5-0.9 for good matches)
         # If score is lower OR if it's a policy design query, we allow general knowledge fallback
         is_weak_retrieval = max_score < 0.7 or is_policy_design_query
         
@@ -180,7 +198,7 @@ class AnswerGenerator:
             mode_configs = {
                 'qa': {
                     'temperature': 0.2,  # Lower for factual accuracy
-                    'max_output_tokens': 2000,  # Increased for detailed answers
+                    'max_output_tokens': 4000,  # Increased from 2000 to prevent truncation
                     'top_p': 0.95,
                     'top_k': 40
                 },
@@ -201,43 +219,239 @@ class AnswerGenerator:
             # Get config for mode, default to QA if mode not found
             gen_config = mode_configs.get(mode, mode_configs['qa'])
             
-            def _response_to_text(resp):
-                """Robustly extract text from Google GenAI responses."""
-                if not resp:
-                    return ""
-                # Most common path
-                if getattr(resp, "text", None):
-                    return resp.text or ""
-                # Fallback: concatenate candidate parts
-                candidates = getattr(resp, "candidates", None)
-                if candidates:
-                    parts_text = []
-                    for cand in candidates:
-                        content = getattr(cand, "content", None)
-                        if content and getattr(content, "parts", None):
-                            for part in content.parts:
-                                if getattr(part, "text", None):
-                                    parts_text.append(part.text)
-                    if parts_text:
-                        return "\n".join(parts_text)
-                return ""
-
+            # Add safety settings to prevent blocking
+            # Import safety settings types if using Vertex AI
+            safety_settings = None
+            if self.client:
+                try:
+                    from google.genai import types
+                    safety_settings = [
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_HATE_SPEECH",
+                            threshold="OFF"
+                        ),
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                            threshold="OFF"
+                        ),
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                            threshold="OFF"
+                        ),
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_HARASSMENT",
+                            threshold="OFF"
+                        )
+                    ]
+                except ImportError:
+                    # Fallback if types not available
+                    pass
+            
             if self.client:
                 # Vertex AI path (ADC)
+                # Format: contents must have "text" key in parts
+                config_dict = {
+                    "temperature": gen_config.get('temperature', 0.2),
+                    "max_output_tokens": gen_config.get('max_output_tokens', 4000),
+                    "top_p": gen_config.get('top_p', 0.95),
+                    "top_k": gen_config.get('top_k', 40),
+                }
+                if safety_settings:
+                    config_dict["safety_settings"] = safety_settings
+                
                 response = self.client.models.generate_content(
                     model=self.model_name,
                     contents=[{"role": "user", "parts": [{"text": prompt}]}],
-                    config=gen_config,
+                    config=config_dict,
                 )
-                answer_text = _response_to_text(response)
+                # Check for truncation or blocking
+                answer_text = response.text or ""
+                logger.info(f"📝 Generated answer: {len(answer_text)} chars")
+                
+                # Track if we've already retried to prevent double retries
+                has_retried = False
+                
+                # Check finish_reason to detect truncation
+                if hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+                    if hasattr(candidate, 'finish_reason'):
+                        finish_reason = candidate.finish_reason
+                        # Handle both enum and string formats
+                        finish_reason_str = str(finish_reason)
+                        if hasattr(finish_reason, 'name'):
+                            finish_reason_str = finish_reason.name
+                        
+                        if "MAX_TOKENS" in finish_reason_str or finish_reason_str == "MAX_TOKENS":
+                            logger.warning(f"⚠️ Response truncated due to MAX_TOKENS limit. Answer length: {len(answer_text)} chars")
+                            # Retry with higher token limit if answer is suspiciously short
+                            if len(answer_text) < 500 and mode == 'qa' and not has_retried:
+                                logger.info("🔄 Retrying with higher token limit due to short truncated answer")
+                                config_dict["max_output_tokens"] = 8000
+                                try:
+                                    retry_response = self.client.models.generate_content(
+                                        model=self.model_name,
+                                        contents=[{"role": "user", "parts": [{"text": prompt}]}],
+                                        config=config_dict,
+                                    )
+                                    retry_text = retry_response.text or ""
+                                    if len(retry_text) > len(answer_text):
+                                        answer_text = retry_text
+                                        has_retried = True
+                                        logger.info(f"✅ Retry successful: {len(answer_text)} chars")
+                                except Exception as e:
+                                    logger.warning(f"⚠️ Retry failed: {e}, using original answer")
+                        elif "SAFETY" in finish_reason_str or "RECITATION" in finish_reason_str:
+                            logger.warning(f"⚠️ Response blocked by safety filter: {finish_reason_str}")
+                            # Try to get partial content if available
+                            if hasattr(candidate, 'content') and candidate.content:
+                                if hasattr(candidate.content, 'parts'):
+                                    for part in candidate.content.parts:
+                                        if hasattr(part, 'text') and part.text:
+                                            answer_text = part.text
+                                            break
+                
+                # Additional check: If answer is suspiciously short (< 500 chars) and doesn't end properly, retry
+                # Only retry if we haven't already retried above
+                if len(answer_text) < 500 and mode == 'qa' and answer_text and not has_retried:
+                    # Check if answer ends mid-sentence (likely truncated)
+                    if not answer_text.rstrip().endswith(('.', '!', '?', ':', ';')) and not answer_text.rstrip().endswith(']'):
+                        logger.warning(f"⚠️ Answer appears truncated (ends mid-sentence): {len(answer_text)} chars")
+                        logger.info("🔄 Retrying with higher token limit due to suspicious truncation")
+                        config_dict["max_output_tokens"] = 8000
+                        try:
+                            retry_response = self.client.models.generate_content(
+                                model=self.model_name,
+                                contents=[{"role": "user", "parts": [{"text": prompt}]}],
+                                config=config_dict,
+                            )
+                            retry_text = retry_response.text or ""
+                            if len(retry_text) > len(answer_text) * 1.5:  # Only use if significantly longer
+                                answer_text = retry_text
+                                has_retried = True
+                                logger.info(f"✅ Retry successful: {len(answer_text)} chars")
+                        except Exception as e:
+                            logger.warning(f"⚠️ Retry failed: {e}, using original answer")
             else:
+                # API key path - add safety settings if supported
+                try:
+                    import google.generativeai.types as genai_types
+                    safety_config = [
+                        {
+                            "category": genai_types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                            "threshold": genai_types.HarmBlockThreshold.BLOCK_NONE,
+                        },
+                        {
+                            "category": genai_types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                            "threshold": genai_types.HarmBlockThreshold.BLOCK_NONE,
+                        },
+                        {
+                            "category": genai_types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                            "threshold": genai_types.HarmBlockThreshold.BLOCK_NONE,
+                        },
+                        {
+                            "category": genai_types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                            "threshold": genai_types.HarmBlockThreshold.BLOCK_NONE,
+                        },
+                    ]
+                    gen_config['safety_settings'] = safety_config
+                except (ImportError, AttributeError):
+                    # Fallback if safety settings not available
+                    pass
+                
                 response = self.model.generate_content(prompt, generation_config=gen_config)
-                answer_text = _response_to_text(response)
+                # API responses can also come back with None; normalize for downstream processing
+                answer_text = response.text or ""
+                logger.info(f"📝 Generated answer: {len(answer_text)} chars")
+                
+                # Track if we've already retried to prevent double retries
+                has_retried = False
+                
+                # Check for truncation in API response
+                if hasattr(response, 'candidates') and response.candidates:
+                    candidate = response.candidates[0]
+                    if hasattr(candidate, 'finish_reason'):
+                        finish_reason = str(candidate.finish_reason)
+                        if "MAX_TOKENS" in finish_reason or finish_reason == "MAX_TOKENS":
+                            logger.warning(f"⚠️ Response truncated due to MAX_TOKENS limit. Answer length: {len(answer_text)} chars")
+                            # Retry with higher token limit if answer is suspiciously short
+                            if len(answer_text) < 500 and mode == 'qa' and not has_retried:
+                                logger.info("🔄 Retrying with higher token limit due to short truncated answer")
+                                gen_config['max_output_tokens'] = 8000
+                                try:
+                                    retry_response = self.model.generate_content(prompt, generation_config=gen_config)
+                                    retry_text = retry_response.text or ""
+                                    if len(retry_text) > len(answer_text):
+                                        answer_text = retry_text
+                                        has_retried = True
+                                        logger.info(f"✅ Retry successful: {len(answer_text)} chars")
+                                except Exception as e:
+                                    logger.warning(f"⚠️ Retry failed: {e}, using original answer")
+                        elif "SAFETY" in finish_reason or "RECITATION" in finish_reason:
+                            logger.warning(f"⚠️ Response blocked by safety filter: {finish_reason}")
+                
+                # Additional check: If answer is suspiciously short (< 500 chars) and doesn't end properly, retry
+                # Only retry if we haven't already retried above
+                if len(answer_text) < 500 and mode == 'qa' and answer_text and not has_retried:
+                    # Check if answer ends mid-sentence (likely truncated)
+                    if not answer_text.rstrip().endswith(('.', '!', '?', ':', ';')) and not answer_text.rstrip().endswith(']'):
+                        logger.warning(f"⚠️ Answer appears truncated (ends mid-sentence): {len(answer_text)} chars")
+                        logger.info("🔄 Retrying with higher token limit due to suspicious truncation")
+                        gen_config['max_output_tokens'] = 8000
+                        try:
+                            retry_response = self.model.generate_content(prompt, generation_config=gen_config)
+                            retry_text = retry_response.text or ""
+                            if len(retry_text) > len(answer_text) * 1.5:  # Only use if significantly longer
+                                answer_text = retry_text
+                                has_retried = True
+                                logger.info(f"✅ Retry successful: {len(answer_text)} chars")
+                        except Exception as e:
+                            logger.warning(f"⚠️ Retry failed: {e}, using original answer")
             
-            # If the model returned an empty/None response, fall back to rule-based summary
-            if not answer_text.strip():
-                logger.warning("⚠️ LLM returned empty text; falling back to rule-based summary")
-                return self._fallback_rule_based(context_results)
+            # POST-GENERATION CHECK: Detect refusal phrases and auto-retry with mixed mode
+            refusal_phrases = [
+                "don't have the required information",
+                "don't have the information",
+                "do not have the required information",
+                "do not have the information",
+                "doesn't contain the required information",
+                "does not contain the required information",
+                "cannot find",
+                "not found in the provided documents",
+                "not available in the provided documents",
+                "not present in the provided documents",
+                "insufficient information",
+                "lack the necessary information",
+                "unable to find",
+                "no information available"
+            ]
+            
+            answer_lower = answer_text.lower()
+            has_refusal = any(phrase in answer_lower for phrase in refusal_phrases)
+            
+            # If we detect refusal AND we're not already in weak-retrieval mode, retry with mixed mode
+            if has_refusal and not is_weak_retrieval and not is_policy_design_query:
+                logger.warning(f"⚠️ Detected refusal phrase in answer, retrying with mixed mode (max_score={max_score:.2f})")
+                # Retry with weak retrieval mode enabled
+                retry_prompt = self._build_prompt(
+                    normalized_query, context_text, mode, external_context, 
+                    conversation_history, is_weak_retrieval=True, has_internet_results=has_internet_results
+                )
+                
+                try:
+                    if self.client:
+                        retry_response = self.client.models.generate_content(
+                            model=self.model_name,
+                            contents=[{"role": "user", "parts": [{"text": retry_prompt}]}],
+                            config=gen_config,
+                        )
+                        answer_text = retry_response.text or answer_text
+                    else:
+                        retry_response = self.model.generate_content(retry_prompt, generation_config=gen_config)
+                        answer_text = retry_response.text or answer_text
+                    
+                    logger.info("✅ Retry with mixed mode succeeded")
+                except Exception as e:
+                    logger.warning(f"⚠️ Retry with mixed mode failed: {e}, using original answer")
             
             # Extract citations
             citations = self._extract_citations(answer_text)

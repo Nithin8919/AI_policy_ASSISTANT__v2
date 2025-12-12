@@ -55,52 +55,52 @@ class GoogleSearchClient:
 
     def __init__(self, api_key: Optional[str] = None):
         """
-        Initialize the Google Search Client.
-
-        Auth strategy (API-key-free):
-        - Try Vertex AI via OAuth/ADC when a project is set and not explicitly disabled.
-        - If Vertex AI is unavailable or permission-denied, internet search is disabled (no API key fallback).
+        Initialize the Google Search Client using Vertex AI with OAuth/ADC ONLY.
+        
+        Auth strategy:
+        - STRICTLY uses Vertex AI with OAuth/service account credentials
+        - NO API key fallback - if Vertex AI fails, client will be None
+        - Requires GOOGLE_CLOUD_PROJECT_ID and proper IAM permissions
         """
-        # Optional project/location for Vertex AI
+        # Project/location for Vertex AI (REQUIRED)
         self.project_id = os.environ.get("GOOGLE_CLOUD_PROJECT_ID") or os.environ.get("GOOGLE_CLOUD_PROJECT")
-        # Default to us-central1 because Gemini 2.5 is available there; some regions return 404
-        self.location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+        self.location = os.environ.get("GOOGLE_CLOUD_LOCATION", "asia-south1")
         self.use_vertex_ai = False
         self.client = None
 
-        # Explicit opt-out flag to skip Vertex AI
-        disable_vertex = os.environ.get("GOOGLE_DISABLE_VERTEX_AI", "").lower() in {"1", "true", "yes"}
-        # Also respect global GENAI flag to skip Vertex
-        genai_vertex_enabled = os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "true").lower() not in {"0", "false", "no"}
-        if not genai_vertex_enabled:
-            disable_vertex = True
+        # STRICTLY Vertex AI - no API key fallback
+        if not self.project_id:
+            logger.error(
+                "❌ GOOGLE_CLOUD_PROJECT_ID not set. OAuth/Vertex AI requires a project ID. "
+                "Set GOOGLE_CLOUD_PROJECT_ID in your .env file."
+            )
+            self.model = "gemini-2.5-flash"
+            return
 
-        # Try Vertex AI if a project is configured and not disabled
-        if self.project_id and not disable_vertex:
-            try:
-                logger.info(
-                    f"Initializing GoogleSearchClient with Vertex AI (project={self.project_id}, "
-                    f"location={self.location})"
+        try:
+            logger.info(
+                f"Initializing GoogleSearchClient with Vertex AI (project={self.project_id}, "
+                f"location={self.location})"
+            )
+            self.client = genai.Client(
+                vertexai=True,
+                project=self.project_id,
+                location=self.location,
+            )
+            self.use_vertex_ai = True
+            logger.info("✅ Initialized GoogleSearchClient with Vertex AI (OAuth/ADC)")
+        except Exception as e:
+            error_str = str(e)
+            logger.error(f"❌ Vertex AI initialization failed: {e}")
+            
+            # Check if it's a permission error
+            if "403" in error_str or "PERMISSION_DENIED" in error_str or "aiplatform.endpoints.predict" in error_str:
+                logger.error(
+                    "💡 Your service account needs 'roles/aiplatform.user' role. "
+                    "See OAUTH_FIX_INSTRUCTIONS.md for details."
                 )
-                self.client = genai.Client(
-                    vertexai=True,
-                    project=self.project_id,
-                    location=self.location,
-                )
-                self.use_vertex_ai = True
-                logger.info("✅ Initialized GoogleSearchClient with Vertex AI (ADC/gcloud)")
-            except Exception as e:
-                error_str = str(e)
-                logger.warning(f"Vertex AI initialization failed: {e}")
-                # Detect permission denied and disable Vertex AI for this process
-                if "403" in error_str or "PERMISSION_DENIED" in error_str or "aiplatform.endpoints.predict" in error_str:
-                    logger.warning("Vertex AI permission denied (403). Internet search will be disabled (no API key fallback).")
-                else:
-                    logger.warning("Vertex AI unavailable. Internet search will be disabled (no API key fallback).")
-                self.use_vertex_ai = False
-                self.client = None
-        else:
-            logger.info("Vertex AI disabled via config or missing project. Internet search will be disabled (no API key fallback).")
+            
+            self.client = None
 
         # Default model name
         self.model = "gemini-2.5-flash"
@@ -198,12 +198,14 @@ class GoogleSearchClient:
             # Adjust model list based on backend
             if self.use_vertex_ai:
                 models_to_try = [
-                    "gemini-2.5-flash",  # Try newest first; avoid 2.0 (404 in some regions)
+                    "gemini-2.5-flash",  # Try newest first
+                    "gemini-1.5-flash",  # Fallback (2.0-flash doesn't exist)
                 ]
             else:
                 # AI Studio: Try newest model first
                 models_to_try = [
                     "gemini-2.5-flash",   # Newest, most reliable
+                    "gemini-1.5-flash",   # Fallback (2.0-flash doesn't exist)
                 ]
 
             generate_content_config = types.GenerateContentConfig(**config_kwargs)
@@ -236,6 +238,11 @@ class GoogleSearchClient:
                     if self.use_vertex_ai and ("403" in error_str or "PERMISSION_DENIED" in error_str or "IAM_PERMISSION_DENIED" in error_str):
                         logger.warning(f"⚠️ Vertex AI permission denied for {model_name}: {e}")
                         logger.error(f"💡 Service account needs 'roles/aiplatform.user' role. Contact your GCP admin.")
+                        response = None
+                        continue
+                    elif "404" in error_str or "NOT_FOUND" in error_str:
+                        # Model doesn't exist, try next model
+                        logger.warning(f"⚠️ Model {model_name} not found (404), trying next model...")
                         response = None
                         continue
                     else:

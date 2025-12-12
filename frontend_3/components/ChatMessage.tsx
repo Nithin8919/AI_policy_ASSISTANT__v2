@@ -1,14 +1,12 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { User, Bot, AlertCircle, ChevronDown, ChevronRight, Brain, FileText, CheckCircle2, Copy, Check, Loader2 } from 'lucide-react'
+import { User, Bot, AlertCircle, ChevronDown, ChevronRight, Brain, FileText, CheckCircle2, Copy, Check } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { MarkdownRenderer } from '@/components/MarkdownRenderer'
-import { usePdfViewer } from '@/hooks/usePdfViewer'
-import { PdfViewer } from '@/components/PdfViewer'
 
 interface Message {
   id: string
@@ -42,13 +40,8 @@ export function ChatMessage({ message, onCopyToDraft }: ChatMessageProps) {
   const [copied, setCopied] = useState(false)
   const [showSelectionTooltip, setShowSelectionTooltip] = useState(false)
   const [selectedText, setSelectedText] = useState('')
-  const [loadingCitationIndex, setLoadingCitationIndex] = useState<number | null>(null)
   const messageRef = useRef<HTMLDivElement>(null)
   const tooltipRef = useRef<HTMLDivElement>(null)
-
-  // PDF Viewer Hook (temporarily using openPdf instead of openWithSnippet)
-  const { state: pdfState, openPdf, closePdf } = usePdfViewer()
-
 
   // Handle text selection within this message
   useEffect(() => {
@@ -326,7 +319,6 @@ export function ChatMessage({ message, onCopyToDraft }: ChatMessageProps) {
                   const hasUrl = !!citation.url;
                   const displayName = citation.filename || citation.source || citation.docId;
                   const pageInfo = citation.page ? `Page ${citation.page}` : '';
-                  const isLoading = loadingCitationIndex === index;
 
                   const CardContent = () => (
                     <div className="flex items-start gap-3">
@@ -342,46 +334,8 @@ export function ChatMessage({ message, onCopyToDraft }: ChatMessageProps) {
                           {citation.span}
                         </div>
                       </div>
-                      {isLoading && (
-                        <div className="flex-shrink-0">
-                          <Loader2 className="h-4 w-4 text-primary animate-spin" />
-                        </div>
-                      )}
                     </div>
                   );
-
-                  // Handle citation click - temporarily skip snippet location
-                  const handleCitationClick = async () => {
-                    if (hasUrl) return; // Allow default behavior for web links
-
-                    try {
-                      setLoadingCitationIndex(index);
-                      console.log('Opening PDF for citation:', citation);
-                      console.log('Citation fields:', {
-                        docId: citation.docId,
-                        source: citation.source,
-                        filename: citation.filename,
-                        url: citation.url
-                      });
-
-                      // Try to use filename if available, otherwise use docId
-                      const pdfIdentifier = citation.filename || citation.docId;
-
-                      // Temporarily skip snippet location, just open the PDF
-                      // Pass citation.source as sourceHint (4th argument)
-                      await openPdf(
-                        pdfIdentifier,
-                        citation.source || displayName,
-                        1, // pageNumber
-                        citation.source // sourceHint
-                      );
-                    } catch (error) {
-                      console.error('Failed to open PDF:', error);
-                      alert(`Failed to open PDF: ${error instanceof Error ? error.message : 'Unknown error'}\n\nThe PDF file may not exist in the storage bucket.`);
-                    } finally {
-                      setLoadingCitationIndex(null);
-                    }
-                  };
 
                   return hasUrl ? (
                     <a
@@ -396,8 +350,7 @@ export function ChatMessage({ message, onCopyToDraft }: ChatMessageProps) {
                   ) : (
                     <div
                       key={index}
-                      onClick={handleCitationClick}
-                      className={`group relative p-3 rounded-xl bg-card/50 hover:bg-card border border-border/50 hover:border-primary/20 transition-all duration-200 cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-[0.98] ${isLoading ? 'opacity-75' : ''}`}
+                      className="group relative p-3 rounded-xl bg-card/50 hover:bg-card border border-border/50 hover:border-primary/20 transition-all duration-200 cursor-pointer"
                     >
                       <CardContent />
                     </div>
@@ -408,11 +361,10 @@ export function ChatMessage({ message, onCopyToDraft }: ChatMessageProps) {
           )}
 
           {/* Thinking Section for Assistant Messages - Only show for deep thinking modes OR active thinking */}
-          {
-            message.role === 'assistant' && (
-              message.isThinking ||
-              ((message.queryMode === 'deep_think' || message.queryMode === 'qa') && (message.response?.processing_trace || thinkingContent || cloudThinkingContent))
-            ) && (
+          {message.role === 'assistant' && (
+            message.isThinking ||
+            ((message.queryMode === 'deep_think' || message.queryMode === 'qa') && (message.response?.processing_trace || thinkingContent || cloudThinkingContent))
+          ) && (
               <div className="mt-3">
                 <Collapsible open={isThinkingOpen} onOpenChange={setIsThinkingOpen}>
                   <CollapsibleTrigger className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full">
@@ -554,25 +506,13 @@ export function ChatMessage({ message, onCopyToDraft }: ChatMessageProps) {
                   </CollapsibleContent>
                 </Collapsible>
               </div>
-            )
-          }
+            )}
         </div>
 
         <div className={`text-xs text-muted-foreground mt-2 ${isUser ? 'text-right' : 'text-left'}`}>
           {formatTime(message.timestamp)}
         </div>
       </div>
-
-      {/* PDF Viewer Portal */}
-      {pdfState.isOpen && pdfState.pdfUrl && (
-        <PdfViewer
-          fileUrl={pdfState.pdfUrl || ''}
-          initialPage={pdfState.pageNumber || 1}
-          highlightText={pdfState.highlightText || undefined}
-          title={pdfState.title || undefined}
-          onClose={closePdf}
-        />
-      )}
     </div>
   )
 }
