@@ -482,8 +482,7 @@ class QueryRewriter:
                 return self.generate_rewrites(query, num_rewrites)
             
             model_names_to_try = [
-                'gemini-2.5-flash',
-                'gemini-1.5-flash',  # Fallback (2.0-flash doesn't exist)
+                'gemini-2.5-flash',  # Only use 2.5-flash (1.5-flash returns 404)
             ]
 
             client = None

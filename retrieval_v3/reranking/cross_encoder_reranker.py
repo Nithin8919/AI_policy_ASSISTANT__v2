@@ -44,12 +44,12 @@ class CrossEncoderReranker:
             return results[:top_k]
         
         # OPTIMIZATION: Reduce candidates based on mode for faster processing
-        # QA mode: 25 candidates (was 50), Policy mode: 30 candidates
+        # QA mode: 25 candidates (was 50), Comprehensive modes: 30 candidates
         if max_candidates == 50:  # Only adjust if using default
             if mode == "qa":
                 max_candidates = 25
-            elif mode in ["policy", "framework", "brainstorm"]:
-                max_candidates = 30
+            elif mode in ["policy", "framework", "brainstorm", "deepthink", "deep_think"]:
+                max_candidates = 30  # Comprehensive modes get more candidates
             else:
                 max_candidates = 25  # Default to conservative for other modes
         

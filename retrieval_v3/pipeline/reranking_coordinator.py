@@ -70,6 +70,9 @@ class RerankingCoordinator:
         query_type = interpretation.query_type.value
         mode = getattr(plan, 'mode', 'qa')
         
+        # Debug: Log mode for troubleshooting
+        logger.debug(f"🔍 Reranking mode: {mode} (from plan.mode={getattr(plan, 'mode', 'NOT_SET')})")
+        
         # OPTIMIZATION P3-1: Query-specific reranking strategies
         is_qa_mode = query_type == 'qa' or mode == 'qa'
         is_legal_query = 'legal' in normalized_query.lower() or any(
@@ -87,6 +90,16 @@ class RerankingCoordinator:
         
         # OPTIMIZATION P1-4 & P3-1: Parallelize BM25 boost and relation-entity when both needed
         # OPTIMIZATION P3-1: Skip relation-entity for QA mode (fast path)
+        # CRITICAL: Deep think and brainstorm ALWAYS use relation-entity for comprehensive retrieval
+        # Check mode (plan.mode should be "deepthink" from enum, but handle variations)
+        is_comprehensive_mode = (
+            mode in ['deepthink', 'deep_think', 'brainstorm'] or
+            'deep' in str(mode).lower() or
+            str(mode).lower() == 'brainstorm'
+        )
+        if is_comprehensive_mode:
+            logger.info(f"🔍 Comprehensive mode detected: {mode} - relation-entity will be used")
+        
         needs_bm25_boost = bm25_booster is not None
         needs_relation_entity = (
             self.use_relation_entity and 
@@ -105,19 +118,32 @@ class RerankingCoordinator:
         )
         
         # OPTIMIZATION P1-1 & P4-1: Skip relation-entity for simple queries or high-quality results
+        # EXCEPTION: Deep think and brainstorm ALWAYS use relation-entity for comprehensive retrieval
         # OPTIMIZATION P4-1: Circuit breaker - check if recent operations timed out
-        if has_high_quality_results:
+        if has_high_quality_results and not is_comprehensive_mode:
+            # Skip for non-comprehensive modes when results are good
             needs_relation_entity = False
             logger.info(f"⚡ Skipping relation-entity processing (high-quality results already)")
+        elif is_comprehensive_mode:
+            # Force relation-entity for comprehensive modes (deep think/brainstorm)
+            needs_relation_entity = True
+            logger.info(f"🔍 Deep think/brainstorm mode: Using relation-entity processing for comprehensive retrieval")
         
         # OPTIMIZATION P4-1: Circuit breaker - check system load
         # Skip expensive operations if we've had recent timeouts
-        if needs_relation_entity and hasattr(self, 'stats') and self.stats:
+        # EXCEPTION: Don't skip for comprehensive modes (deep think/brainstorm) unless critical
+        if needs_relation_entity and hasattr(self, 'stats') and self.stats and not is_comprehensive_mode:
             # Check if we've had recent failures (simple circuit breaker)
             recent_failures = self.stats.get('recent_timeouts', 0)
             if recent_failures > 3:  # If 3+ recent timeouts, skip expensive operations
                 needs_relation_entity = False
                 logger.warning(f"⚠️ Circuit breaker: Skipping relation-entity (recent_timeouts={recent_failures})")
+        elif needs_relation_entity and is_comprehensive_mode and hasattr(self, 'stats') and self.stats:
+            # For comprehensive modes, only skip if critical (5+ failures)
+            recent_failures = self.stats.get('recent_timeouts', 0)
+            if recent_failures > 5:  # Higher threshold for comprehensive modes
+                needs_relation_entity = False
+                logger.warning(f"⚠️ Circuit breaker (critical): Skipping relation-entity for comprehensive mode (recent_timeouts={recent_failures})")
         
         # Run BM25 boost and relation-entity in parallel if both needed
         if needs_bm25_boost and needs_relation_entity:

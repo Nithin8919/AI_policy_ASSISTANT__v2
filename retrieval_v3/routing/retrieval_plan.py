@@ -8,6 +8,9 @@ Determines: number of rewrites, hops, top_k, internet usage
 from typing import Dict, List
 from dataclasses import dataclass, asdict
 from enum import Enum
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -129,8 +132,25 @@ class RetrievalPlanBuilder:
         Returns:
             RetrievalPlan object
         """
-        # Map query_type to mode
-        mode = self._map_type_to_mode(query_type)
+        # CRITICAL: Check custom_params for mode first (user preference)
+        # Then fall back to query_type mapping
+        if custom_params and 'mode' in custom_params:
+            custom_mode_str = custom_params['mode']
+            # Map custom mode string to RetrievalMode enum
+            mode_mapping = {
+                'qa': RetrievalMode.QA,
+                'policy': RetrievalMode.POLICY,
+                'framework': RetrievalMode.FRAMEWORK,
+                'deepthink': RetrievalMode.DEEPTHINK,
+                'deep_think': RetrievalMode.DEEPTHINK,  # Handle underscore variant
+                'brainstorm': RetrievalMode.BRAINSTORM,
+                'compliance': RetrievalMode.COMPLIANCE,
+            }
+            mode = mode_mapping.get(custom_mode_str.lower(), self._map_type_to_mode(query_type))
+            logger.debug(f"🔍 Using custom mode: {custom_mode_str} -> {mode.value}")
+        else:
+            # Map query_type to mode (default behavior)
+            mode = self._map_type_to_mode(query_type)
         
         # Get base config for mode
         config = self.MODE_CONFIGS[mode].copy()
@@ -144,9 +164,11 @@ class RetrievalPlanBuilder:
         # Add internet flag
         config['use_internet'] = needs_internet
         
-        # Apply custom overrides
+        # Apply custom overrides (but don't override mode - already handled above)
         if custom_params:
-            config.update(custom_params)
+            # Remove mode from custom_params to avoid overriding the enum value
+            custom_params_copy = {k: v for k, v in custom_params.items() if k != 'mode'}
+            config.update(custom_params_copy)
         
         # Build plan
         plan = RetrievalPlan(
@@ -158,7 +180,7 @@ class RetrievalPlanBuilder:
             use_hybrid=config['use_hybrid'],
             rerank_top_k=config['rerank_top_k'],
             diversity_weight=config['diversity_weight'],
-            mode=mode.value
+            mode=mode.value  # Use enum value (e.g., "deepthink")
         )
         
         return plan

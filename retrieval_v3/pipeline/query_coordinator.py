@@ -59,7 +59,8 @@ class QueryUnderstandingCoordinator:
         query: str,
         normalized_query: Optional[str] = None,
         external_context: Optional[str] = None,
-        is_qa_mode: bool = False
+        is_qa_mode: bool = False,
+        num_rewrites: Optional[int] = None
     ) -> tuple[QueryInterpretation, List[str], List[str]]:
         """
         Understand query: interpret, rewrite, expand
@@ -97,7 +98,9 @@ class QueryUnderstandingCoordinator:
         )
         
         # Rewrites task
-        num_rewrites = 1 if is_qa_mode else 3  # QA: minimal rewrites
+        # Use provided num_rewrites if available, otherwise default based on mode
+        if num_rewrites is None:
+            num_rewrites = 1 if is_qa_mode else 3  # Default: QA minimal, others moderate
         
         if self.use_llm_rewrites and not is_qa_mode:
             # Skip LLM rewrites for QA mode (saves ~10s)
@@ -129,8 +132,14 @@ class QueryUnderstandingCoordinator:
             rewrites = [normalized_query]
         
         # Expand with domain keywords (parallel)
-        # OPTIMIZATION: Reduce expansion for QA mode (faster)
-        expansion_keywords = 3 if is_qa_mode else 8  # QA: minimal expansion
+        # OPTIMIZATION: Mode-aware expansion
+        # Deep think/brainstorm need more expansion for comprehensive retrieval
+        if is_qa_mode:
+            expansion_keywords = 3  # QA: minimal expansion
+        elif num_rewrites and num_rewrites >= 5:
+            expansion_keywords = 10  # Deep think/brainstorm: more expansion
+        else:
+            expansion_keywords = 8  # Default: moderate expansion
         expansion_futures = {
             self.executor.submit(self.expander.expand_query, r, expansion_keywords): r 
             for r in rewrites

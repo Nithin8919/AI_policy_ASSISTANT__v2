@@ -337,13 +337,26 @@ class RetrievalEngine:
         # Add trace step for understanding phase
         trace_steps.append("Expanding and rewriting query...")
         
+        # Determine mode early to get correct num_rewrites for deep think/brainstorm
+        mode = custom_plan.get('mode') if custom_plan else None
+        if mode in ['deepthink', 'deep_think']:
+            num_rewrites_for_understanding = 5  # Deep think: 5 rewrites
+        elif mode == 'brainstorm':
+            num_rewrites_for_understanding = 5  # Brainstorm: 5 rewrites
+        elif mode == 'policy' or mode == 'framework':
+            num_rewrites_for_understanding = 3  # Policy/Framework: 3 rewrites
+        else:
+            num_rewrites_for_understanding = None  # Use default (1 for QA, 3 for others)
+        
         # 1.3: Query Understanding via Coordinator
         # Pass already-normalized query to avoid double normalization
+        # Pass num_rewrites to ensure deep think/brainstorm get correct number
         interpretation, rewrites, expanded_rewrites = self.query_coordinator.understand_query(
             query=query,
             normalized_query=normalized_query,
             external_context=external_context,
-            is_qa_mode=is_qa_mode
+            is_qa_mode=is_qa_mode,
+            num_rewrites=num_rewrites_for_understanding
         )
         
         # OPTIMIZATION P2-4: Adaptive thread pool sizing based on query complexity
@@ -424,8 +437,15 @@ class RetrievalEngine:
         
         # OPTIMIZATION P1-5: Early exit check after first retrieval
         # Check if we have high-quality results that don't need multi-hop or expensive reranking
+        # CRITICAL: Never use early exit for comprehensive modes (deep think/brainstorm)
         early_exit_triggered = False
-        if all_results:
+        mode = custom_plan.get('mode') if custom_plan else getattr(plan, 'mode', None) if 'plan' in locals() else None
+        is_comprehensive_mode = mode and (
+            mode in ['deepthink', 'deep_think', 'brainstorm'] or
+            'deep' in str(mode).lower()
+        )
+        
+        if all_results and not is_comprehensive_mode:  # Skip early exit for comprehensive modes
             # Get top results and check their scores (use raw_score if available)
             top_results = sorted(all_results, key=lambda x: x.metadata.get('raw_score', x.score), reverse=True)[:3]
             top_scores = [r.metadata.get('raw_score', r.score) for r in top_results]
@@ -450,6 +470,8 @@ class RetrievalEngine:
                 logger.info(f"⚡ Early exit triggered: excellent results found (top score: {max(top_scores):.2f})")
                 # Skip rewrites, multi-hop, and use lightweight reranking
                 all_results = top_results + all_results[3:plan.top_k_total * 2]  # Keep top + some more for diversity
+        elif is_comprehensive_mode:
+            logger.info(f"🔍 Comprehensive mode ({mode}): Skipping early exit for thorough retrieval")
         
         # Run vector-only for rewrites (to keep it fast) - SKIP if early exit
         if not early_exit_triggered and len(expanded_rewrites) > 1:
@@ -457,7 +479,8 @@ class RetrievalEngine:
                 expanded_rewrites[1:], # Skip original
                 collection_names,
                 top_k=plan.top_k_per_vertical,
-                hop_number=1
+                hop_number=1,
+                mode=getattr(plan, 'mode', None)  # Pass mode for timeout calculation
             )
             all_results.extend(self.result_processor.normalize_scores(rewrite_results, method='min-max'))
             
@@ -486,7 +509,8 @@ class RetrievalEngine:
                     hop2_queries,
                     collection_names,
                     top_k=plan.top_k_per_vertical // 2,
-                    hop_number=2
+                    hop_number=2,
+                    mode=getattr(plan, 'mode', None)  # Pass mode for timeout calculation
                 )
                 all_results.extend(self.result_processor.normalize_scores(hop2_results, method='min-max'))
             else:

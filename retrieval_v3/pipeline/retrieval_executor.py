@@ -66,7 +66,8 @@ class RetrievalExecutor:
                 [search_query], 
                 collection_names, 
                 top_k=plan.top_k_per_vertical, 
-                hop_number=hop
+                hop_number=hop,
+                mode=getattr(plan, 'mode', None)  # Pass mode for timeout calculation
             )
         
         def run_bm25_search():
@@ -95,9 +96,21 @@ class RetrievalExecutor:
             future_bm25 = executor.submit(run_bm25_search)
             
             try:
-                # 25s timeout for vector, 10s for BM25 (increased to prevent timeouts)
-                vector_res = future_vector.result(timeout=25.0)
-                bm25_res = future_bm25.result(timeout=10.0)
+                # OPTIMIZATION: Mode-aware timeouts
+                # Deep think/brainstorm: longer timeouts for comprehensive retrieval
+                mode = getattr(plan, 'mode', 'qa')
+                if mode in ['deepthink', 'brainstorm']:
+                    vector_timeout = 40.0  # Longer for comprehensive modes
+                    bm25_timeout = 20.0
+                elif mode in ['policy', 'framework']:
+                    vector_timeout = 25.0  # Moderate for policy modes
+                    bm25_timeout = 12.0
+                else:
+                    vector_timeout = 15.0  # Fast for QA
+                    bm25_timeout = 8.0
+                
+                vector_res = future_vector.result(timeout=vector_timeout)
+                bm25_res = future_bm25.result(timeout=bm25_timeout)
             except concurrent.futures.TimeoutError:
                 logger.warning("Search timeout - using partial results")
                 if future_vector.done():
@@ -155,7 +168,8 @@ class RetrievalExecutor:
         queries: List[str],
         collections: List[str],
         top_k: int,
-        hop_number: int = 1
+        hop_number: int = 1,
+        mode: Optional[str] = None
     ) -> List[RetrievalResult]:
         """
         Parallel retrieval across all query-collection combinations
@@ -245,16 +259,57 @@ class RetrievalExecutor:
             for task in search_tasks
         }
         
-        # Collect results as they complete
-        for future in as_completed(future_to_task, timeout=60):  # 60s total timeout
+        # OPTIMIZATION: Mode-aware adaptive timeout
+        # Deep think and brainstorm need longer timeouts for comprehensive retrieval
+        num_searches = len(search_tasks)
+        
+        # Mode-based timeout multipliers
+        if mode in ['deepthink', 'brainstorm']:
+            # Comprehensive modes: longer timeout for thorough retrieval
+            base_timeout_per_search = 8  # 8s per search for comprehensive modes
+            max_timeout = 90  # Up to 90s for comprehensive retrieval
+            min_timeout = 30  # Minimum 30s for comprehensive modes
+        elif mode in ['policy', 'framework']:
+            # Policy modes: moderate timeout
+            base_timeout_per_search = 5  # 5s per search
+            max_timeout = 60  # Up to 60s
+            min_timeout = 20  # Minimum 20s
+        else:
+            # QA and other modes: fast timeout
+            base_timeout_per_search = 3  # 3s per search
+            max_timeout = 30  # Up to 30s
+            min_timeout = 10  # Minimum 10s
+        
+        adaptive_timeout = min(max_timeout, max(min_timeout, num_searches * base_timeout_per_search + 10))
+        logger.debug(f"Parallel retrieval: {num_searches} searches, mode={mode}, timeout={adaptive_timeout}s")
+        
+        # Collect results as they complete with adaptive timeout
+        # Mode-aware individual search timeout
+        if mode in ['deepthink', 'brainstorm']:
+            individual_timeout = 10  # 10s per search for comprehensive modes
+        elif mode in ['policy', 'framework']:
+            individual_timeout = 7  # 7s per search for policy modes
+        else:
+            individual_timeout = 5  # 5s per search for QA
+        
+        completed_count = 0
+        for future in as_completed(future_to_task, timeout=adaptive_timeout):
             try:
-                results = future.result(timeout=10)  # 10s per individual search
+                results = future.result(timeout=individual_timeout)
                 if results:
                     all_results.extend(results)
+                    completed_count += 1
+            except concurrent.futures.TimeoutError:
+                task = future_to_task[future]
+                logger.warning(f"⏱️ Search timeout for '{task[0][:50]}...' in {task[1]}")
+                continue
             except Exception as e:
                 task = future_to_task[future]
-                print(f"Parallel search failed for {task[0]} in {task[1]}: {e}")
+                logger.warning(f"Parallel search failed for {task[0][:50]}... in {task[1]}: {e}")
                 continue
+        
+        if completed_count < num_searches:
+            logger.warning(f"⚠️ Only {completed_count}/{num_searches} searches completed within {adaptive_timeout}s timeout")
         
         return all_results
     
